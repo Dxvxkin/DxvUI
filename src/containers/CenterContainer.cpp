@@ -2,7 +2,11 @@
 
 namespace DxvUI {
 
-    void CenterContainer::draw(IRenderer& renderer) {
+    void CenterContainer::updateLayout() {
+        // First, let children update their own internal layouts if needed
+        SceneNode::updateLayout();
+
+        // Now, apply this container's layout logic
         if (!children.empty()) {
             auto& child = children.front();
             if (child) {
@@ -11,10 +15,6 @@ namespace DxvUI {
                 child->relY = (this->height - child->height) / 2;
             }
         }
-
-        // After updating layout, proceed with the standard draw call,
-        // which will draw the children at their new positions.
-        SceneNode::draw(renderer);
     }
 
 }

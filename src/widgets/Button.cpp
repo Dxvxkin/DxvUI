@@ -1,15 +1,22 @@
 #include "DxvUI/widgets/Button.h"
-#include "DxvUI/ActionRegistry.h"
+#include <utility>
 
 namespace DxvUI {
 
-    // Constructor for JSON/Registry-based actions
-    Button::Button(const std::string& actionName) : actionName(actionName), onClickAction(nullptr) {}
+    Button::Button(std::string id, std::optional<ActionCallback> onClick)
+        : buttonId(std::move(id)) {
+        if (onClick) {
+            ActionRegistry::instance().registerAction(buttonId, *onClick);
+        }
+    }
 
-    // Constructor for direct lambda-based actions
-    Button::Button(std::function<void()> onClick) : onClickAction(std::move(onClick)) {}
+    bool Button::handleEvent(const DxvEvent& event) {
+        // First, let children try to handle the event.
+        if (SceneNode::handleEvent(event)) {
+            return true;
+        }
 
-    void Button::handleEvent(const DxvEvent& event) {
+        // If no child consumed it, check if this button is clicked.
         if (event.type == EventType::MouseDown) {
             int globalX, globalY;
             getGlobalPosition(globalX, globalY);
@@ -18,26 +25,23 @@ namespace DxvUI {
                               event.y >= globalY && event.y <= globalY + height);
 
             if (isClicked) {
-                // Priority 1: Direct lambda
-                if (onClickAction) {
-                    onClickAction();
+                if (auto action = ActionRegistry::instance().getAction(buttonId)) {
+                    // Call the action, passing this button as the sender and the event details.
+                    action(this, event);
                 }
-                // Priority 2: Action Registry
-                else if (!actionName.empty()) {
-                    if (auto action = ActionRegistry::instance().getAction(actionName)) {
-                        action();
-                    }
-                }
+                return true; // Event consumed!
             }
         }
-        // Propagate event to children anyway
-        SceneNode::handleEvent(event);
+
+        return false; // Event not consumed
     }
 
     void Button::draw(IRenderer& renderer) {
         int globalX, globalY;
         getGlobalPosition(globalX, globalY);
         renderer.drawRect(globalX, globalY, width, height);
+
+        // Also draw children
         SceneNode::draw(renderer);
     }
 

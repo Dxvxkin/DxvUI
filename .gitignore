@@ -1,0 +1,25 @@
+# IDE specific files
+.idea/
+.vscode/
+*.suo
+*.user
+*.sln.docstates
+
+# Build directories
+/build/
+/cmake-build-*/
+/out/
+
+# Compiled files
+*.o
+*.so
+*.a
+*.dll
+*.exe
+*.lib
+
+# Other
+*.log
+*.tmp
+*.bak
+*~

@@ -1,17 +1,26 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.16)
 project(DxvUI)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# --- Fetch nlohmann_json ---
+# --- Fetch Dependencies ---
 include(FetchContent)
+
 FetchContent_Declare(
   nlohmann_json
   GIT_REPOSITORY https://github.com/nlohmann/json.git
   GIT_TAG v3.11.3
 )
 FetchContent_MakeAvailable(nlohmann_json)
+
+FetchContent_Declare(
+  SDL2
+  GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
+  GIT_TAG release-2.28.5
+)
+FetchContent_MakeAvailable(SDL2)
+
 
 # --- DxvUI Library ---
 add_library(DxvUI STATIC)
@@ -21,6 +30,7 @@ target_sources(DxvUI PRIVATE
     src/WidgetFactory.cpp
     src/widgets/Button.cpp
     src/containers/CenterContainer.cpp
+    src/renderers/SDLRenderer.cpp
 )
 
 target_include_directories(DxvUI PUBLIC
@@ -28,18 +38,18 @@ target_include_directories(DxvUI PUBLIC
     $<INSTALL_INTERFACE:include>
 )
 
-target_link_libraries(DxvUI PUBLIC nlohmann_json::nlohmann_json)
+# Link DxvUI to its dependencies
+# We also add SDL2main here so any executable linking DxvUI gets it.
+target_link_libraries(DxvUI PUBLIC
+    nlohmann_json::nlohmann_json
+    SDL2::SDL2-static
+    SDL2::SDL2main # This provides the WinMain entry point
+)
+
 
 # --- Example ---
+# The WIN32 flag is removed for now to keep the console for debugging.
 add_executable(DxvUIExample examples/main.cpp)
-target_link_libraries(DxvUIExample PRIVATE DxvUI)
 
-# --- Optional: Installation ---
-# Allows you to install the library system-wide or in a local directory
-# include(GNUInstallDirs)
-# install(TARGETS DxvUI
-#     EXPORT DxvUI-targets
-#     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-#     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-# )
-# install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+# Link the example to our library
+target_link_libraries(DxvUIExample PRIVATE DxvUI)

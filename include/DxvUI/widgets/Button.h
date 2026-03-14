@@ -2,25 +2,29 @@
 #define DXVUI_BUTTON_H
 
 #include "../SceneNode.h"
+#include "../ActionRegistry.h" // For ActionCallback
 #include <string>
 #include <functional>
+#include <optional>
 
 namespace DxvUI {
 
     class Button : public SceneNode {
     public:
-        // Constructor for JSON/Registry-based actions
-        explicit Button(const std::string& actionName);
+        /**
+         * @brief Constructs a Button.
+         * @param id A unique identifier for this button.
+         * @param onClick An optional lambda function. If provided, it will be registered
+         *                in the ActionRegistry with the given id. If not provided, the button
+         *                expects an action to be already registered with this id.
+         */
+        Button(std::string id, std::optional<ActionCallback> onClick = std::nullopt);
 
-        // Constructor for direct lambda-based actions
-        explicit Button(std::function<void()> onClick);
-
-        void handleEvent(const DxvEvent& event) override;
+        bool handleEvent(const DxvEvent& event) override;
         void draw(IRenderer& renderer) override;
 
     private:
-        std::string actionName;
-        std::function<void()> onClickAction;
+        std::string buttonId;
     };
 
 }

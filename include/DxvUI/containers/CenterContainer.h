@@ -12,7 +12,7 @@ namespace DxvUI {
     public:
         using Container::Container; // Inherit constructors
 
-        void draw(IRenderer& renderer) override;
+        void updateLayout() override;
     };
 
 }

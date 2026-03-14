@@ -1,42 +1,75 @@
 #include <iostream>
 #include <DxvUI/DxvUI.h>
+#include <DxvUI/renderers/SDLRenderer.h> // Corrected include path
+#include <SDL.h> // For SDL_Event
 
-// A mock renderer for demonstration purposes
-class ConsoleRenderer : public DxvUI::IRenderer {
-public:
-    void drawRect(int x, int y, int width, int height) override {
-        std::cout << "Drawing rect at (" << x << ", " << y << ") with size " << width << "x" << height << std::endl;
-    }
-    void drawText(const std::string& text, int x, int y) override {
-        std::cout << "Drawing text '" << text << "' at (" << x << ", " << y << ")" << std::endl;
-    }
-    void drawImage(const std::string& imagePath, int x, int y) override {
-        std::cout << "Drawing image '" << imagePath << "' at (" << x << ", " << y << ")" << std::endl;
-    }
-};
+int SDL_main(int argc, char* argv[]) {
+    // 1. Setup
+    const int SCREEN_WIDTH = 800;
+    const int SCREEN_HEIGHT = 600;
+    DxvUI::SDLRenderer renderer("DxvUI SDL2 Example", SCREEN_WIDTH, SCREEN_HEIGHT);
 
-int main() {
-    // 1. Register actions
-    DxvUI::ActionRegistry::instance().registerAction("my_button_click", []() {
-        std::cout << "Button clicked!" << std::endl;
+    // 2. Register Actions
+    DxvUI::ActionRegistry::instance().registerAction("quit_button", [](DxvUI::SceneNode* s, const DxvUI::DxvEvent& e) {
+        std::cout << "Quit button clicked! This would normally close the app." << std::endl;
+    });
+    DxvUI::ActionRegistry::instance().registerAction("other_button", [](DxvUI::SceneNode* s, const DxvUI::DxvEvent& e) {
+        std::cout << "The other button was clicked at local coords ("
+                  << e.x - s->relX << ", " << e.y - s->relY << ")" << std::endl;
     });
 
-    // 2. Load UI from JSON
-    std::string jsonString = R"({
-        "type": "SceneNode", "x": 0, "y": 0, "width": 800, "height": 600,
-        "children": [
-            { "type": "Button", "action": "my_button_click", "x": 50, "y": 50, "width": 100, "height": 30 }
-        ]
-    })";
-    std::shared_ptr<DxvUI::SceneNode> root = DxvUI::loadTreeFromJson(jsonString);
+    // 3. Build UI Scene
+    auto root = std::make_shared<DxvUI::SceneNode>();
+    root->width = SCREEN_WIDTH;
+    root->height = SCREEN_HEIGHT;
 
-    // 3. Create a renderer and draw the UI
-    ConsoleRenderer renderer;
-    root->draw(renderer);
+    auto quitButton = std::make_shared<DxvUI::Button>("quit_button");
+    quitButton->relX = 680;
+    quitButton->relY = 550;
+    quitButton->width = 100;
+    quitButton->height = 30;
+    root->addChild(quitButton);
 
-    // 4. Simulate a click event
-    DxvUI::DxvEvent clickEvent{DxvUI::EventType::MouseDown, 75, 65};
-    root->handleEvent(clickEvent);
+    auto centeredContainer = std::make_shared<DxvUI::CenterContainer>();
+    centeredContainer->width = 400;
+    centeredContainer->height = 300;
+    centeredContainer->relX = (SCREEN_WIDTH - centeredContainer->width) / 2;
+    centeredContainer->relY = (SCREEN_HEIGHT - centeredContainer->height) / 2;
+    root->addChild(centeredContainer);
+
+    auto otherButton = std::make_shared<DxvUI::Button>("other_button");
+    otherButton->width = 150;
+    otherButton->height = 50;
+    centeredContainer->addChild(otherButton); // Add to container, not root
+
+    // 4. Main Loop
+    bool quit = false;
+    SDL_Event e;
+
+    while (!quit) {
+        // Handle SDL events
+        while (SDL_PollEvent(&e) != 0) {
+            if (e.type == SDL_QUIT) {
+                quit = true;
+            }
+            // Convert SDL_Event to DxvEvent and dispatch it
+            else if (e.type == SDL_MOUSEBUTTONDOWN) {
+                DxvUI::DxvEvent dxvEvent;
+                dxvEvent.type = DxvUI::EventType::MouseDown;
+                dxvEvent.x = e.button.x;
+                dxvEvent.y = e.button.y;
+                root->handleEvent(dxvEvent);
+            }
+        }
+
+        // Update UI layout
+        root->updateLayout();
+
+        // Render UI
+        renderer.clear();
+        root->draw(renderer);
+        renderer.present();
+    }
 
     return 0;
 }

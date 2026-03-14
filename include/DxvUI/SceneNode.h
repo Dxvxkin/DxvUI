@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <vector>
+#include <algorithm> // For std::stable_sort
 #include "core.h"
 #include "interfaces/IRenderer.h"
 
@@ -19,7 +20,11 @@ namespace DxvUI {
 
         void getGlobalPosition(int& x, int& y) const;
 
-        virtual void handleEvent(const DxvEvent& event);
+        void setZIndex(int newZIndex);
+        int getZIndex() const;
+
+        virtual bool handleEvent(const DxvEvent& event);
+        virtual void updateLayout();
         virtual void draw(IRenderer& renderer);
 
         std::weak_ptr<SceneNode> parent;
@@ -28,6 +33,12 @@ namespace DxvUI {
         int relX = 0, relY = 0;
         int width = 0, height = 0;
         Anchor anchor = Anchor::TopLeft;
+
+    private:
+        void sortChildrenIfDirty();
+
+        int zIndex = 0;
+        bool childrenOrderDirty = false;
     };
 
 }

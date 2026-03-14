@@ -9,7 +9,7 @@ namespace DxvUI {
         std::string type = widgetJson.value("type", "");
 
         if (type == "Button") {
-            widget = std::make_shared<Button>(widgetJson.value("action", ""));
+            widget = std::make_shared<Button>(widgetJson.value("id", ""));
         } else if (type == "CenterContainer") {
             widget = std::make_shared<CenterContainer>();
         }
@@ -21,6 +21,7 @@ namespace DxvUI {
         widget->relY = widgetJson.value("y", 0);
         widget->width = widgetJson.value("width", 0);
         widget->height = widgetJson.value("height", 0);
+        widget->setZIndex(widgetJson.value("zIndex", 0));
 
         if (widgetJson.contains("children")) {
             for (const auto& childJson : widgetJson["children"]) {

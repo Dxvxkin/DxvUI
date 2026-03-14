@@ -7,6 +7,12 @@
 
 namespace DxvUI {
 
+    // Forward declaration
+    class SceneNode;
+    struct DxvEvent;
+
+    using ActionCallback = std::function<void(SceneNode*, const DxvEvent&)>;
+
     class ActionRegistry {
     public:
         static ActionRegistry& instance() {
@@ -14,20 +20,28 @@ namespace DxvUI {
             return instance;
         }
 
-        void registerAction(const std::string& name, std::function<void()> action) {
-            actions[name] = action;
+        void registerAction(const std::string& name, ActionCallback action) {
+            actions[name] = std::move(action);
         }
 
-        std::function<void()> getAction(const std::string& name) {
+        ActionCallback getAction(const std::string& name) {
             if (actions.count(name)) {
                 return actions[name];
             }
             return nullptr;
         }
 
+        bool isRegistered(const std::string& name) const {
+            return actions.count(name) > 0;
+        }
+
+        void unregisterAction(const std::string& name) {
+            actions.erase(name);
+        }
+
     private:
         ActionRegistry() = default;
-        std::map<std::string, std::function<void()>> actions;
+        std::map<std::string, ActionCallback> actions;
     };
 
 }
