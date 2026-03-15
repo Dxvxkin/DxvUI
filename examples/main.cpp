@@ -23,20 +23,29 @@ extern "C" int SDL_main(int argc, char* argv[]) {
     // 2. Register Actions
     DxvUI::ActionRegistry::instance().registerAction("quit_button", [](DxvUI::SceneNode* s, const DxvUI::DxvEvent& e) {
         std::cout << "Quit button clicked!" << std::endl;
-        // In a real app, you'd push a Quit event or set a flag.
     });
     DxvUI::ActionRegistry::instance().registerAction("other_button", [](DxvUI::SceneNode* s, const DxvUI::DxvEvent& e) {
-        std::cout << "The other button was clicked with " << mouseButtonToString(e.button) << " button." << std::endl;
-        // Change color on click
+        std::cout << "The other button was clicked." << std::endl;
         if (auto button = dynamic_cast<DxvUI::Button*>(s)) {
             button->backgroundColor = button->backgroundColor.lighten(0.2f);
-            button->borderColor = DxvUI::Colors::White;
-            button->borderRadius = (button->borderRadius + 5) % (button->width / 2); // Cycle through roundness
+        }
+    });
+    DxvUI::ActionRegistry::instance().registerAction("find_and_disable_button", [](DxvUI::SceneNode* s, const DxvUI::DxvEvent& e) {
+        std::cout << "Finding and 'disabling' the other button." << std::endl;
+        // Find the root node to start the search from
+        auto root = s;
+        while(auto p = root->parent.lock()) {
+            root = p.get();
+        }
+        // Find the other button by its ID
+        if (auto foundButton = std::dynamic_pointer_cast<DxvUI::Button>(root->findNodeById("other_button"))) {
+            foundButton->backgroundColor = DxvUI::Colors::Gray;
+            // In a real app, you'd also disable its event handling.
         }
     });
 
     // 3. Build UI Scene
-    auto root = std::make_shared<DxvUI::SceneNode>();
+    auto root = std::make_shared<DxvUI::SceneNode>("root");
     root->width = SCREEN_WIDTH;
     root->height = SCREEN_HEIGHT;
 
@@ -46,10 +55,17 @@ extern "C" int SDL_main(int argc, char* argv[]) {
     quitButton->width = 100;
     quitButton->height = 30;
     quitButton->backgroundColor = DxvUI::Color::fromHex("#d63031");
-    quitButton->borderColor = DxvUI::Colors::Black;
     root->addChild(quitButton);
 
-    auto centeredContainer = std::make_shared<DxvUI::CenterContainer>();
+    auto findButton = std::make_shared<DxvUI::Button>("find_and_disable_button");
+    findButton->relX = 680;
+    findButton->relY = 510;
+    findButton->width = 100;
+    findButton->height = 30;
+    findButton->backgroundColor = DxvUI::Colors::Yellow;
+    root->addChild(findButton);
+
+    auto centeredContainer = std::make_shared<DxvUI::CenterContainer>("center_container");
     centeredContainer->width = 400;
     centeredContainer->height = 300;
     centeredContainer->relX = (SCREEN_WIDTH - centeredContainer->width) / 2;
@@ -60,9 +76,7 @@ extern "C" int SDL_main(int argc, char* argv[]) {
     otherButton->width = 150;
     otherButton->height = 50;
     otherButton->backgroundColor = DxvUI::Color::fromHex("#0984e3");
-    otherButton->borderColor = DxvUI::Colors::White;
-    otherButton->borderWidth = 3;
-    otherButton->borderRadius = 8; // Give it nice rounded corners
+    otherButton->borderRadius = 8;
     centeredContainer->addChild(otherButton);
 
     // 4. Main Loop
@@ -79,7 +93,6 @@ extern "C" int SDL_main(int argc, char* argv[]) {
         }
 
         root->updateLayout();
-
         renderer.clear(DxvUI::Color::fromHex("#2d3436"));
         root->draw(renderer);
         renderer.present();

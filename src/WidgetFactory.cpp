@@ -7,14 +7,16 @@ namespace DxvUI {
     std::shared_ptr<SceneNode> WidgetFactory::createWidget(const nlohmann::json& widgetJson) {
         std::shared_ptr<SceneNode> widget = nullptr;
         std::string type = widgetJson.value("type", "");
+        std::string id = widgetJson.value("id", ""); // Extract id for all nodes
 
         if (type == "Button") {
-            widget = std::make_shared<Button>(widgetJson.value("id", ""));
+            // The action name is now the same as the node's id.
+            widget = std::make_shared<Button>(id);
         } else if (type == "CenterContainer") {
-            widget = std::make_shared<CenterContainer>();
+            widget = std::make_shared<CenterContainer>(id);
         }
         else {
-            widget = std::make_shared<SceneNode>();
+            widget = std::make_shared<SceneNode>(id);
         }
 
         widget->relX = widgetJson.value("x", 0);

@@ -1,8 +1,9 @@
 #include "DxvUI/SceneNode.h"
+#include <utility>
 
 namespace DxvUI {
 
-    SceneNode::SceneNode() = default;
+    SceneNode::SceneNode(std::string id) : id(std::move(id)) {}
 
     void SceneNode::setParent(std::shared_ptr<SceneNode> newParent) {
         if (auto p = parent.lock()) {
@@ -24,6 +25,22 @@ namespace DxvUI {
         children.erase(std::remove(children.begin(), children.end(), child), children.end());
         child->parent.reset();
         childrenOrderDirty = true;
+    }
+
+    const std::string& SceneNode::getId() const {
+        return id;
+    }
+
+    std::shared_ptr<SceneNode> SceneNode::findNodeById(const std::string& searchId) {
+        if (id == searchId) {
+            return shared_from_this();
+        }
+        for (const auto& child : children) {
+            if (auto found = child->findNodeById(searchId)) {
+                return found;
+            }
+        }
+        return nullptr;
     }
 
     void SceneNode::getGlobalPosition(int& x, int& y) const {
@@ -67,17 +84,15 @@ namespace DxvUI {
 
     bool SceneNode::handleEvent(const DxvEvent& event) {
         sortChildrenIfDirty();
-        // Iterate backwards, because higher z-index/later-added children are on top.
         for (auto it = children.rbegin(); it != children.rend(); ++it) {
             if ((*it)->handleEvent(event)) {
-                return true; // Child consumed the event
+                return true;
             }
         }
-        return false; // No child consumed the event
+        return false;
     }
 
     void SceneNode::updateLayout() {
-        // Layout update does not depend on Z-order, so no sort is needed here.
         for (auto& child : children) {
             child->updateLayout();
         }

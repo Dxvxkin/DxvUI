@@ -3,7 +3,8 @@
 
 #include <memory>
 #include <vector>
-#include <algorithm> // For std::stable_sort
+#include <string>
+#include <algorithm>
 #include "core.h"
 #include "interfaces/IRenderer.h"
 
@@ -11,12 +12,15 @@ namespace DxvUI {
 
     class SceneNode : public std::enable_shared_from_this<SceneNode> {
     public:
-        SceneNode();
+        explicit SceneNode(std::string id = "");
         virtual ~SceneNode() = default;
 
         void setParent(std::shared_ptr<SceneNode> newParent);
         void addChild(std::shared_ptr<SceneNode> child);
         void removeChild(std::shared_ptr<SceneNode> child);
+
+        const std::string& getId() const;
+        std::shared_ptr<SceneNode> findNodeById(const std::string& searchId);
 
         void getGlobalPosition(int& x, int& y) const;
         Rect getGlobalBounds() const;
@@ -33,6 +37,9 @@ namespace DxvUI {
 
         int relX = 0, relY = 0;
         int width = 0, height = 0;
+
+    protected:
+        std::string id;
 
     private:
         void sortChildrenIfDirty();

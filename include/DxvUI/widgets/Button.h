@@ -21,9 +21,6 @@ namespace DxvUI {
         Color borderColor = {100, 100, 100};
         int borderWidth = 1;
         int borderRadius = 0;
-
-    private:
-        std::string buttonId;
     };
 
 }

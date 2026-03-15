@@ -4,9 +4,10 @@
 namespace DxvUI {
 
     Button::Button(std::string id, std::optional<ActionCallback> onClick)
-        : buttonId(std::move(id)) {
+        : SceneNode(std::move(id)) { // Pass the id to the base class constructor
         if (onClick) {
-            ActionRegistry::instance().registerAction(buttonId, *onClick);
+            // Use the id from the base class
+            ActionRegistry::instance().registerAction(this->id, *onClick);
         }
     }
 
@@ -17,7 +18,8 @@ namespace DxvUI {
 
         if (event.type == EventType::MouseDown) {
             if (getGlobalBounds().contains(event.x, event.y)) {
-                if (auto action = ActionRegistry::instance().getAction(buttonId)) {
+                // Use the id from the base class
+                if (auto action = ActionRegistry::instance().getAction(getId())) {
                     action(this, event);
                 }
                 return true;
@@ -30,14 +32,18 @@ namespace DxvUI {
     void Button::draw(IRenderer& renderer) {
         Rect bounds = getGlobalBounds();
         
-        // The new renderer API makes drawing complex shapes trivial.
-        // We can draw a filled, rounded rectangle with a border in a single call.
-        if (borderWidth > 0) {
-            Border border{ .color = borderColor, .thickness = borderWidth };
-            renderer.fillRoundRect(bounds, borderRadius, backgroundColor, border);
+        if (borderRadius > 0) {
+            if (borderWidth > 0) {
+                renderer.fillRoundRect(bounds, borderRadius, backgroundColor, {borderColor, borderWidth});
+            } else {
+                renderer.fillRoundRect(bounds, borderRadius, backgroundColor);
+            }
         } else {
-            // If there's no border, just draw the filled rounded rectangle.
-            renderer.fillRoundRect(bounds, borderRadius, backgroundColor);
+            if (borderWidth > 0) {
+                renderer.fillRect(bounds, backgroundColor, {borderColor, borderWidth});
+            } else {
+                renderer.fillRect(bounds, backgroundColor);
+            }
         }
 
         SceneNode::draw(renderer);
