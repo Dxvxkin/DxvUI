@@ -2,7 +2,8 @@
 #define DXVUI_BUTTON_H
 
 #include "../SceneNode.h"
-#include "../ActionRegistry.h" // For ActionCallback
+#include "../ActionRegistry.h"
+#include "../Color.h"
 #include <string>
 #include <functional>
 #include <optional>
@@ -11,17 +12,15 @@ namespace DxvUI {
 
     class Button : public SceneNode {
     public:
-        /**
-         * @brief Constructs a Button.
-         * @param id A unique identifier for this button.
-         * @param onClick An optional lambda function. If provided, it will be registered
-         *                in the ActionRegistry with the given id. If not provided, the button
-         *                expects an action to be already registered with this id.
-         */
         Button(std::string id, std::optional<ActionCallback> onClick = std::nullopt);
 
         bool handleEvent(const DxvEvent& event) override;
         void draw(IRenderer& renderer) override;
+
+        Color backgroundColor = {200, 200, 200};
+        Color borderColor = {100, 100, 100};
+        int borderWidth = 1;
+        int borderRadius = 0;
 
     private:
         std::string buttonId;

@@ -1,21 +1,38 @@
 #include <iostream>
 #include <DxvUI/DxvUI.h>
-#include <DxvUI/renderers/SDLRenderer.h> // Corrected include path
-#include <SDL.h> // For SDL_Event
+#include <DxvUI/Colors.h>
+#include <DxvUI/renderers/SDLRenderer.h>
+#include <DxvUI/sources/SDLEventSource.h>
 
-int SDL_main(int argc, char* argv[]) {
+std::string mouseButtonToString(DxvUI::MouseButton button) {
+    switch (button) {
+        case DxvUI::MouseButton::Left: return "Left";
+        case DxvUI::MouseButton::Middle: return "Middle";
+        case DxvUI::MouseButton::Right: return "Right";
+        default: return "Unknown";
+    }
+}
+
+extern "C" int SDL_main(int argc, char* argv[]) {
     // 1. Setup
     const int SCREEN_WIDTH = 800;
     const int SCREEN_HEIGHT = 600;
     DxvUI::SDLRenderer renderer("DxvUI SDL2 Example", SCREEN_WIDTH, SCREEN_HEIGHT);
+    DxvUI::SDLEventSource eventSource;
 
     // 2. Register Actions
     DxvUI::ActionRegistry::instance().registerAction("quit_button", [](DxvUI::SceneNode* s, const DxvUI::DxvEvent& e) {
-        std::cout << "Quit button clicked! This would normally close the app." << std::endl;
+        std::cout << "Quit button clicked!" << std::endl;
+        // In a real app, you'd push a Quit event or set a flag.
     });
     DxvUI::ActionRegistry::instance().registerAction("other_button", [](DxvUI::SceneNode* s, const DxvUI::DxvEvent& e) {
-        std::cout << "The other button was clicked at local coords ("
-                  << e.x - s->relX << ", " << e.y - s->relY << ")" << std::endl;
+        std::cout << "The other button was clicked with " << mouseButtonToString(e.button) << " button." << std::endl;
+        // Change color on click
+        if (auto button = dynamic_cast<DxvUI::Button*>(s)) {
+            button->backgroundColor = button->backgroundColor.lighten(0.2f);
+            button->borderColor = DxvUI::Colors::White;
+            button->borderRadius = (button->borderRadius + 5) % (button->width / 2); // Cycle through roundness
+        }
     });
 
     // 3. Build UI Scene
@@ -28,6 +45,8 @@ int SDL_main(int argc, char* argv[]) {
     quitButton->relY = 550;
     quitButton->width = 100;
     quitButton->height = 30;
+    quitButton->backgroundColor = DxvUI::Color::fromHex("#d63031");
+    quitButton->borderColor = DxvUI::Colors::Black;
     root->addChild(quitButton);
 
     auto centeredContainer = std::make_shared<DxvUI::CenterContainer>();
@@ -40,33 +59,28 @@ int SDL_main(int argc, char* argv[]) {
     auto otherButton = std::make_shared<DxvUI::Button>("other_button");
     otherButton->width = 150;
     otherButton->height = 50;
-    centeredContainer->addChild(otherButton); // Add to container, not root
+    otherButton->backgroundColor = DxvUI::Color::fromHex("#0984e3");
+    otherButton->borderColor = DxvUI::Colors::White;
+    otherButton->borderWidth = 3;
+    otherButton->borderRadius = 8; // Give it nice rounded corners
+    centeredContainer->addChild(otherButton);
 
     // 4. Main Loop
     bool quit = false;
-    SDL_Event e;
+    DxvUI::DxvEvent event;
 
     while (!quit) {
-        // Handle SDL events
-        while (SDL_PollEvent(&e) != 0) {
-            if (e.type == SDL_QUIT) {
+        while (eventSource.pollEvent(event)) {
+            if (event.type == DxvUI::EventType::Quit) {
                 quit = true;
-            }
-            // Convert SDL_Event to DxvEvent and dispatch it
-            else if (e.type == SDL_MOUSEBUTTONDOWN) {
-                DxvUI::DxvEvent dxvEvent;
-                dxvEvent.type = DxvUI::EventType::MouseDown;
-                dxvEvent.x = e.button.x;
-                dxvEvent.y = e.button.y;
-                root->handleEvent(dxvEvent);
+            } else {
+                root->handleEvent(event);
             }
         }
 
-        // Update UI layout
         root->updateLayout();
 
-        // Render UI
-        renderer.clear();
+        renderer.clear(DxvUI::Color::fromHex("#2d3436"));
         root->draw(renderer);
         renderer.present();
     }

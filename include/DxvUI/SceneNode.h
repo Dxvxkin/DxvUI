@@ -19,6 +19,7 @@ namespace DxvUI {
         void removeChild(std::shared_ptr<SceneNode> child);
 
         void getGlobalPosition(int& x, int& y) const;
+        Rect getGlobalBounds() const;
 
         void setZIndex(int newZIndex);
         int getZIndex() const;
@@ -32,7 +33,6 @@ namespace DxvUI {
 
         int relX = 0, relY = 0;
         int width = 0, height = 0;
-        Anchor anchor = Anchor::TopLeft;
 
     private:
         void sortChildrenIfDirty();

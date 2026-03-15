@@ -11,37 +11,35 @@ namespace DxvUI {
     }
 
     bool Button::handleEvent(const DxvEvent& event) {
-        // First, let children try to handle the event.
         if (SceneNode::handleEvent(event)) {
             return true;
         }
 
-        // If no child consumed it, check if this button is clicked.
         if (event.type == EventType::MouseDown) {
-            int globalX, globalY;
-            getGlobalPosition(globalX, globalY);
-
-            bool isClicked = (event.x >= globalX && event.x <= globalX + width &&
-                              event.y >= globalY && event.y <= globalY + height);
-
-            if (isClicked) {
+            if (getGlobalBounds().contains(event.x, event.y)) {
                 if (auto action = ActionRegistry::instance().getAction(buttonId)) {
-                    // Call the action, passing this button as the sender and the event details.
                     action(this, event);
                 }
-                return true; // Event consumed!
+                return true;
             }
         }
 
-        return false; // Event not consumed
+        return false;
     }
 
     void Button::draw(IRenderer& renderer) {
-        int globalX, globalY;
-        getGlobalPosition(globalX, globalY);
-        renderer.drawRect(globalX, globalY, width, height);
+        Rect bounds = getGlobalBounds();
+        
+        // The new renderer API makes drawing complex shapes trivial.
+        // We can draw a filled, rounded rectangle with a border in a single call.
+        if (borderWidth > 0) {
+            Border border{ .color = borderColor, .thickness = borderWidth };
+            renderer.fillRoundRect(bounds, borderRadius, backgroundColor, border);
+        } else {
+            // If there's no border, just draw the filled rounded rectangle.
+            renderer.fillRoundRect(bounds, borderRadius, backgroundColor);
+        }
 
-        // Also draw children
         SceneNode::draw(renderer);
     }
 

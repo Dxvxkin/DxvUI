@@ -37,6 +37,12 @@ namespace DxvUI {
         }
     }
 
+    Rect SceneNode::getGlobalBounds() const {
+        int globalX, globalY;
+        getGlobalPosition(globalX, globalY);
+        return {globalX, globalY, width, height};
+    }
+
     void SceneNode::setZIndex(int newZIndex) {
         if (zIndex != newZIndex) {
             zIndex = newZIndex;
