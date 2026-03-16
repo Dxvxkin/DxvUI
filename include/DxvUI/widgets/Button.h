@@ -14,6 +14,9 @@ namespace DxvUI {
     public:
         Button(std::string id, std::optional<ActionCallback> onClick = std::nullopt);
 
+        // Overriding to handle pending action registration
+        void setScene(const std::shared_ptr<Scene>& scene) override;
+
         bool handleEvent(const DxvEvent& event) override;
         void draw(IRenderer& renderer) override;
 
@@ -21,6 +24,9 @@ namespace DxvUI {
         Color borderColor = {100, 100, 100};
         int borderWidth = 1;
         int borderRadius = 0;
+
+    private:
+        std::optional<ActionCallback> pendingAction;
     };
 
 }

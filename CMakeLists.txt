@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # --- Find Dependencies via vcpkg ---
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(SDL2 REQUIRED)
-find_package(sdl2-gfx REQUIRED) # Corrected: all lowercase with hyphen
+find_package(sdl2-gfx REQUIRED)
 find_package(GTest REQUIRED)
 
 
@@ -15,9 +15,11 @@ find_package(GTest REQUIRED)
 add_library(DxvUI STATIC)
 
 target_sources(DxvUI PRIVATE
+    src/ActionRegistry.cpp
     src/Color.cpp
+    src/Scene.cpp
     src/SceneNode.cpp
-    src/WidgetFactory.cpp
+#    src/WidgetFactory.cpp
     src/widgets/Button.cpp
     src/containers/CenterContainer.cpp
     src/renderers/SDLRenderer.cpp
@@ -29,11 +31,10 @@ target_include_directories(DxvUI PUBLIC
     $<INSTALL_INTERFACE:include>
 )
 
-# Link DxvUI to its dependencies
 target_link_libraries(DxvUI PUBLIC
     nlohmann_json::nlohmann_json
     SDL2::SDL2
-    SDL2::SDL2_gfx
+        SDL2::SDL2_gfx
 )
 
 

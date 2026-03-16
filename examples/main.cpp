@@ -1,102 +1,80 @@
 #include <iostream>
+#include <stdexcept>
 #include <DxvUI/DxvUI.h>
 #include <DxvUI/Colors.h>
 #include <DxvUI/renderers/SDLRenderer.h>
 #include <DxvUI/sources/SDLEventSource.h>
 
-std::string mouseButtonToString(DxvUI::MouseButton button) {
-    switch (button) {
-        case DxvUI::MouseButton::Left: return "Left";
-        case DxvUI::MouseButton::Middle: return "Middle";
-        case DxvUI::MouseButton::Right: return "Right";
-        default: return "Unknown";
-    }
-}
+#include <SDL.h>
 
 extern "C" int SDL_main(int argc, char* argv[]) {
-    // 1. Setup
+    // --- Setup ---
     const int SCREEN_WIDTH = 800;
     const int SCREEN_HEIGHT = 600;
-    DxvUI::SDLRenderer renderer("DxvUI SDL2 Example", SCREEN_WIDTH, SCREEN_HEIGHT);
+    SDL_Init(SDL_INIT_VIDEO);
+    SDL_Window* window = SDL_CreateWindow("DxvUI Example", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
+    SDL_Renderer* sdl_renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    SDL_SetRenderDrawBlendMode(sdl_renderer, SDL_BLENDMODE_BLEND);
+
+    // --- DxvUI Integration ---
+    DxvUI::SDLRenderer dxv_renderer_impl(sdl_renderer);
+    DxvUI::IRenderer& dxv_renderer = dxv_renderer_impl; // Use the interface
     DxvUI::SDLEventSource eventSource;
+    auto scene = DxvUI::Scene::create();
 
-    // 2. Register Actions
-    DxvUI::ActionRegistry::instance().registerAction("quit_button", [](DxvUI::SceneNode* s, const DxvUI::DxvEvent& e) {
-        std::cout << "Quit button clicked!" << std::endl;
-    });
-    DxvUI::ActionRegistry::instance().registerAction("other_button", [](DxvUI::SceneNode* s, const DxvUI::DxvEvent& e) {
-        std::cout << "The other button was clicked." << std::endl;
-        if (auto button = dynamic_cast<DxvUI::Button*>(s)) {
-            button->backgroundColor = button->backgroundColor.lighten(0.2f);
-        }
-    });
-    DxvUI::ActionRegistry::instance().registerAction("find_and_disable_button", [](DxvUI::SceneNode* s, const DxvUI::DxvEvent& e) {
-        std::cout << "Finding and 'disabling' the other button." << std::endl;
-        // Find the root node to start the search from
-        auto root = s;
-        while(auto p = root->parent.lock()) {
-            root = p.get();
-        }
-        // Find the other button by its ID
-        if (auto foundButton = std::dynamic_pointer_cast<DxvUI::Button>(root->findNodeById("other_button"))) {
-            foundButton->backgroundColor = DxvUI::Colors::Gray;
-            // In a real app, you'd also disable its event handling.
+    auto root = scene->getRoot();
+    root->setId("root_node");
+    root->setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
+
+    scene->getActionRegistry().registerAction("my_button", [](DxvUI::SceneNode* s, const DxvUI::DxvEvent& e) {
+        if (auto btn = s->as<DxvUI::Button>()) {
+            if (e.button == DxvUI::MouseButton::Left)
+                btn->backgroundColor = btn->backgroundColor.lighten(0.4f);
+            else if (e.button == DxvUI::MouseButton::Right)
+                btn->backgroundColor = btn->backgroundColor.darken(0.4f);
+            std::cout << "click" << std::endl;
         }
     });
 
-    // 3. Build UI Scene
-    auto root = std::make_shared<DxvUI::SceneNode>("root");
-    root->width = SCREEN_WIDTH;
-    root->height = SCREEN_HEIGHT;
+    auto myButton = std::make_shared<DxvUI::Button>("my_button");
+    myButton->setPosition(200, 200);
+    myButton->setSize(150, 50);
+    myButton->backgroundColor = DxvUI::Colors::Cyan;
+    myButton->borderRadius = 10;
 
-    auto quitButton = std::make_shared<DxvUI::Button>("quit_button");
-    quitButton->relX = 680;
-    quitButton->relY = 550;
-    quitButton->width = 100;
-    quitButton->height = 30;
-    quitButton->backgroundColor = DxvUI::Color::fromHex("#d63031");
-    root->addChild(quitButton);
+    auto container = std::make_shared<DxvUI::CenterContainer>("container");
+    container->setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
+    container->addChild(myButton);
 
-    auto findButton = std::make_shared<DxvUI::Button>("find_and_disable_button");
-    findButton->relX = 680;
-    findButton->relY = 510;
-    findButton->width = 100;
-    findButton->height = 30;
-    findButton->backgroundColor = DxvUI::Colors::Yellow;
-    root->addChild(findButton);
+    root->addChild(container);
 
-    auto centeredContainer = std::make_shared<DxvUI::CenterContainer>("center_container");
-    centeredContainer->width = 400;
-    centeredContainer->height = 300;
-    centeredContainer->relX = (SCREEN_WIDTH - centeredContainer->width) / 2;
-    centeredContainer->relY = (SCREEN_HEIGHT - centeredContainer->height) / 2;
-    root->addChild(centeredContainer);
-
-    auto otherButton = std::make_shared<DxvUI::Button>("other_button");
-    otherButton->width = 150;
-    otherButton->height = 50;
-    otherButton->backgroundColor = DxvUI::Color::fromHex("#0984e3");
-    otherButton->borderRadius = 8;
-    centeredContainer->addChild(otherButton);
-
-    // 4. Main Loop
+    // --- Main Loop ---
     bool quit = false;
-    DxvUI::DxvEvent event;
+    SDL_Event sdl_event;
 
     while (!quit) {
-        while (eventSource.pollEvent(event)) {
-            if (event.type == DxvUI::EventType::Quit) {
-                quit = true;
-            } else {
-                root->handleEvent(event);
+        while (SDL_PollEvent(&sdl_event) != 0) {
+            bool eventHandled = false;
+            DxvUI::DxvEvent dxv_event;
+            if (eventSource.processEvent(sdl_event, dxv_event)) {
+                if (dxv_event.type == DxvUI::EventType::Quit) quit = true;
+                else if (scene->handleEvent(dxv_event)) eventHandled = true;
             }
+            if (!eventHandled && sdl_event.type == SDL_KEYDOWN && sdl_event.key.keysym.sym == SDLK_ESCAPE) quit = true;
         }
 
-        root->updateLayout();
-        renderer.clear(DxvUI::Color::fromHex("#2d3436"));
-        root->draw(renderer);
-        renderer.present();
+        scene->updateLayout();
+
+        // Now using the interface for all rendering operations
+        dxv_renderer.clear(DxvUI::Color::fromHex("#2d3436"));
+        scene->draw(dxv_renderer);
+        dxv_renderer.present();
     }
+
+    // --- Cleanup ---
+    SDL_DestroyRenderer(sdl_renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
 
     return 0;
 }

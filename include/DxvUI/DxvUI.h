@@ -3,12 +3,14 @@
 
 // Core
 #include "core.h"
-#include "SceneNode.h"
 #include "ActionRegistry.h"
+#include "Scene.h"
+#include "SceneNode.h"
 #include "WidgetFactory.h"
 
 // Interfaces
 #include "interfaces/IRenderer.h"
+#include "interfaces/IEventSource.h"
 
 // Containers
 #include "containers/Container.h"

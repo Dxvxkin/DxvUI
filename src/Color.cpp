@@ -33,7 +33,7 @@ namespace DxvUI {
         float diff = cmax - cmin;
 
         if (cmax == cmin) {
-            out.h = 0;
+            out.h = 0; // For grays, hue is undefined; conventionally 0
         } else if (cmax == r_) {
             out.h = fmod(60 * ((g_ - b_) / diff) + 360, 360);
         } else if (cmax == g_) {
@@ -56,21 +56,29 @@ namespace DxvUI {
         float m = v - c;
         float r_, g_, b_;
 
-        int h_i = static_cast<int>(hsv.h / 60.0f);
-        switch (h_i) {
-            case 0: r_ = c; g_ = x; b_ = 0; break;
-            case 1: r_ = x; g_ = c; b_ = 0; break;
-            case 2: r_ = 0; g_ = c; b_ = x; break;
-            case 3: r_ = 0; g_ = x; b_ = c; break;
-            case 4: r_ = x; g_ = 0; b_ = c; break;
-            default: r_ = c; g_ = 0; b_ = x; break;
+        // If saturation is 0, it's a gray color. Hue doesn't matter.
+        if (s == 0) {
+            r_ = g_ = b_ = v;
+        } else {
+            int h_i = static_cast<int>(hsv.h / 60.0f);
+            switch (h_i) {
+                case 0: r_ = c; g_ = x; b_ = 0; break;
+                case 1: r_ = x; g_ = c; b_ = 0; break;
+                case 2: r_ = 0; g_ = c; b_ = x; break;
+                case 3: r_ = 0; g_ = x; b_ = c; break;
+                case 4: r_ = x; g_ = 0; b_ = c; break;
+                default: r_ = c; g_ = 0; b_ = x; break;
+            }
+            r_ += m;
+            g_ += m;
+            b_ += m;
         }
 
         return Color(
-            static_cast<uint8_t>((r_ + m) * 255),
-            static_cast<uint8_t>((g_ + m) * 255),
-            static_cast<uint8_t>((b_ + m) * 255),
-            255
+            static_cast<uint8_t>(r_ * 255),
+            static_cast<uint8_t>(g_ * 255),
+            static_cast<uint8_t>(b_ * 255)
+            // Alpha is not part of HSV conversion
         );
     }
 
@@ -101,7 +109,7 @@ namespace DxvUI {
 
     Color Color::lighten(float amount) const {
         Hsv hsv = toHsv();
-        hsv.v = std::min(1.0f, hsv.v * (1.0f + amount));
+        hsv.v = std::clamp(hsv.v + amount, 0.0f, 1.0f);
         Color result = fromHsv(hsv);
         result.a = this->a; // Preserve original alpha
         return result;
@@ -109,7 +117,7 @@ namespace DxvUI {
 
     Color Color::darken(float amount) const {
         Hsv hsv = toHsv();
-        hsv.v = std::max(0.0f, hsv.v * (1.0f - amount));
+        hsv.v = std::clamp(hsv.v - amount, 0.0f, 1.0f);
         Color result = fromHsv(hsv);
         result.a = this->a; // Preserve original alpha
         return result;

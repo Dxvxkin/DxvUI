@@ -12,7 +12,11 @@ namespace DxvUI {
 
     class SDLRenderer : public IRenderer {
     public:
+        // Constructor for when DxvUI creates and owns the window/renderer
         SDLRenderer(const char* title, int width, int height);
+        // Constructor for when DxvUI uses an existing, external renderer
+        explicit SDLRenderer(SDL_Renderer* externalRenderer);
+
         ~SDLRenderer() override;
 
         // --- IRenderer implementation ---
@@ -65,6 +69,7 @@ namespace DxvUI {
     private:
         SDL_Window* window = nullptr;
         SDL_Renderer* renderer = nullptr;
+        bool ownsResources = false; // Does this instance own the window and renderer?
         Color currentColor;
     };
 

@@ -3,8 +3,6 @@
 
 namespace DxvUI {
 
-    // Helper function to translate common data from SDL mouse button events.
-    // It's static, so it's only visible within this file.
     static void translateMouseButtonEvent(DxvEvent& dxvEvent, const SDL_MouseButtonEvent& sdlButtonEvent) {
         dxvEvent.x = sdlButtonEvent.x;
         dxvEvent.y = sdlButtonEvent.y;
@@ -18,36 +16,48 @@ namespace DxvUI {
 
     bool SDLEventSource::pollEvent(DxvEvent& event) {
         SDL_Event sdlEvent;
-
         if (SDL_PollEvent(&sdlEvent) != 0) {
-            switch (sdlEvent.type) {
-                case SDL_QUIT:
-                    event.type = EventType::Quit;
-                    return true;
+            return processEvent(sdlEvent, event);
+        }
+        event.type = EventType::None;
+        return false;
+    }
 
-                case SDL_MOUSEBUTTONDOWN:
-                    event.type = EventType::MouseDown;
-                    translateMouseButtonEvent(event, sdlEvent.button);
-                    return true;
+    bool SDLEventSource::processEvent(const SDL_Event& sdlEvent, DxvEvent& dxvEvent) {
+        switch (sdlEvent.type) {
+            case SDL_QUIT:
+                dxvEvent.type = EventType::Quit;
+                return true;
 
-                case SDL_MOUSEBUTTONUP:
-                    event.type = EventType::MouseUp;
-                    translateMouseButtonEvent(event, sdlEvent.button);
-                    return true;
+            case SDL_MOUSEBUTTONDOWN:
+                dxvEvent.type = EventType::MouseDown;
+                translateMouseButtonEvent(dxvEvent, sdlEvent.button);
+                return true;
 
-                case SDL_MOUSEMOTION:
-                    event.type = EventType::MouseMove;
-                    event.x = sdlEvent.motion.x;
-                    event.y = sdlEvent.motion.y;
-                    event.button = MouseButton::None; // Motion events don't have a specific button
-                    return true;
+            case SDL_MOUSEBUTTONUP:
+                dxvEvent.type = EventType::MouseUp;
+                translateMouseButtonEvent(dxvEvent, sdlEvent.button);
+                return true;
 
-                // We can add KeyDown, KeyUp, etc. here in the future
-            }
+            case SDL_MOUSEMOTION:
+                dxvEvent.type = EventType::MouseMove;
+                dxvEvent.x = sdlEvent.motion.x;
+                dxvEvent.y = sdlEvent.motion.y;
+
+                // Check the state of the mouse buttons during motion
+                if (sdlEvent.motion.state & SDL_BUTTON_LMASK) {
+                    dxvEvent.button = MouseButton::Left;
+                } else if (sdlEvent.motion.state & SDL_BUTTON_MMASK) {
+                    dxvEvent.button = MouseButton::Middle;
+                } else if (sdlEvent.motion.state & SDL_BUTTON_RMASK) {
+                    dxvEvent.button = MouseButton::Right;
+                } else {
+                    dxvEvent.button = MouseButton::None;
+                }
+                return true;
         }
 
-        // No event we care about was polled
-        event.type = EventType::None;
+        dxvEvent.type = EventType::None;
         return false;
     }
 
