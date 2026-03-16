@@ -7,6 +7,7 @@
 #include "core.h"
 #include "LayoutProperties.h"
 #include "interfaces/IRenderer.h"
+#include "interfaces/IVisual.h"
 
 namespace DxvUI {
 
@@ -45,8 +46,11 @@ namespace DxvUI {
         void setZIndex(int newZIndex);
         int getZIndex() const;
 
+        // Visual component
+        void setVisual(std::unique_ptr<IVisual> visual);
+        IVisual* getVisual() const;
+
         virtual bool handleEvent(const DxvEvent& event);
-        // The root of the layout calculation process
         void updateLayoutTree();
         virtual void updateLayout(const Rect& parentInnerBounds);
         virtual void draw(IRenderer& renderer);
@@ -58,6 +62,7 @@ namespace DxvUI {
     protected:
         std::string id;
         std::unique_ptr<LayoutProperties> layoutProperties;
+        std::unique_ptr<IVisual> visual;
         bool isLayoutDirty = true;
 
     private:

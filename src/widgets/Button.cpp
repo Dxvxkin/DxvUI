@@ -1,12 +1,15 @@
 #include "DxvUI/widgets/Button.h"
 #include "DxvUI/Scene.h"
-#include "DxvUI/LayoutProperties.h"
+#include "DxvUI/visuals/ButtonVisual.h"
 #include <utility>
 
 namespace DxvUI {
 
     Button::Button(std::string id, std::optional<ActionCallback> onClick)
-        : SceneNode(std::move(id)), pendingAction(std::move(onClick)) {}
+        : SceneNode(std::move(id)), pendingAction(std::move(onClick)) {
+        // Assign a default visual component for a Button
+        setVisual(std::make_unique<ButtonVisual>());
+    }
 
     void Button::setScene(const std::shared_ptr<Scene>& newScene) {
         SceneNode::setScene(newScene);
@@ -17,37 +20,33 @@ namespace DxvUI {
     }
 
     bool Button::handleEvent(const DxvEvent& event) {
-        // Let children handle the event first (e.g., a text label on the button)
+        // The base class now handles hit-testing, so we just need to check for the click
+        // if the event reaches us.
         if (SceneNode::handleEvent(event)) return true;
 
-        // If no child consumed it, check if this button is clicked.
         if (event.type == EventType::MouseDown) {
-            // getGlobalBounds() now returns the final, correct bounds calculated during the layout pass.
-            if (getGlobalBounds().contains(event.x, event.y)) {
-                if (auto scn = getScene()) {
-                    if (auto action = scn->getActionRegistry().getAction(getId())) {
-                        action(this, event);
-                    }
+            // If we are here, it means the click was inside our bounds but not handled by a child.
+            if (auto scn = getScene()) {
+                if (auto action = scn->getActionRegistry().getAction(getId())) {
+                    action(this, event);
                 }
-                return true; // Event consumed!
             }
+            return true; // Consume the click
         }
 
         return false;
     }
 
     void Button::draw(IRenderer& renderer) {
-        // getGlobalBounds() returns the final, correct bounds. No calculation needed here.
-        Rect bounds = getGlobalBounds();
-
-        if (borderRadius > 0) {
-            renderer.fillRoundRect(bounds, borderRadius, backgroundColor, {borderColor, borderWidth});
-        } else {
-            renderer.fillRect(bounds, backgroundColor, {borderColor, borderWidth});
-        }
-
-        // Draw children on top
+        // The base class will call our visual component.
+        // We override this only if we need to do something extra during the draw pass.
+        // For now, just let the base class do its job.
         SceneNode::draw(renderer);
+    }
+
+    ButtonVisual* Button::getButtonVisual() const {
+        // Use dynamic_cast to safely get the specific visual type
+        return dynamic_cast<ButtonVisual*>(visual.get());
     }
 
 }

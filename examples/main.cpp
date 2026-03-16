@@ -4,8 +4,18 @@
 #include <DxvUI/Colors.h>
 #include <DxvUI/renderers/SDLRenderer.h>
 #include <DxvUI/sources/SDLEventSource.h>
+#include <DxvUI/visuals/ButtonVisual.h>
 
 #include <SDL.h>
+
+class CustomVisual : public DxvUI::IVisual
+{
+    void draw(DxvUI::IRenderer& renderer, DxvUI::SceneNode* node) override
+    {
+        auto rect = node->getGlobalBounds();
+        renderer.fillRect(rect, DxvUI::Colors::Red);
+    }
+};
 
 extern "C" int SDL_main(int argc, char* argv[]) {
     // --- Setup ---
@@ -18,7 +28,7 @@ extern "C" int SDL_main(int argc, char* argv[]) {
 
     // --- DxvUI Integration ---
     DxvUI::SDLRenderer dxv_renderer_impl(sdl_renderer);
-    DxvUI::IRenderer& dxv_renderer = dxv_renderer_impl; // Use the interface
+    DxvUI::IRenderer& dxv_renderer = dxv_renderer_impl;
     DxvUI::SDLEventSource eventSource;
     auto scene = DxvUI::Scene::create();
 
@@ -28,10 +38,13 @@ extern "C" int SDL_main(int argc, char* argv[]) {
 
     scene->getActionRegistry().registerAction("my_button", [](DxvUI::SceneNode* s, const DxvUI::DxvEvent& e) {
         if (auto btn = s->as<DxvUI::Button>()) {
-            if (e.button == DxvUI::MouseButton::Left)
-                btn->backgroundColor = btn->backgroundColor.lighten(0.4f);
-            else if (e.button == DxvUI::MouseButton::Right)
-                btn->backgroundColor = btn->backgroundColor.darken(0.4f);
+            // Access the visual component to change its properties
+            if (auto visual = btn->getButtonVisual()) {
+                if (e.button == DxvUI::MouseButton::Left)
+                    visual->backgroundColor = visual->backgroundColor.lighten(0.4f);
+                else if (e.button == DxvUI::MouseButton::Right)
+                    visual->backgroundColor = visual->backgroundColor.darken(0.4f);
+            }
             std::cout << "click" << std::endl;
         }
     });
@@ -39,8 +52,12 @@ extern "C" int SDL_main(int argc, char* argv[]) {
     auto myButton = std::make_shared<DxvUI::Button>("my_button");
     myButton->setPosition(200, 200);
     myButton->setSize(150, 50);
-    myButton->backgroundColor = DxvUI::Colors::Cyan;
-    myButton->borderRadius = 10;
+
+    // Set visual properties on the button's visual component
+    if (auto visual = myButton->getButtonVisual()) {
+        visual->backgroundColor = DxvUI::Colors::Cyan;
+        visual->borderRadius = 10;
+    }
 
     auto container = std::make_shared<DxvUI::CenterContainer>("container");
     container->setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
@@ -64,8 +81,6 @@ extern "C" int SDL_main(int argc, char* argv[]) {
         }
 
         scene->updateLayout();
-
-        // Now using the interface for all rendering operations
         dxv_renderer.clear(DxvUI::Color::fromHex("#2d3436"));
         scene->draw(dxv_renderer);
         dxv_renderer.present();

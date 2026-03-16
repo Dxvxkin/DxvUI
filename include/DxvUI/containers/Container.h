@@ -1,7 +1,7 @@
 #ifndef DXVUI_CONTAINER_H
 #define DXVUI_CONTAINER_H
 
-#include "../SceneNode.h"
+#include "DxvUI/SceneNode.h"
 
 namespace DxvUI {
 
