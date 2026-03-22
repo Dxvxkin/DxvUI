@@ -12,7 +12,10 @@ namespace DxvUI {
     public:
         using Container::Container; // Inherit constructors
 
-        void updateLayout(const Rect& parentInnerBounds) override;
+
+        // New two-pass layout methods
+        Size measure(const Size& availableSize) override;
+        void arrange(const Rect& finalRect) override;
     };
 
 }

@@ -3,15 +3,23 @@
 
 namespace DxvUI {
 
+    SDLEventSource::~SDLEventSource() = default;
+
     static void translateMouseButtonEvent(DxvEvent& dxvEvent, const SDL_MouseButtonEvent& sdlButtonEvent) {
-        dxvEvent.x = sdlButtonEvent.x;
-        dxvEvent.y = sdlButtonEvent.y;
+        dxvEvent.mouse.x = sdlButtonEvent.x;
+        dxvEvent.mouse.y = sdlButtonEvent.y;
         switch (sdlButtonEvent.button) {
-            case SDL_BUTTON_LEFT:   dxvEvent.button = MouseButton::Left;   break;
-            case SDL_BUTTON_MIDDLE: dxvEvent.button = MouseButton::Middle; break;
-            case SDL_BUTTON_RIGHT:  dxvEvent.button = MouseButton::Right;  break;
-            default:                dxvEvent.button = MouseButton::None;   break;
+            case SDL_BUTTON_LEFT:   dxvEvent.mouse.button = MouseButton::Left;   break;
+            case SDL_BUTTON_MIDDLE: dxvEvent.mouse.button = MouseButton::Middle; break;
+            case SDL_BUTTON_RIGHT:  dxvEvent.mouse.button = MouseButton::Right;  break;
+            default:                dxvEvent.mouse.button = MouseButton::None;   break;
         }
+    }
+
+    static void translateKeyboardEvent(DxvEvent& dxvEvent, const SDL_KeyboardEvent& sdlKeyEvent) {
+        dxvEvent.key.sym = sdlKeyEvent.keysym.sym;
+        dxvEvent.key.scancode = sdlKeyEvent.keysym.scancode;
+        dxvEvent.key.mod = sdlKeyEvent.keysym.mod;
     }
 
     bool SDLEventSource::pollEvent(DxvEvent& event) {
@@ -24,6 +32,8 @@ namespace DxvUI {
     }
 
     bool SDLEventSource::processEvent(const SDL_Event& sdlEvent, DxvEvent& dxvEvent) {
+        dxvEvent.type = EventType::None; // Reset event by default
+
         switch (sdlEvent.type) {
             case SDL_QUIT:
                 dxvEvent.type = EventType::Quit;
@@ -41,23 +51,30 @@ namespace DxvUI {
 
             case SDL_MOUSEMOTION:
                 dxvEvent.type = EventType::MouseMove;
-                dxvEvent.x = sdlEvent.motion.x;
-                dxvEvent.y = sdlEvent.motion.y;
+                dxvEvent.mouse.x = sdlEvent.motion.x;
+                dxvEvent.mouse.y = sdlEvent.motion.y;
+                if (sdlEvent.motion.state & SDL_BUTTON_LMASK) dxvEvent.mouse.button = MouseButton::Left;
+                else if (sdlEvent.motion.state & SDL_BUTTON_MMASK) dxvEvent.mouse.button = MouseButton::Middle;
+                else if (sdlEvent.motion.state & SDL_BUTTON_RMASK) dxvEvent.mouse.button = MouseButton::Right;
+                else dxvEvent.mouse.button = MouseButton::None;
+                return true;
 
-                // Check the state of the mouse buttons during motion
-                if (sdlEvent.motion.state & SDL_BUTTON_LMASK) {
-                    dxvEvent.button = MouseButton::Left;
-                } else if (sdlEvent.motion.state & SDL_BUTTON_MMASK) {
-                    dxvEvent.button = MouseButton::Middle;
-                } else if (sdlEvent.motion.state & SDL_BUTTON_RMASK) {
-                    dxvEvent.button = MouseButton::Right;
-                } else {
-                    dxvEvent.button = MouseButton::None;
-                }
+            case SDL_KEYDOWN:
+                dxvEvent.type = EventType::KeyDown;
+                translateKeyboardEvent(dxvEvent, sdlEvent.key);
+                return true;
+
+            case SDL_KEYUP:
+                dxvEvent.type = EventType::KeyUp;
+                translateKeyboardEvent(dxvEvent, sdlEvent.key);
+                return true;
+
+            case SDL_TEXTINPUT:
+                dxvEvent.type = EventType::TextInput;
+                dxvEvent.text = sdlEvent.text.text;
                 return true;
         }
 
-        dxvEvent.type = EventType::None;
         return false;
     }
 

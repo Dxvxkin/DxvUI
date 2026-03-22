@@ -2,28 +2,36 @@
 #define DXVUI_BUTTON_H
 
 #include "DxvUI/SceneNode.h"
-#include "DxvUI/ActionRegistry.h"
-#include "DxvUI/Color.h"
-#include "DxvUI/visuals/ButtonVisual.h"
 #include <string>
-#include <functional>
-#include <optional>
+#include <memory>
 
 namespace DxvUI {
 
+    class Label;
+
     class Button : public SceneNode {
     public:
-        Button(std::string id, std::optional<ActionCallback> onClick = std::nullopt);
+        static std::shared_ptr<Button> create(std::string id, std::string text = "");
 
-        void setScene(const std::shared_ptr<Scene>& scene) override;
+        void setText(const std::string& text);
+        const std::string& getText() const;
 
-        bool handleEvent(const DxvEvent& event) override;
+        Label* getLabel() const;
+
+        // --- Overrides ---
+        void onAttach() override;
+        Size measure(const Size& availableSize) override;
+        void arrange(const Rect& finalRect) override;
         void draw(IRenderer& renderer) override;
+        std::shared_ptr<SceneNode> findNodeAt(int x, int y) override;
+        // ---------------------
 
-        ButtonVisual* getButtonVisual() const;
+    protected:
+        explicit Button(std::string id);
 
     private:
-        std::optional<ActionCallback> pendingAction;
+        std::shared_ptr<Label> label;
+        std::string initialText;
     };
 
 }

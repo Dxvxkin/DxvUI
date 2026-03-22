@@ -5,9 +5,9 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # --- Find Dependencies via vcpkg ---
-# Using specific names as per user's environment
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(SDL2 REQUIRED)
+find_package(SDL2_ttf REQUIRED)
 find_package(sdl2-gfx REQUIRED)
 find_package(GTest REQUIRED)
 
@@ -16,16 +16,16 @@ find_package(GTest REQUIRED)
 add_library(DxvUI STATIC)
 
 target_sources(DxvUI PRIVATE
-    src/ActionRegistry.cpp
     src/Color.cpp
+    src/EventManager.cpp
     src/Scene.cpp
     src/SceneNode.cpp
-    # src/WidgetFactory.cpp
     src/widgets/Button.cpp
+    src/widgets/Label.cpp
     src/containers/CenterContainer.cpp
     src/renderers/SDLRenderer.cpp
     src/sources/SDLEventSource.cpp
-    src/visuals/ButtonVisual.cpp
+
 )
 
 target_include_directories(DxvUI PUBLIC
@@ -36,7 +36,8 @@ target_include_directories(DxvUI PUBLIC
 target_link_libraries(DxvUI PUBLIC
     nlohmann_json::nlohmann_json
     SDL2::SDL2
-    SDL2::SDL2_gfx # Using specific target name as per user's environment
+    SDL2::SDL2_gfx
+        SDL2_ttf::SDL2_ttf
 )
 
 

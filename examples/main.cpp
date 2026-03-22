@@ -1,95 +1,89 @@
-#include <iostream>
-#include <stdexcept>
 #include <DxvUI/DxvUI.h>
 #include <DxvUI/Colors.h>
 #include <DxvUI/renderers/SDLRenderer.h>
 #include <DxvUI/sources/SDLEventSource.h>
-#include <DxvUI/visuals/ButtonVisual.h>
+#include <DxvUI/widgets/Label.h>
+#include <DxvUI/widgets/Button.h>
 
 #include <SDL.h>
+#include <iostream>
+#include <memory>
+#include <cmath>
 
-class CustomVisual : public DxvUI::IVisual
-{
-    void draw(DxvUI::IRenderer& renderer, DxvUI::SceneNode* node) override
-    {
-        auto rect = node->getGlobalBounds();
-        renderer.fillRect(rect, DxvUI::Colors::Red);
-    }
-};
-
-extern "C" int SDL_main(int argc, char* argv[]) {
+extern "C" int SDL_main(int /*argc*/, char* /*argv*/[]) {
     // --- Setup ---
-    const int SCREEN_WIDTH = 800;
-    const int SCREEN_HEIGHT = 600;
-    SDL_Init(SDL_INIT_VIDEO);
-    SDL_Window* window = SDL_CreateWindow("DxvUI Example", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
-    SDL_Renderer* sdl_renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-    SDL_SetRenderDrawBlendMode(sdl_renderer, SDL_BLENDMODE_BLEND);
+    constexpr int SCREEN_WIDTH = 800;
+    constexpr int SCREEN_HEIGHT = 600;
 
-    // --- DxvUI Integration ---
-    DxvUI::SDLRenderer dxv_renderer_impl(sdl_renderer);
+    DxvUI::SDLRenderer dxv_renderer_impl("DxvUI Cursor Example", SCREEN_WIDTH, SCREEN_HEIGHT);
     DxvUI::IRenderer& dxv_renderer = dxv_renderer_impl;
     DxvUI::SDLEventSource eventSource;
     auto scene = DxvUI::Scene::create();
 
+    // --- Critical Step: Link Scene and Renderer ---
+    scene->setRenderer(&dxv_renderer);
+
     auto root = scene->getRoot();
-    root->setId("root_node");
     root->setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
 
-    scene->getActionRegistry().registerAction("my_button", [](DxvUI::SceneNode* s, const DxvUI::DxvEvent& e) {
-        if (auto btn = s->as<DxvUI::Button>()) {
-            // Access the visual component to change its properties
-            if (auto visual = btn->getButtonVisual()) {
-                if (e.button == DxvUI::MouseButton::Left)
-                    visual->backgroundColor = visual->backgroundColor.lighten(0.4f);
-                else if (e.button == DxvUI::MouseButton::Right)
-                    visual->backgroundColor = visual->backgroundColor.darken(0.4f);
-            }
-            std::cout << "click" << std::endl;
-        }
-    });
+    // --- THEME ---
+    root->getAppearance().fontPath = "C:/Windows/Fonts/segoeui.ttf";
+    root->getAppearance().fontSize = 20;
+    root->getAppearance().textColor = DxvUI::Colors::DarkGray;
+    root->getAppearance().cursor = DxvUI::CursorType::Arrow;
 
-    auto myButton = std::make_shared<DxvUI::Button>("my_button");
-    myButton->setPosition(200, 200);
-    myButton->setSize(150, 50);
+    // --- Create UI ---
+    auto myButton = DxvUI::Button::create("my_button", "Styled Button");
+    myButton->setPosition(50, 50);
+    myButton->setSize(150, 30);
+    myButton->getAppearance().backgroundColor = DxvUI::Colors::CornflowerBlue;
+    myButton->getAppearance().fontSize = 17;
+    myButton->getAppearance().textColor = DxvUI::Colors::White;
+    myButton->getAppearance().borderRadius = 8;
+    myButton->getAppearance().borderThickness = 2;
+    myButton->getAppearance().borderColor = DxvUI::Colors::Blue;
+    myButton->getAppearance().cursor = DxvUI::CursorType::Hand;
+    root->addChild(myButton);
 
-    // Set visual properties on the button's visual component
-    if (auto visual = myButton->getButtonVisual()) {
-        visual->backgroundColor = DxvUI::Colors::Cyan;
-        visual->borderRadius = 10;
-    }
+    auto inheritedLabel = DxvUI::Label::create("inherited_label", "I inherit my style.");
+    inheritedLabel->setPosition(50, 150);
+    inheritedLabel->getAppearance().cursor = DxvUI::CursorType::Hand;
+    root->addChild(inheritedLabel);
 
-    auto container = std::make_shared<DxvUI::CenterContainer>("container");
-    container->setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
-    container->addChild(myButton);
+    auto overriddenLabel = DxvUI::Label::create("overridden_label", "I have my own style.");
+    overriddenLabel->setPosition(50, 200);
+    overriddenLabel->getAppearance().fontSize = 28;
+    overriddenLabel->getAppearance().textColor = DxvUI::Colors::Magenta;
+    root->addChild(overriddenLabel);
 
-    root->addChild(container);
 
     // --- Main Loop ---
     bool quit = false;
     SDL_Event sdl_event;
 
+    Uint32 last_time = SDL_GetTicks();
+    float delta_time = 0.0f;
+
     while (!quit) {
+        Uint32 current_time = SDL_GetTicks();
+        delta_time = (current_time - last_time) / 1000.0f;
+        last_time = current_time;
+
         while (SDL_PollEvent(&sdl_event) != 0) {
-            bool eventHandled = false;
             DxvUI::DxvEvent dxv_event;
             if (eventSource.processEvent(sdl_event, dxv_event)) {
                 if (dxv_event.type == DxvUI::EventType::Quit) quit = true;
-                else if (scene->handleEvent(dxv_event)) eventHandled = true;
+                else scene->processEvent(dxv_event);
             }
-            if (!eventHandled && sdl_event.type == SDL_KEYDOWN && sdl_event.key.keysym.sym == SDLK_ESCAPE) quit = true;
         }
 
+        scene->update(delta_time);
         scene->updateLayout();
-        dxv_renderer.clear(DxvUI::Color::fromHex("#2d3436"));
-        scene->draw(dxv_renderer);
+
+        dxv_renderer.clear(DxvUI::Colors::White);
+        scene->draw();
         dxv_renderer.present();
     }
-
-    // --- Cleanup ---
-    SDL_DestroyRenderer(sdl_renderer);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
 
     return 0;
 }

@@ -1,4 +1,6 @@
 #include "DxvUI/Scene.h"
+#include "DxvUI/SceneNode.h"
+#include "DxvUI/interfaces/IRenderer.h"
 
 namespace DxvUI {
 
@@ -11,52 +13,59 @@ namespace DxvUI {
     }
 
     void Scene::init() {
-        root = std::make_shared<SceneNode>("");
+        eventManager = std::make_unique<EventManager>(*this);
+        root = std::make_shared<SceneNode>("root");
         root->setScene(shared_from_this());
     }
 
     void Scene::setRoot(const std::shared_ptr<SceneNode>& node) {
-        if (root) {
-            root->setScene(nullptr);
-        }
+        if (root) root->setScene(nullptr);
         root = node;
+        if (root) root->setScene(shared_from_this());
+        requestLayoutUpdate();
+    }
+
+    void Scene::setRenderer(IRenderer* newRenderer) {
+        renderer = newRenderer;
+    }
+
+    IRenderer* Scene::getRenderer() {
+        return renderer;
+    }
+
+    std::shared_ptr<SceneNode> Scene::getRoot() const { return root; }
+    ActionRegistry& Scene::getActionRegistry() { return actionRegistry; }
+    EventManager& Scene::getEventManager() { return *eventManager; }
+
+    void Scene::requestLayoutUpdate() {
+        layoutIsDirty = true;
+    }
+
+    void Scene::processEvent(const DxvEvent& event) {
+        eventManager->processRawEvent(event);
+    }
+
+    void Scene::update(float deltaTime) {
         if (root) {
-            root->setScene(shared_from_this());
+            root->onUpdate(deltaTime);
         }
-    }
-
-    std::shared_ptr<SceneNode> Scene::getRoot() const {
-        return root;
-    }
-
-    ActionRegistry& Scene::getActionRegistry() {
-        return actionRegistry;
-    }
-
-    std::shared_ptr<SceneNode> Scene::findNodeById(const std::string& id) {
-        if (root) {
-            return root->findNodeById(id);
-        }
-        return nullptr;
-    }
-
-    bool Scene::handleEvent(const DxvEvent& event) {
-        if (root) {
-            return root->handleEvent(event);
-        }
-        return false;
     }
 
     void Scene::updateLayout() {
-        if (root) {
-            // This is the entry point for the entire layout calculation process.
-            root->updateLayoutTree();
+        if (layoutIsDirty && root && renderer) {
+            Size viewportSize = renderer->getViewportSize();
+            Rect viewportRect = {0, 0, (int)viewportSize.width, (int)viewportSize.height};
+
+            root->measure(viewportSize);
+            root->arrange(viewportRect);
+
+            layoutIsDirty = false;
         }
     }
 
-    void Scene::draw(IRenderer& renderer) {
-        if (root) {
-            root->draw(renderer);
+    void Scene::draw() {
+        if (root && renderer) {
+            root->draw(*renderer);
         }
     }
 

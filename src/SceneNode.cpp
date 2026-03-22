@@ -1,83 +1,260 @@
 #include "DxvUI/SceneNode.h"
 #include "DxvUI/Scene.h"
+#include "DxvUI/Colors.h"
 #include <utility>
+#include <algorithm>
+#include <iostream>
+#include <limits>
 
 namespace DxvUI {
 
-    SceneNode::SceneNode(std::string id) : id(std::move(id)) {}
+    SceneNode::SceneNode(std::string id) : id(std::move(id)) {
+        computedAppearance.backgroundColor = Colors::Transparent;
+        computedAppearance.textColor = Colors::Black;
+        computedAppearance.borderColor = Colors::Transparent;
+        computedAppearance.borderThickness = 0;
+        computedAppearance.borderRadius = 0;
+        computedAppearance.fontSize = 14;
+        computedAppearance.fontPath = getDefaultFontPath();
+        computedAppearance.cursor = CursorType::Arrow;
+    }
 
-    // ... (Hierarchy, Scene, ID methods are mostly the same)
-    void SceneNode::addChild(const std::shared_ptr<SceneNode>& child) { if (!child) return; child->detach(); children.push_back(child); child->parent = shared_from_this(); child->setScene(this->getScene()); markLayoutDirty(); }
-    void SceneNode::removeChild(const std::shared_ptr<SceneNode>& child) { if (!child) return; auto it = std::remove(children.begin(), children.end(), child); if (it != children.end()) { children.erase(it, children.end()); child->parent.reset(); child->setScene(nullptr); markLayoutDirty(); } }
-    void SceneNode::detach() { if (auto p = parent.lock()) p->removeChild(shared_from_this()); }
-    void SceneNode::setScene(const std::shared_ptr<Scene>& newScene) { if (scene.lock() == newScene) return; scene = newScene; markLayoutDirty(); for (const auto& child : children) child->setScene(newScene); }
+    void SceneNode::addChild(const std::shared_ptr<SceneNode>& child) {
+        if (!child) return;
+        child->detach();
+        children.push_back(child);
+        child->parent = shared_from_this();
+        child->setScene(this->getScene());
+        child->onAttach();
+        DxvEvent event;
+        event.type = EventType::Attach;
+        event.target = child;
+        child->dispatchEvent(event);
+        childrenOrderDirty = true;
+        markLayoutDirty();
+    }
+
+    void SceneNode::removeChild(const std::shared_ptr<SceneNode>& child) {
+        if (!child) return;
+        auto it = std::remove_if(children.begin(), children.end(),
+                                 [&](const std::shared_ptr<SceneNode>& p) { return p == child; });
+        if (it != children.end()) {
+            child->onDetach();
+            DxvEvent event;
+            event.type = EventType::Detach;
+            event.target = child;
+            child->dispatchEvent(event);
+            children.erase(it, children.end());
+            child->parent.reset();
+            child->setScene(nullptr);
+            markLayoutDirty();
+        }
+    }
+
+    void SceneNode::detach() {
+        if (auto p = parent.lock()) {
+            p->removeChild(shared_from_this());
+        }
+    }
+
+    void SceneNode::setScene(const std::shared_ptr<Scene>& newScene) {
+        if (scene.lock() == newScene) return;
+        scene = newScene;
+        markLayoutDirty();
+        for (const auto& child : children) {
+            child->setScene(newScene);
+        }
+    }
+
     std::shared_ptr<Scene> SceneNode::getScene() const { return scene.lock(); }
     const std::string& SceneNode::getId() const { return id; }
     void SceneNode::setId(const std::string& newId) { id = newId; }
-    std::shared_ptr<SceneNode> SceneNode::findNodeById(const std::string& searchId) { if (!searchId.empty() && id == searchId) return shared_from_this(); for (const auto& child : children) { if (auto found = child->findNodeById(searchId)) return found; } return nullptr; }
 
-    // --- Visual Component ---
-    void SceneNode::setVisual(std::unique_ptr<IVisual> newVisual) {
-        visual = std::move(newVisual);
-    }
-    IVisual* SceneNode::getVisual() const {
-        return visual.get();
-    }
-
-    // --- Layout & Z-Index ---
-    LayoutProperties& SceneNode::getLayout() { if (!layoutProperties) layoutProperties = std::make_unique<LayoutProperties>(); return *layoutProperties; }
-    const LayoutProperties& SceneNode::getLayout() const { static const LayoutProperties defaultProps; if (layoutProperties) return *layoutProperties; return defaultProps; }
-    void SceneNode::markLayoutDirty() { if (isLayoutDirty) return; isLayoutDirty = true; if (auto p = parent.lock()) p->markLayoutDirty(); }
-    void SceneNode::setPosition(float x, float y) { getLayout().left = x; getLayout().top = y; markLayoutDirty(); }
-    void SceneNode::setSize(float width, float height) { getLayout().width = width; getLayout().height = height; markLayoutDirty(); }
-    void SceneNode::setMargin(const Thickness& margin) { getLayout().margin = margin; markLayoutDirty(); }
-    void SceneNode::setPadding(const Thickness& padding) { getLayout().padding = padding; markLayoutDirty(); }
-    Rect SceneNode::getGlobalBounds() const { return getLayout().computedBounds; }
-    void SceneNode::setZIndex(int newZIndex) { if (zIndex != newZIndex) { zIndex = newZIndex; if (auto p = parent.lock()) p->childrenOrderDirty = true; } }
-    int SceneNode::getZIndex() const { return zIndex; }
-
-    // --- Lifecycle ---
-    bool SceneNode::handleEvent(const DxvEvent& event) {
-        if (event.type == EventType::MouseDown || event.type == EventType::MouseUp || event.type == EventType::MouseMove) {
-            if (!getGlobalBounds().contains(event.x, event.y)) return false;
+    std::shared_ptr<SceneNode> SceneNode::findNodeById(const std::string& searchId) {
+        if (!searchId.empty() && id == searchId) return shared_from_this();
+        for (const auto& child : children) {
+            if (auto found = child->findNodeById(searchId)) return found;
         }
+        return nullptr;
+    }
+
+    std::shared_ptr<SceneNode> SceneNode::findNodeAt(int x, int y) {
+        if (!getGlobalBounds().contains(x, y)) return nullptr;
         sortChildrenIfDirty();
         for (auto it = children.rbegin(); it != children.rend(); ++it) {
-            if ((*it)->handleEvent(event)) return true;
+            if (auto found = (*it)->findNodeAt(x, y)) return found;
         }
-        return false;
+        return shared_from_this();
     }
 
-    void SceneNode::updateLayoutTree() {
-        if (isLayoutDirty) {
-            updateLayout({0, 0, (int)getLayout().width.value_or(0), (int)getLayout().height.value_or(0)});
+    Appearance& SceneNode::getAppearance() {
+        markStyleDirty();
+        return appearance;
+    }
+
+    LayoutProperties& SceneNode::getLayout() {
+        markLayoutDirty();
+        return layoutProperties;
+    }
+
+    const LayoutProperties& SceneNode::getLayout() const {
+        return layoutProperties;
+    }
+
+    void SceneNode::markStyleDirty() {
+        if (isStyleDirty) return;
+        isStyleDirty = true;
+        for (const auto& child : children) {
+            child->markStyleDirty();
         }
     }
 
-    void SceneNode::updateLayout(const Rect& parentContentRect) {
+    void SceneNode::markLayoutDirty() {
+        if (isLayoutDirty) return;
+        isLayoutDirty = true;
+        if (auto p = parent.lock()) {
+            p->markLayoutDirty();
+        } else {
+            if (auto s = getScene()) s->requestLayoutUpdate();
+        }
+    }
+
+    void SceneNode::setPosition(float x, float y) {
+        getLayout().left = x;
+        getLayout().top = y;
+    }
+
+    void SceneNode::setSize(float width, float height) {
+        getLayout().width = width;
+        getLayout().height = height;
+    }
+
+    Rect SceneNode::getGlobalBounds() const { return layoutProperties.computedBounds; }
+    Size SceneNode::getDesiredSize() const { return desiredSize; }
+    void SceneNode::setZIndex(int newZIndex) {
+        if (zIndex != newZIndex) {
+            zIndex = newZIndex;
+            if (auto p = parent.lock()) p->childrenOrderDirty = true;
+            markLayoutDirty();
+        }
+    }
+    int SceneNode::getZIndex() const { return zIndex; }
+
+    void SceneNode::on(EventType type, ActionCallback callback) { eventHandlers[type].push_back(std::move(callback)); }
+
+    void SceneNode::dispatchEvent(DxvEvent& event) {
+        if (eventHandlers.count(event.type)) {
+            for (const auto& callback : eventHandlers[event.type]) {
+                if (auto targetNode = event.target.lock()) callback(event);
+                if (event.handled) return;
+            }
+        }
+        if (!event.handled && parent.lock()) parent.lock()->dispatchEvent(event);
+    }
+
+    void SceneNode::onAttach() { /* Base implementation is empty */ }
+    void SceneNode::onDetach() { /* Base implementation is empty */ }
+
+    void SceneNode::onUpdate(float deltaTime) {
+        for (const auto& child : children) {
+            child->onUpdate(deltaTime);
+        }
+    }
+
+    const ComputedAppearance& SceneNode::getComputedAppearance() {
+        if (isStyleDirty) {
+            resolveAndCacheStyles();
+        }
+        return computedAppearance;
+    }
+
+    void SceneNode::resolveAndCacheStyles() {
+        const auto& parentAppearance = parent.lock() ? parent.lock()->getComputedAppearance() : computedAppearance;
+        computedAppearance.backgroundColor = appearance.backgroundColor.value_or(parentAppearance.backgroundColor);
+        computedAppearance.textColor = appearance.textColor.value_or(parentAppearance.textColor);
+        computedAppearance.borderColor = appearance.borderColor.value_or(parentAppearance.borderColor);
+        computedAppearance.borderThickness = appearance.borderThickness.value_or(parentAppearance.borderThickness);
+        computedAppearance.borderRadius = appearance.borderRadius.value_or(parentAppearance.borderRadius);
+        computedAppearance.fontSize = appearance.fontSize.value_or(parentAppearance.fontSize);
+        computedAppearance.fontPath = appearance.fontPath.value_or(parentAppearance.fontPath);
+        computedAppearance.cursor = appearance.cursor.value_or(parentAppearance.cursor);
+        isStyleDirty = false;
+    }
+
+    Size SceneNode::measure(const Size& availableSize) {
+        if (!isLayoutDirty) return desiredSize;
+
+        const auto& padding = layoutProperties.padding;
+        Size contentAvailableSize = {
+            availableSize.width - (padding.left + padding.right),
+            availableSize.height - (padding.top + padding.bottom)
+        };
+
+        float requiredWidth = 0.0f;
+        float requiredHeight = 0.0f;
+
+        for (const auto& child : children) {
+            Size childDesiredSize = child->measure(contentAvailableSize);
+            const auto& childLayout = child->getLayout();
+
+            float childLeft = childLayout.left.value_or(0);
+            float childTop = childLayout.top.value_or(0);
+            float childWidth = childLayout.width.value_or(childDesiredSize.width);
+            float childHeight = childLayout.height.value_or(childDesiredSize.height);
+
+            requiredWidth = std::max(requiredWidth, childLeft + childWidth);
+            requiredHeight = std::max(requiredHeight, childTop + childHeight);
+        }
+
+        desiredSize = {
+            requiredWidth + padding.left + padding.right,
+            requiredHeight + padding.top + padding.bottom
+        };
+
+        if (layoutProperties.width.has_value()) {
+            desiredSize.width = layoutProperties.width.value();
+        }
+        if (layoutProperties.height.has_value()) {
+            desiredSize.height = layoutProperties.height.value();
+        }
+        return desiredSize;
+    }
+
+    void SceneNode::arrange(const Rect& finalRect) {
         if (!isLayoutDirty) return;
-        auto& layout = getLayout();
-        int finalWidth = layout.width.value_or(parentContentRect.width);
-        int finalHeight = layout.height.value_or(parentContentRect.height);
-        int finalX = parentContentRect.x + layout.left.value_or(0);
-        int finalY = parentContentRect.y + layout.top.value_or(0);
-        layout.computedBounds = {finalX, finalY, finalWidth, finalHeight};
-        layout.computedInnerBounds = { finalX + (int)layout.padding.left, finalY + (int)layout.padding.top, finalWidth - (int)(layout.padding.left + layout.padding.right), finalHeight - (int)(layout.padding.top + layout.padding.bottom) };
-        for (auto& child : children) {
-            child->updateLayout(layout.computedInnerBounds);
+
+        layoutProperties.computedBounds = finalRect;
+
+        const auto& padding = layoutProperties.padding;
+        Rect contentRect = {
+            finalRect.x + static_cast<int>(padding.left),
+            finalRect.y + static_cast<int>(padding.top),
+            finalRect.width - static_cast<int>(padding.left + padding.right),
+            finalRect.height - static_cast<int>(padding.top + padding.bottom)
+        };
+
+        for (const auto& child : children) {
+            const auto& childLayout = child->getLayout();
+            Size childDesiredSize = child->getDesiredSize();
+
+            int childX = contentRect.x + static_cast<int>(childLayout.left.value_or(0));
+            int childY = contentRect.y + static_cast<int>(childLayout.top.value_or(0));
+            int childW = static_cast<int>(childLayout.width.value_or(childDesiredSize.width));
+            int childH = static_cast<int>(childLayout.height.value_or(childDesiredSize.height));
+
+            child->arrange({childX, childY, childW, childH});
         }
+
         isLayoutDirty = false;
     }
 
     void SceneNode::draw(IRenderer& renderer) {
-        // 1. Draw this node's own visual component
-        if (visual) {
-            visual->draw(renderer, this);
+        if (isStyleDirty) {
+            resolveAndCacheStyles();
         }
 
-        // 2. Recursively draw children on top
         sortChildrenIfDirty();
-        for (auto& child : children) {
+        for (const auto& child : children) {
             child->draw(renderer);
         }
     }

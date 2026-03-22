@@ -2,10 +2,13 @@
 #define DXVUI_SCENE_H
 
 #include <memory>
+#include "EventManager.h"
 #include "ActionRegistry.h"
-#include "SceneNode.h"
 
 namespace DxvUI {
+
+    class SceneNode;
+    class IRenderer;
 
     class Scene : public std::enable_shared_from_this<Scene> {
     public:
@@ -14,19 +17,28 @@ namespace DxvUI {
         void setRoot(const std::shared_ptr<SceneNode>& node);
         std::shared_ptr<SceneNode> getRoot() const;
 
-        ActionRegistry& getActionRegistry();
+        void setRenderer(IRenderer* renderer); // New method
+        IRenderer* getRenderer();
 
-        std::shared_ptr<SceneNode> findNodeById(const std::string& id);
-        bool handleEvent(const DxvEvent& event); // Changed to return bool
-        void updateLayout();
-        void draw(IRenderer& renderer);
+        ActionRegistry& getActionRegistry();
+        EventManager& getEventManager();
+
+        void requestLayoutUpdate();
+
+        void processEvent(const DxvEvent& event);
+        void update(float deltaTime);
+        void updateLayout(); // No longer needs renderer passed in
+        void draw();         // No longer needs renderer passed in
 
     private:
         Scene();
         void init();
 
         std::shared_ptr<SceneNode> root;
+        std::unique_ptr<EventManager> eventManager;
         ActionRegistry actionRegistry;
+        IRenderer* renderer = nullptr; // Now a persistent pointer
+        bool layoutIsDirty = true;
     };
 
 }
