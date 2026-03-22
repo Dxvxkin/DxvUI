@@ -7,8 +7,7 @@
 #include <map>
 #include <functional>
 #include "core.h"
-#include "LayoutProperties.h"
-#include "Appearance.h"
+#include "Style.h"
 #include "interfaces/IRenderer.h"
 
 namespace DxvUI {
@@ -16,15 +15,24 @@ namespace DxvUI {
     class Scene;
     class EventManager;
 
-    struct ComputedAppearance {
+    struct ComputedAppearanceStyle {
         Color backgroundColor;
         Color textColor;
         Color borderColor;
         int borderThickness;
         int borderRadius;
+        CursorType cursor;
         int fontSize;
         std::string fontPath;
-        CursorType cursor;
+    };
+
+    struct ComputedLayoutStyle {
+        float left, top, width, height;
+        Thickness padding;
+        Thickness margin;
+        Alignment horizontalAlignment;
+        Alignment verticalAlignment;
+        Rect computedBounds;
     };
 
     class SceneNode : public std::enable_shared_from_this<SceneNode> {
@@ -48,22 +56,19 @@ namespace DxvUI {
         template <typename T> [[nodiscard]] T* as() { return dynamic_cast<T*>(this); }
         template <typename T> [[nodiscard]] const T* as() const { return dynamic_cast<const T*>(this); }
 
-        Appearance& getAppearance();
-        LayoutProperties& getLayout();
-        const LayoutProperties& getLayout() const;
+        Style& getStyle();
+
         void markStyleDirty();
         void markLayoutDirty();
 
-        void setPosition(float x, float y);
-        void setSize(float width, float height);
-        Size getDesiredSize() const;
         Rect getGlobalBounds() const;
+        Size getDesiredSize() const;
+        WidgetState getCurrentState() const; // New method
         void setZIndex(int newZIndex);
         int getZIndex() const;
 
         void on(EventType type, ActionCallback callback);
         virtual void dispatchEvent(DxvEvent& event);
-
         virtual void onAttach();
         virtual void onDetach();
         virtual void onUpdate(float deltaTime);
@@ -80,21 +85,22 @@ namespace DxvUI {
         std::weak_ptr<Scene> scene;
 
     protected:
-        const ComputedAppearance& getComputedAppearance();
+        const ComputedAppearanceStyle& getComputedAppearance(WidgetState state);
+        const ComputedLayoutStyle& getComputedLayout(WidgetState state);
 
         std::string id;
+        Style style;
 
-        Appearance appearance;
-        LayoutProperties layoutProperties;
-
-        ComputedAppearance computedAppearance;
+        std::map<WidgetState, ComputedAppearanceStyle> appearanceCache;
+        std::map<WidgetState, ComputedLayoutStyle> layoutCache;
         Size desiredSize;
 
         bool isLayoutDirty = true;
         bool isStyleDirty = true;
 
     private:
-        void resolveAndCacheStyles();
+        void resolveAppearance(WidgetState state);
+        void resolveLayout(WidgetState state);
         void sortChildrenIfDirty();
 
         int zIndex = 0;

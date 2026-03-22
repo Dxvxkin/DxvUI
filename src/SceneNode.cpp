@@ -5,19 +5,24 @@
 #include <algorithm>
 #include <iostream>
 #include <limits>
+#include <string>
 
 namespace DxvUI {
 
-    SceneNode::SceneNode(std::string id) : id(std::move(id)) {
-        computedAppearance.backgroundColor = Colors::Transparent;
-        computedAppearance.textColor = Colors::Black;
-        computedAppearance.borderColor = Colors::Transparent;
-        computedAppearance.borderThickness = 0;
-        computedAppearance.borderRadius = 0;
-        computedAppearance.fontSize = 14;
-        computedAppearance.fontPath = getDefaultFontPath();
-        computedAppearance.cursor = CursorType::Arrow;
-    }
+    // A static, default-constructed style to act as a final fallback for the root node.
+    static const ComputedAppearanceStyle defaultAppearance = {
+        .backgroundColor = Colors::Transparent, .textColor = Colors::Black, .borderColor = Colors::Transparent,
+        .borderThickness = 0, .borderRadius = 0, .cursor = CursorType::Arrow,
+        .fontSize = 14, .fontPath = getDefaultFontPath()
+    };
+    static const ComputedLayoutStyle defaultLayout = {
+        .left = 0, .top = 0, .width = 0, .height = 0,
+        .padding = {}, .margin = {},
+        .horizontalAlignment = Alignment::Start, .verticalAlignment = Alignment::Start,
+        .computedBounds = {0,0,0,0}
+    };
+
+    SceneNode::SceneNode(std::string id) : id(std::move(id)) {}
 
     void SceneNode::addChild(const std::shared_ptr<SceneNode>& child) {
         if (!child) return;
@@ -87,23 +92,16 @@ namespace DxvUI {
         return shared_from_this();
     }
 
-    Appearance& SceneNode::getAppearance() {
+    Style& SceneNode::getStyle() {
         markStyleDirty();
-        return appearance;
-    }
-
-    LayoutProperties& SceneNode::getLayout() {
         markLayoutDirty();
-        return layoutProperties;
-    }
-
-    const LayoutProperties& SceneNode::getLayout() const {
-        return layoutProperties;
+        return style;
     }
 
     void SceneNode::markStyleDirty() {
         if (isStyleDirty) return;
         isStyleDirty = true;
+        appearanceCache.clear();
         for (const auto& child : children) {
             child->markStyleDirty();
         }
@@ -112,6 +110,7 @@ namespace DxvUI {
     void SceneNode::markLayoutDirty() {
         if (isLayoutDirty) return;
         isLayoutDirty = true;
+        layoutCache.clear();
         if (auto p = parent.lock()) {
             p->markLayoutDirty();
         } else {
@@ -119,23 +118,22 @@ namespace DxvUI {
         }
     }
 
-    void SceneNode::setPosition(float x, float y) {
-        getLayout().left = x;
-        getLayout().top = y;
+    Rect SceneNode::getGlobalBounds() const {
+        auto it = layoutCache.find(getCurrentState());
+        return it != layoutCache.end() ? it->second.computedBounds : Rect{};
     }
-
-    void SceneNode::setSize(float width, float height) {
-        getLayout().width = width;
-        getLayout().height = height;
-    }
-
-    Rect SceneNode::getGlobalBounds() const { return layoutProperties.computedBounds; }
     Size SceneNode::getDesiredSize() const { return desiredSize; }
+
+    WidgetState SceneNode::getCurrentState() const {
+        if (isPressed) return WidgetState::Pressed;
+        if (isHovered) return WidgetState::Hovered;
+        return WidgetState::Normal;
+    }
+
     void SceneNode::setZIndex(int newZIndex) {
         if (zIndex != newZIndex) {
             zIndex = newZIndex;
             if (auto p = parent.lock()) p->childrenOrderDirty = true;
-            markLayoutDirty();
         }
     }
     int SceneNode::getZIndex() const { return zIndex; }
@@ -161,88 +159,112 @@ namespace DxvUI {
         }
     }
 
-    const ComputedAppearance& SceneNode::getComputedAppearance() {
-        if (isStyleDirty) {
-            resolveAndCacheStyles();
+    const ComputedAppearanceStyle& SceneNode::getComputedAppearance(WidgetState state) {
+        if (appearanceCache.find(state) == appearanceCache.end()) {
+            resolveAppearance(state);
         }
-        return computedAppearance;
+        return appearanceCache.at(state);
     }
 
-    void SceneNode::resolveAndCacheStyles() {
-        const auto& parentAppearance = parent.lock() ? parent.lock()->getComputedAppearance() : computedAppearance;
-        computedAppearance.backgroundColor = appearance.backgroundColor.value_or(parentAppearance.backgroundColor);
-        computedAppearance.textColor = appearance.textColor.value_or(parentAppearance.textColor);
-        computedAppearance.borderColor = appearance.borderColor.value_or(parentAppearance.borderColor);
-        computedAppearance.borderThickness = appearance.borderThickness.value_or(parentAppearance.borderThickness);
-        computedAppearance.borderRadius = appearance.borderRadius.value_or(parentAppearance.borderRadius);
-        computedAppearance.fontSize = appearance.fontSize.value_or(parentAppearance.fontSize);
-        computedAppearance.fontPath = appearance.fontPath.value_or(parentAppearance.fontPath);
-        computedAppearance.cursor = appearance.cursor.value_or(parentAppearance.cursor);
-        isStyleDirty = false;
+    const ComputedLayoutStyle& SceneNode::getComputedLayout(WidgetState state) {
+        if (layoutCache.find(state) == layoutCache.end()) {
+            resolveLayout(state);
+        }
+        return layoutCache.at(state);
+    }
+
+    void SceneNode::resolveAppearance(WidgetState state) {
+        const ComputedAppearanceStyle& fallback = (state == WidgetState::Normal)
+            ? (parent.lock() ? parent.lock()->getComputedAppearance(WidgetState::Normal) : defaultAppearance)
+            : getComputedAppearance(WidgetState::Normal);
+
+        const StyleRule* specificRule = style.get(state);
+        const StyleRule* normalRule = style.get(WidgetState::Normal);
+
+        auto& cache = appearanceCache[state];
+        cache.backgroundColor = specificRule && specificRule->backgroundColor.has_value() ? specificRule->backgroundColor.value() : (normalRule && normalRule->backgroundColor.has_value() ? normalRule->backgroundColor.value() : fallback.backgroundColor);
+        cache.textColor = specificRule && specificRule->textColor.has_value() ? specificRule->textColor.value() : (normalRule && normalRule->textColor.has_value() ? normalRule->textColor.value() : fallback.textColor);
+        cache.borderColor = specificRule && specificRule->borderColor.has_value() ? specificRule->borderColor.value() : (normalRule && normalRule->borderColor.has_value() ? normalRule->borderColor.value() : fallback.borderColor);
+        cache.borderThickness = specificRule && specificRule->borderThickness.has_value() ? specificRule->borderThickness.value() : (normalRule && normalRule->borderThickness.has_value() ? normalRule->borderThickness.value() : fallback.borderThickness);
+        cache.borderRadius = specificRule && specificRule->borderRadius.has_value() ? specificRule->borderRadius.value() : (normalRule && normalRule->borderRadius.has_value() ? normalRule->borderRadius.value() : fallback.borderRadius);
+        cache.cursor = specificRule && specificRule->cursor.has_value() ? specificRule->cursor.value() : (normalRule && normalRule->cursor.has_value() ? normalRule->cursor.value() : fallback.cursor);
+        cache.fontSize = specificRule && specificRule->fontSize.has_value() ? specificRule->fontSize.value() : (normalRule && normalRule->fontSize.has_value() ? normalRule->fontSize.value() : fallback.fontSize);
+        cache.fontPath = specificRule && specificRule->fontPath.has_value() ? specificRule->fontPath.value() : (normalRule && normalRule->fontPath.has_value() ? normalRule->fontPath.value() : fallback.fontPath);
+    }
+
+    void SceneNode::resolveLayout(WidgetState state) {
+        const ComputedLayoutStyle& fallback = (state == WidgetState::Normal)
+            ? defaultLayout
+            : getComputedLayout(WidgetState::Normal);
+
+        const StyleRule* specificRule = style.get(state);
+        const StyleRule* normalRule = style.get(WidgetState::Normal);
+
+        auto& cache = layoutCache[state];
+        cache.left = specificRule && specificRule->left.has_value() ? specificRule->left.value() : (normalRule && normalRule->left.has_value() ? normalRule->left.value() : fallback.left);
+        cache.top = specificRule && specificRule->top.has_value() ? specificRule->top.value() : (normalRule && normalRule->top.has_value() ? normalRule->top.value() : fallback.top);
+        cache.width = specificRule && specificRule->width.has_value() ? specificRule->width.value() : (normalRule && normalRule->width.has_value() ? normalRule->width.value() : fallback.width);
+        cache.height = specificRule && specificRule->height.has_value() ? specificRule->height.value() : (normalRule && normalRule->height.has_value() ? normalRule->height.value() : fallback.height);
+        cache.padding = specificRule && specificRule->padding.has_value() ? specificRule->padding.value() : (normalRule && normalRule->padding.has_value() ? normalRule->padding.value() : fallback.padding);
+        cache.margin = specificRule && specificRule->margin.has_value() ? specificRule->margin.value() : (normalRule && normalRule->margin.has_value() ? normalRule->margin.value() : fallback.margin);
+        cache.horizontalAlignment = specificRule && specificRule->horizontalAlignment.has_value() ? specificRule->horizontalAlignment.value() : (normalRule && normalRule->horizontalAlignment.has_value() ? normalRule->horizontalAlignment.value() : fallback.horizontalAlignment);
+        cache.verticalAlignment = specificRule && specificRule->verticalAlignment.has_value() ? specificRule->verticalAlignment.value() : (normalRule && normalRule->verticalAlignment.has_value() ? normalRule->verticalAlignment.value() : fallback.verticalAlignment);
     }
 
     Size SceneNode::measure(const Size& availableSize) {
         if (!isLayoutDirty) return desiredSize;
 
-        const auto& padding = layoutProperties.padding;
-        Size contentAvailableSize = {
-            availableSize.width - (padding.left + padding.right),
-            availableSize.height - (padding.top + padding.bottom)
-        };
+        const auto& computedLayout = getComputedLayout(getCurrentState());
+        const auto& padding = computedLayout.padding;
 
         float requiredWidth = 0.0f;
         float requiredHeight = 0.0f;
 
         for (const auto& child : children) {
-            Size childDesiredSize = child->measure(contentAvailableSize);
-            const auto& childLayout = child->getLayout();
+            Size childDesiredSize = child->measure(availableSize);
+            const auto& childLayout = child->getComputedLayout(child->getCurrentState());
 
-            float childLeft = childLayout.left.value_or(0);
-            float childTop = childLayout.top.value_or(0);
-            float childWidth = childLayout.width.value_or(childDesiredSize.width);
-            float childHeight = childLayout.height.value_or(childDesiredSize.height);
+            float childLeft = childLayout.left;
+            float childTop = childLayout.top;
+            float childWidth = childLayout.width > 0 ? childLayout.width : childDesiredSize.width;
+            float childHeight = childLayout.height > 0 ? childLayout.height : childDesiredSize.height;
 
             requiredWidth = std::max(requiredWidth, childLeft + childWidth);
             requiredHeight = std::max(requiredHeight, childTop + childHeight);
         }
 
-        desiredSize = {
-            requiredWidth + padding.left + padding.right,
-            requiredHeight + padding.top + padding.bottom
-        };
+        desiredSize = { requiredWidth + padding.left + padding.right, requiredHeight + padding.top + padding.bottom };
 
-        if (layoutProperties.width.has_value()) {
-            desiredSize.width = layoutProperties.width.value();
-        }
-        if (layoutProperties.height.has_value()) {
-            desiredSize.height = layoutProperties.height.value();
-        }
+        if (computedLayout.width > 0) desiredSize.width = computedLayout.width;
+        if (computedLayout.height > 0) desiredSize.height = computedLayout.height;
+
         return desiredSize;
     }
 
     void SceneNode::arrange(const Rect& finalRect) {
         if (!isLayoutDirty) return;
 
-        layoutProperties.computedBounds = finalRect;
+        auto& computedLayout = layoutCache[getCurrentState()];
+        computedLayout.computedBounds = finalRect;
 
-        const auto& padding = layoutProperties.padding;
+        const auto& padding = computedLayout.padding;
         Rect contentRect = {
-            finalRect.x + static_cast<int>(padding.left),
-            finalRect.y + static_cast<int>(padding.top),
-            finalRect.width - static_cast<int>(padding.left + padding.right),
-            finalRect.height - static_cast<int>(padding.top + padding.bottom)
+            finalRect.x + (int)padding.left, finalRect.y + (int)padding.top,
+            finalRect.width - (int)(padding.left + padding.right),
+            finalRect.height - (int)(padding.top + padding.bottom)
         };
 
         for (const auto& child : children) {
-            const auto& childLayout = child->getLayout();
+            const auto& childLayout = child->getComputedLayout(child->getCurrentState());
             Size childDesiredSize = child->getDesiredSize();
 
-            int childX = contentRect.x + static_cast<int>(childLayout.left.value_or(0));
-            int childY = contentRect.y + static_cast<int>(childLayout.top.value_or(0));
-            int childW = static_cast<int>(childLayout.width.value_or(childDesiredSize.width));
-            int childH = static_cast<int>(childLayout.height.value_or(childDesiredSize.height));
+            int childX = contentRect.x + (int)childLayout.left;
+            int childY = contentRect.y + (int)childLayout.top;
+            int childW = (int)(childLayout.width > 0 ? childLayout.width : childDesiredSize.width);
+            int childH = (int)(childLayout.height > 0 ? childLayout.height : childDesiredSize.height);
 
-            child->arrange({childX, childY, childW, childH});
+            Rect childFinalRect = {childX, childY, childW, childH};
+            child->arrange(childFinalRect);
         }
 
         isLayoutDirty = false;
@@ -250,7 +272,7 @@ namespace DxvUI {
 
     void SceneNode::draw(IRenderer& renderer) {
         if (isStyleDirty) {
-            resolveAndCacheStyles();
+            isStyleDirty = false;
         }
 
         sortChildrenIfDirty();

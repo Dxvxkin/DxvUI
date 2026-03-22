@@ -58,6 +58,7 @@ namespace DxvUI {
         if (oldNode != newNode) {
             if (oldNode) {
                 oldNode->isHovered = false;
+                oldNode->markLayoutDirty(); // State change requires layout recalculation
                 DxvEvent e;
                 e.type = EventType::HoverLeave;
                 e.target = oldNode;
@@ -65,6 +66,7 @@ namespace DxvUI {
             }
             if (newNode) {
                 newNode->isHovered = true;
+                newNode->markLayoutDirty(); // State change requires layout recalculation
                 DxvEvent e;
                 e.type = EventType::HoverEnter;
                 e.target = newNode;
@@ -73,13 +75,11 @@ namespace DxvUI {
             nodeUnderMouse = newNode;
         }
 
-        // Update cursor based on the node under the mouse
         if (auto renderer = ownerScene.getRenderer()) {
             if (newNode) {
-                renderer->setCursor(newNode->getComputedAppearance().cursor);
+                renderer->setCursor(newNode->getComputedAppearance(newNode->getCurrentState()).cursor);
             } else {
-                // If no node is under the cursor, use the root's cursor (which defaults to Arrow)
-                renderer->setCursor(root->getComputedAppearance().cursor);
+                renderer->setCursor(root->getComputedAppearance(root->getCurrentState()).cursor);
             }
         }
 
@@ -123,6 +123,7 @@ namespace DxvUI {
 
         if (targetNode) {
             targetNode->isPressed = true;
+            targetNode->markLayoutDirty(); // State change requires layout recalculation
             pressedNode = targetNode;
             event.target = targetNode;
             targetNode->dispatchEvent(event);
@@ -135,6 +136,7 @@ namespace DxvUI {
 
         if (pressed) {
             pressed->isPressed = false;
+            pressed->markLayoutDirty(); // State change requires layout recalculation
             event.target = pressed;
             pressed->dispatchEvent(event);
 

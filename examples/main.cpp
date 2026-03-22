@@ -9,53 +9,78 @@
 #include <iostream>
 #include <memory>
 #include <cmath>
+#include <format>
 
 extern "C" int SDL_main(int /*argc*/, char* /*argv*/[]) {
     // --- Setup ---
     constexpr int SCREEN_WIDTH = 800;
     constexpr int SCREEN_HEIGHT = 600;
 
-    DxvUI::SDLRenderer dxv_renderer_impl("DxvUI Cursor Example", SCREEN_WIDTH, SCREEN_HEIGHT);
+    DxvUI::SDLRenderer dxv_renderer_impl("DxvUI Stateful Styles Example", SCREEN_WIDTH, SCREEN_HEIGHT);
     DxvUI::IRenderer& dxv_renderer = dxv_renderer_impl;
     DxvUI::SDLEventSource eventSource;
     auto scene = DxvUI::Scene::create();
-
-    // --- Critical Step: Link Scene and Renderer ---
     scene->setRenderer(&dxv_renderer);
 
     auto root = scene->getRoot();
-    root->setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
 
-    // --- THEME ---
-    root->getAppearance().fontPath = "C:/Windows/Fonts/segoeui.ttf";
-    root->getAppearance().fontSize = 20;
-    root->getAppearance().textColor = DxvUI::Colors::DarkGray;
-    root->getAppearance().cursor = DxvUI::CursorType::Arrow;
+    // --- THEME THE ENTIRE APP ---
+    DxvUI::StyleRule rootStyle;
+    rootStyle.fontPath = "C:/Windows/Fonts/segoeui.ttf";
+    rootStyle.fontSize = 18;
+    rootStyle.textColor = DxvUI::Colors::DarkGray;
+    rootStyle.width = SCREEN_WIDTH;
+    rootStyle.height = SCREEN_HEIGHT;
+    root->getStyle().set(DxvUI::WidgetState::Normal, rootStyle);
 
     // --- Create UI ---
-    auto myButton = DxvUI::Button::create("my_button", "Styled Button");
-    myButton->setPosition(50, 50);
-    myButton->setSize(150, 30);
-    myButton->getAppearance().backgroundColor = DxvUI::Colors::CornflowerBlue;
-    myButton->getAppearance().fontSize = 17;
-    myButton->getAppearance().textColor = DxvUI::Colors::White;
-    myButton->getAppearance().borderRadius = 8;
-    myButton->getAppearance().borderThickness = 2;
-    myButton->getAppearance().borderColor = DxvUI::Colors::Blue;
-    myButton->getAppearance().cursor = DxvUI::CursorType::Hand;
+    auto myButton = DxvUI::Button::create("my_button", "Click Me!");
+
+    DxvUI::StyleRule buttonNormal;
+    buttonNormal.left = 50;
+    buttonNormal.top = 50;
+    buttonNormal.width = 200;
+    buttonNormal.height = 50;
+    buttonNormal.backgroundColor = DxvUI::Colors::CornflowerBlue;
+    buttonNormal.textColor = DxvUI::Colors::White;
+    buttonNormal.borderRadius = 8;
+    buttonNormal.cursor = DxvUI::CursorType::Hand;
+    myButton->getStyle().set(DxvUI::WidgetState::Normal, buttonNormal);
+
+    DxvUI::StyleRule buttonHover;
+    buttonHover.backgroundColor = DxvUI::Colors::RoyalBlue;
+    buttonHover.borderThickness = 2;
+    buttonHover.borderColor = DxvUI::Colors::White;
+    myButton->getStyle().set(DxvUI::WidgetState::Hovered, buttonHover);
+
+    DxvUI::StyleRule buttonPressed;
+    buttonPressed.backgroundColor = DxvUI::Colors::MidnightBlue;
+    myButton->getStyle().set(DxvUI::WidgetState::Pressed, buttonPressed);
+
+    myButton->on(DxvUI::EventType::Click, [&root](DxvUI::DxvEvent& event)
+    {
+        int randomX = rand() % (SCREEN_WIDTH - 200); // Ensure button stays within bounds
+        int randomY = rand() % (SCREEN_HEIGHT - 50); // Ensure button stays within bounds
+        static int count =0;
+        DxvUI::StyleRule newPosition;
+        newPosition.left = randomX;
+        newPosition.top = randomY;
+        newPosition.backgroundColor = DxvUI::Colors::ForestGreen;
+
+        DxvUI::StyleRule hover;
+        hover.backgroundColor = DxvUI::Colors::Red;
+
+        auto label = DxvUI::Label::create(std::format("label_{}", count++), "Fuck");
+        label->getStyle().set(DxvUI::WidgetState::Normal, newPosition);
+        label->getStyle().set(DxvUI::WidgetState::Hovered, hover);
+        label->on(DxvUI::EventType::Click, [&root](DxvUI::DxvEvent& event)
+        {
+            root->removeChild(event.target.lock());
+        });
+        root->addChild(label);
+    });
+
     root->addChild(myButton);
-
-    auto inheritedLabel = DxvUI::Label::create("inherited_label", "I inherit my style.");
-    inheritedLabel->setPosition(50, 150);
-    inheritedLabel->getAppearance().cursor = DxvUI::CursorType::Hand;
-    root->addChild(inheritedLabel);
-
-    auto overriddenLabel = DxvUI::Label::create("overridden_label", "I have my own style.");
-    overriddenLabel->setPosition(50, 200);
-    overriddenLabel->getAppearance().fontSize = 28;
-    overriddenLabel->getAppearance().textColor = DxvUI::Colors::Magenta;
-    root->addChild(overriddenLabel);
-
 
     // --- Main Loop ---
     bool quit = false;

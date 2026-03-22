@@ -24,31 +24,36 @@ namespace DxvUI {
     }
 
     Size Label::measure(const Size& availableSize) {
-        if (isLayoutDirty) {
-            auto& computed = getComputedAppearance();
-            auto scene = getScene();
-            if (scene && scene->getRenderer()) {
-                Rect measured = scene->getRenderer()->measureText(text, computed.fontPath, computed.fontSize);
-                desiredSize = {(float)measured.width, (float)measured.height};
-            } else {
-                desiredSize = {0, 0};
-            }
+        if (!isLayoutDirty) return desiredSize;
+
+        const auto& computedAppearance = getComputedAppearance(getCurrentState());
+
+        auto scene = getScene();
+        if (scene && scene->getRenderer()) {
+            Rect measured = scene->getRenderer()->measureText(text, computedAppearance.fontPath, computedAppearance.fontSize);
+            desiredSize = {(float)measured.width, (float)measured.height};
+        } else {
+            desiredSize = {0, 0};
         }
+
+        const auto& computedLayout = getComputedLayout(getCurrentState());
+        if (computedLayout.width > 0) desiredSize.width = computedLayout.width;
+        if (computedLayout.height > 0) desiredSize.height = computedLayout.height;
+
         return desiredSize;
     }
 
     void Label::draw(IRenderer& renderer) {
-        const auto& computed = getComputedAppearance();
+        const auto& computedAppearance = getComputedAppearance(getCurrentState());
+        const auto& computedLayout = getComputedLayout(getCurrentState());
 
-        // Draw background and border from the unified appearance
-        renderer.fillRoundRect(getGlobalBounds(), computed.borderRadius, computed.backgroundColor, {computed.borderColor, computed.borderThickness});
+        renderer.fillRoundRect(computedLayout.computedBounds, computedAppearance.borderRadius, computedAppearance.backgroundColor, {computedAppearance.borderColor, computedAppearance.borderThickness});
 
-        // Draw the text
-        renderer.setFont(computed.fontPath, computed.fontSize);
-        renderer.setDrawColor(computed.textColor);
-        renderer.drawText(text, getGlobalBounds().x, getGlobalBounds().y);
+        renderer.setFont(computedAppearance.fontPath, computedAppearance.fontSize);
+        renderer.setDrawColor(computedAppearance.textColor);
+        renderer.drawText(text, computedLayout.computedBounds.x, computedLayout.computedBounds.y);
 
-        SceneNode::draw(renderer); // Draw children if any
+        SceneNode::draw(renderer);
     }
 
 }
