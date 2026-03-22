@@ -9,6 +9,8 @@
 
 namespace DxvUI {
 
+    int SceneNode::nodeCount = 0;
+
     // A static, default-constructed style to act as a final fallback for the root node.
     static const ComputedAppearanceStyle defaultAppearance = {
         .backgroundColor = Colors::Transparent, .textColor = Colors::Black, .borderColor = Colors::Transparent,
@@ -22,7 +24,15 @@ namespace DxvUI {
         .computedBounds = {0,0,0,0}
     };
 
-    SceneNode::SceneNode(std::string id) : id(std::move(id)) {}
+    SceneNode::SceneNode(std::string id) : id(std::move(id))
+    {
+        nodeCount++;
+    }
+
+    SceneNode::~SceneNode()
+    {
+        nodeCount--;
+    }
 
     void SceneNode::addChild(const std::shared_ptr<SceneNode>& child) {
         if (!child) return;
@@ -279,6 +289,11 @@ namespace DxvUI {
         for (const auto& child : children) {
             child->draw(renderer);
         }
+    }
+
+    int SceneNode::getNodeCount()
+    {
+        return nodeCount;
     }
 
     void SceneNode::sortChildrenIfDirty() {

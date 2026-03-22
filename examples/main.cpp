@@ -61,16 +61,17 @@ extern "C" int SDL_main(int /*argc*/, char* /*argv*/[]) {
     {
         int randomX = rand() % (SCREEN_WIDTH - 200); // Ensure button stays within bounds
         int randomY = rand() % (SCREEN_HEIGHT - 50); // Ensure button stays within bounds
-        static int count =0;
         DxvUI::StyleRule newPosition;
         newPosition.left = randomX;
         newPosition.top = randomY;
+        newPosition.textColor = DxvUI::Colors::Orange;
         newPosition.backgroundColor = DxvUI::Colors::ForestGreen;
+
 
         DxvUI::StyleRule hover;
         hover.backgroundColor = DxvUI::Colors::Red;
 
-        auto label = DxvUI::Label::create(std::format("label_{}", count++), "Fuck");
+        auto label = DxvUI::Label::create(std::format("label_{}", DxvUI::SceneNode::getNodeCount()), std::format("Fuck {}", DxvUI::SceneNode::getNodeCount()));
         label->getStyle().set(DxvUI::WidgetState::Normal, newPosition);
         label->getStyle().set(DxvUI::WidgetState::Hovered, hover);
         label->on(DxvUI::EventType::Click, [&root](DxvUI::DxvEvent& event)
@@ -78,9 +79,13 @@ extern "C" int SDL_main(int /*argc*/, char* /*argv*/[]) {
             root->removeChild(event.target.lock());
         });
         root->addChild(label);
+
+        event.target.lock()->as<DxvUI::Button>()->setText(std::format("Count {}", DxvUI::SceneNode::getNodeCount()));
     });
 
     root->addChild(myButton);
+
+    std::cout << "Initial node count " << DxvUI::SceneNode::getNodeCount() << std::endl;
 
     // --- Main Loop ---
     bool quit = false;
@@ -109,6 +114,7 @@ extern "C" int SDL_main(int /*argc*/, char* /*argv*/[]) {
         scene->draw();
         dxv_renderer.present();
     }
+    std::cout << "Finall node count " << DxvUI::SceneNode::getNodeCount() << std::endl;
 
     return 0;
 }

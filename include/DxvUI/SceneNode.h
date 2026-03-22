@@ -39,7 +39,7 @@ namespace DxvUI {
         friend class EventManager;
     public:
         explicit SceneNode(std::string id = "");
-        virtual ~SceneNode() = default;
+        virtual ~SceneNode();
 
         void addChild(const std::shared_ptr<SceneNode>& child);
         void removeChild(const std::shared_ptr<SceneNode>& child);
@@ -77,6 +77,8 @@ namespace DxvUI {
         virtual void arrange(const Rect& finalRect);
         virtual void draw(IRenderer& renderer);
 
+        static int getNodeCount();
+
         bool isHovered = false;
         bool isPressed = false;
 
@@ -102,6 +104,8 @@ namespace DxvUI {
         void resolveAppearance(WidgetState state);
         void resolveLayout(WidgetState state);
         void sortChildrenIfDirty();
+
+        static int nodeCount;
 
         int zIndex = 0;
         bool childrenOrderDirty = false;
