@@ -127,7 +127,7 @@ namespace DxvUI {
         return shared_from_this();
     }
 
-    Style& SceneNode::getStyle() {
+    Style& SceneNode::editStyle() {
         markStyleDirty();
         markLayoutDirty();
         return style;

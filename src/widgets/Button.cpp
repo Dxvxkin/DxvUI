@@ -20,7 +20,7 @@ namespace DxvUI {
         defaultStyle.padding = {5, 10, 5, 10};
         defaultStyle.horizontalAlignment = Alignment::Center;
         defaultStyle.verticalAlignment = Alignment::Center;
-        getStyle().set(WidgetState::Normal, defaultStyle);
+        editStyle().set(WidgetState::Normal, defaultStyle);
     }
 
     void Button::onAttach() {
@@ -31,7 +31,7 @@ namespace DxvUI {
             StyleRule labelStyle;
             labelStyle.backgroundColor = Colors::Transparent;
             labelStyle.borderThickness = 0;
-            label->getStyle().set(WidgetState::Normal, labelStyle);
+            label->editStyle().set(WidgetState::Normal, labelStyle);
 
             addChild(label);
         }

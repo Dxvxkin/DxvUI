@@ -56,7 +56,7 @@ namespace DxvUI {
         template <typename T> [[nodiscard]] const T* as() const { return dynamic_cast<const T*>(this); }
 
         // --- Style & Layout ---
-        Style& getStyle(); // Should be renamed to editStyle() for clarity
+        Style& editStyle(); // Should be renamed to editStyle() for clarity
         void markStyleDirty();
         void markLayoutDirty();
         const ComputedAppearanceStyle& getComputedAppearance(WidgetState state);

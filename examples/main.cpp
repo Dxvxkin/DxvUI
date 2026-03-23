@@ -32,7 +32,7 @@ extern "C" int SDL_main(int /*argc*/, char* /*argv*/[]) {
     rootStyle.textColor = DxvUI::Colors::DarkGray;
     rootStyle.width = SCREEN_WIDTH;
     rootStyle.height = SCREEN_HEIGHT;
-    root->getStyle().set(DxvUI::WidgetState::Normal, rootStyle);
+    root->editStyle().set(DxvUI::WidgetState::Normal, rootStyle);
 
     auto myButton = DxvUI::Button::create("my_button", "Click Me!");
 
@@ -45,17 +45,17 @@ extern "C" int SDL_main(int /*argc*/, char* /*argv*/[]) {
     buttonNormal.textColor = DxvUI::Colors::White;
     buttonNormal.borderRadius = 8;
     buttonNormal.cursor = DxvUI::CursorType::Hand;
-    myButton->getStyle().set(DxvUI::WidgetState::Normal, buttonNormal);
+    myButton->editStyle().set(DxvUI::WidgetState::Normal, buttonNormal);
 
     DxvUI::StyleRule buttonHover;
     buttonHover.backgroundColor = DxvUI::Colors::RoyalBlue;
     buttonHover.borderThickness = 2;
     buttonHover.borderColor = DxvUI::Colors::White;
-    myButton->getStyle().set(DxvUI::WidgetState::Hovered, buttonHover);
+    myButton->editStyle().set(DxvUI::WidgetState::Hovered, buttonHover);
 
     DxvUI::StyleRule buttonPressed;
     buttonPressed.backgroundColor = DxvUI::Colors::MidnightBlue;
-    myButton->getStyle().set(DxvUI::WidgetState::Pressed, buttonPressed);
+    myButton->editStyle().set(DxvUI::WidgetState::Pressed, buttonPressed);
 
     myButton->on(DxvUI::EventType::Click, [&root](DxvUI::DxvEvent& event)
     {
@@ -71,8 +71,8 @@ extern "C" int SDL_main(int /*argc*/, char* /*argv*/[]) {
         hover.backgroundColor = DxvUI::Colors::Red;
 
         auto label = DxvUI::Label::create(std::format("label_{}", DxvUI::SceneNode::getNodeCount()), std::format("Click to remove {}", DxvUI::SceneNode::getNodeCount()));
-        label->getStyle().set(DxvUI::WidgetState::Normal, newPosition);
-        label->getStyle().set(DxvUI::WidgetState::Hovered, hover);
+        label->editStyle().set(DxvUI::WidgetState::Normal, newPosition);
+        label->editStyle().set(DxvUI::WidgetState::Hovered, hover);
         label->on(DxvUI::EventType::Click, [&root](DxvUI::DxvEvent& event)
         {
             if(auto target = event.target.lock())
