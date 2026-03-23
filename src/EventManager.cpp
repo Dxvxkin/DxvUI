@@ -9,6 +9,9 @@ namespace DxvUI {
 
     void EventManager::processRawEvent(const DxvEvent& rawEvent) {
         DxvEvent event = rawEvent;
+        auto root = ownerScene.getRoot();
+        if (!root) return;
+
         switch (event.type) {
             case EventType::MouseMove:
                 handleMouseMove(event);
@@ -21,25 +24,21 @@ namespace DxvUI {
                 break;
             case EventType::TextInput:
             case EventType::KeyDown:
-            case EventType::KeyUp:
-                if (auto focused = focusedNode.lock()) {
-                    event.target = focused;
-                    focused->dispatchEvent(event);
+            case EventType::KeyUp: {
+                std::shared_ptr<SceneNode> target = focusedNode.lock();
+                if (!target) {
+                    target = root;
                 }
-                if (!event.handled) {
-                    if (auto root = ownerScene.getRoot()) {
-                        event.target = root;
-                        root->dispatchEvent(event);
-                    }
-                }
+                event.target = target;
+                target->dispatchEvent(event);
                 break;
+            }
             case EventType::Quit:
-                if (auto root = ownerScene.getRoot()) {
-                    event.target = root;
-                    root->dispatchEvent(event);
-                }
+                event.target = root;
+                root->dispatchEvent(event);
                 break;
             default:
+                // For unhandled event types, do nothing.
                 break;
         }
     }
@@ -56,17 +55,15 @@ namespace DxvUI {
         auto newNode = root->findNodeAt(event.mouse.x, event.mouse.y);
 
         if (oldNode != newNode) {
-            if (oldNode) {
-                oldNode->isHovered = false;
-                oldNode->markLayoutDirty(); // State change requires layout recalculation
+            if (oldNode && !oldNode->isRoot()) {
+                oldNode->setHovered(false);
                 DxvEvent e;
                 e.type = EventType::HoverLeave;
                 e.target = oldNode;
                 oldNode->dispatchEvent(e);
             }
-            if (newNode) {
-                newNode->isHovered = true;
-                newNode->markLayoutDirty(); // State change requires layout recalculation
+            if (newNode && !newNode->isRoot()) {
+                newNode->setHovered(true);
                 DxvEvent e;
                 e.type = EventType::HoverEnter;
                 e.target = newNode;
@@ -122,9 +119,11 @@ namespace DxvUI {
         }
 
         if (targetNode) {
-            targetNode->isPressed = true;
-            targetNode->markLayoutDirty(); // State change requires layout recalculation
-            pressedNode = targetNode;
+            // Only apply 'pressed' state and track the node if it's an interactive element.
+            if (!targetNode->isRoot()) {
+                targetNode->setPressed(true);
+                pressedNode = targetNode;
+            }
             event.target = targetNode;
             targetNode->dispatchEvent(event);
         }
@@ -135,8 +134,7 @@ namespace DxvUI {
         auto targetNodeOnUp = ownerScene.getRoot() ? ownerScene.getRoot()->findNodeAt(event.mouse.x, event.mouse.y) : nullptr;
 
         if (pressed) {
-            pressed->isPressed = false;
-            pressed->markLayoutDirty(); // State change requires layout recalculation
+            pressed->setPressed(false);
             event.target = pressed;
             pressed->dispatchEvent(event);
 

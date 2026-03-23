@@ -26,7 +26,7 @@ namespace DxvUI {
     void Button::onAttach() {
         SceneNode::onAttach();
         if (!label) {
-            label = Label::create("", initialText);
+            label = Label::create(id + "_label", initialText);
 
             StyleRule labelStyle;
             labelStyle.backgroundColor = Colors::Transparent;
@@ -67,9 +67,11 @@ namespace DxvUI {
     }
 
     void Button::arrange(const Rect& finalRect) {
+        // The button itself takes up the finalRect
         auto& computedLayout = layoutCache[getCurrentState()];
         computedLayout.computedBounds = finalRect;
 
+        // Arrange the label centered within the button's content area
         if (label) {
             const auto& padding = computedLayout.padding;
 
@@ -98,7 +100,10 @@ namespace DxvUI {
 
         renderer.fillRoundRect(computedLayout.computedBounds, computedAppearance.borderRadius, computedAppearance.backgroundColor, {computedAppearance.borderColor, computedAppearance.borderThickness});
 
-        SceneNode::draw(renderer);
+        // Explicitly call draw on children, do NOT call SceneNode::draw
+        if (label) {
+            label->draw(renderer);
+        }
     }
 
     void Button::setText(const std::string& text) {

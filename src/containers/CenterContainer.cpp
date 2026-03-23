@@ -5,11 +5,7 @@
 namespace DxvUI {
 
     // Helper to get the current state of a node
-    static WidgetState getCurrentState(const SceneNode* node) {
-        if (node->isPressed) return WidgetState::Pressed;
-        if (node->isHovered) return WidgetState::Hovered;
-        return WidgetState::Normal;
-    }
+
 
     Size CenterContainer::measure(const Size& availableSize) {
         if (!isLayoutDirty) {

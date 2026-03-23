@@ -11,11 +11,15 @@ find_package(SDL2_ttf REQUIRED)
 find_package(sdl2-gfx REQUIRED)
 find_package(GTest REQUIRED)
 
+find_package(spdlog CONFIG REQUIRED)
+
+
 
 # --- DxvUI Library ---
 add_library(DxvUI STATIC)
 
 target_sources(DxvUI PRIVATE
+    src/Log.cpp # Add the new Log source file
     src/Color.cpp
     src/EventManager.cpp
     src/Scene.cpp
@@ -38,6 +42,7 @@ target_link_libraries(DxvUI PUBLIC
     SDL2::SDL2
     SDL2::SDL2_gfx
         SDL2_ttf::SDL2_ttf
+        spdlog::spdlog
 )
 
 

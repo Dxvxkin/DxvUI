@@ -1,15 +1,38 @@
 #include "DxvUI/SceneNode.h"
 #include "DxvUI/Scene.h"
 #include "DxvUI/Colors.h"
+#include "DxvUI/Log.h"
 #include <utility>
 #include <algorithm>
-#include <iostream>
-#include <limits>
+
 #include <string>
 
 namespace DxvUI {
 
     int SceneNode::nodeCount = 0;
+
+    // --- Logging Helpers ---
+    static int get_depth(const SceneNode* node) {
+        int depth = 0;
+        if (node) {
+            auto p = node->parent.lock();
+            while (p) {
+                depth++;
+                p = p->parent.lock();
+            }
+        }
+        return depth;
+    }
+    static std::string indent(const SceneNode* node) { return std::string(get_depth(node) * 2, ' '); }
+    static std::string state_to_string(WidgetState state) {
+        switch (state) {
+            case WidgetState::Normal: return "Normal";
+            case WidgetState::Hovered: return "Hovered";
+            case WidgetState::Pressed: return "Pressed";
+            case WidgetState::Disabled: return "Disabled";
+        }
+        return "Unknown";
+    }
 
     // A static, default-constructed style to act as a final fallback for the root node.
     static const ComputedAppearanceStyle defaultAppearance = {
@@ -24,14 +47,16 @@ namespace DxvUI {
         .computedBounds = {0,0,0,0}
     };
 
-    SceneNode::SceneNode(std::string id) : id(std::move(id))
-    {
+    SceneNode::SceneNode(std::string id) : id(std::move(id)) {
         nodeCount++;
     }
 
-    SceneNode::~SceneNode()
-    {
+    SceneNode::~SceneNode() {
         nodeCount--;
+    }
+
+    int SceneNode::getNodeCount() {
+        return nodeCount;
     }
 
     void SceneNode::addChild(const std::shared_ptr<SceneNode>& child) {
@@ -110,6 +135,7 @@ namespace DxvUI {
 
     void SceneNode::markStyleDirty() {
         if (isStyleDirty) return;
+        Log::trace("{}Marking Style Dirty for '{}'", indent(this), id);
         isStyleDirty = true;
         appearanceCache.clear();
         for (const auto& child : children) {
@@ -119,6 +145,7 @@ namespace DxvUI {
 
     void SceneNode::markLayoutDirty() {
         if (isLayoutDirty) return;
+        Log::trace("{}Marking Layout Dirty for '{}'", indent(this), id);
         isLayoutDirty = true;
         layoutCache.clear();
         if (auto p = parent.lock()) {
@@ -138,6 +165,27 @@ namespace DxvUI {
         if (isPressed) return WidgetState::Pressed;
         if (isHovered) return WidgetState::Hovered;
         return WidgetState::Normal;
+    }
+
+    bool SceneNode::isRoot() const {
+        if (auto s = scene.lock()) {
+            return s->getRoot().get() == this;
+        }
+        return false;
+    }
+
+    void SceneNode::setHovered(bool hovered) {
+        if (isHovered != hovered) {
+            isHovered = hovered;
+            markLayoutDirty();
+        }
+    }
+
+    void SceneNode::setPressed(bool pressed) {
+        if (isPressed != pressed) {
+            isPressed = pressed;
+            markLayoutDirty();
+        }
     }
 
     void SceneNode::setZIndex(int newZIndex) {
@@ -184,9 +232,14 @@ namespace DxvUI {
     }
 
     void SceneNode::resolveAppearance(WidgetState state) {
+        Log::trace("{}Resolving appearance for state '{}' on node '{}'", indent(this), state_to_string(state), id);
+        if (state != WidgetState::Normal && appearanceCache.find(WidgetState::Normal) == appearanceCache.end()) {
+            resolveAppearance(WidgetState::Normal);
+        }
+
         const ComputedAppearanceStyle& fallback = (state == WidgetState::Normal)
             ? (parent.lock() ? parent.lock()->getComputedAppearance(WidgetState::Normal) : defaultAppearance)
-            : getComputedAppearance(WidgetState::Normal);
+            : appearanceCache.at(WidgetState::Normal);
 
         const StyleRule* specificRule = style.get(state);
         const StyleRule* normalRule = style.get(WidgetState::Normal);
@@ -203,9 +256,13 @@ namespace DxvUI {
     }
 
     void SceneNode::resolveLayout(WidgetState state) {
+        if (state != WidgetState::Normal && layoutCache.find(WidgetState::Normal) == layoutCache.end()) {
+            resolveLayout(WidgetState::Normal);
+        }
+
         const ComputedLayoutStyle& fallback = (state == WidgetState::Normal)
             ? defaultLayout
-            : getComputedLayout(WidgetState::Normal);
+            : layoutCache.at(WidgetState::Normal);
 
         const StyleRule* specificRule = style.get(state);
         const StyleRule* normalRule = style.get(WidgetState::Normal);
@@ -222,7 +279,11 @@ namespace DxvUI {
     }
 
     Size SceneNode::measure(const Size& availableSize) {
-        if (!isLayoutDirty) return desiredSize;
+        Log::trace("{}Measuring '{}' | available: ({}, {})", indent(this), id, availableSize.width, availableSize.height);
+        if (!isLayoutDirty) {
+            Log::trace("{} > Skipping, not dirty. Returning cached: ({}, {})", indent(this), desiredSize.width, desiredSize.height);
+            return desiredSize;
+        }
 
         const auto& computedLayout = getComputedLayout(getCurrentState());
         const auto& padding = computedLayout.padding;
@@ -248,11 +309,16 @@ namespace DxvUI {
         if (computedLayout.width > 0) desiredSize.width = computedLayout.width;
         if (computedLayout.height > 0) desiredSize.height = computedLayout.height;
 
+        Log::trace("{} > Computed desired size: ({}, {})", indent(this), desiredSize.width, desiredSize.height);
         return desiredSize;
     }
 
     void SceneNode::arrange(const Rect& finalRect) {
-        if (!isLayoutDirty) return;
+        Log::trace("{}Arranging '{}' | finalRect: ({}, {}, {}, {})", indent(this), id, finalRect.x, finalRect.y, finalRect.width, finalRect.height);
+        if (!isLayoutDirty) {
+            Log::trace("{} > Skipping, not dirty.", indent(this));
+            return;
+        }
 
         auto& computedLayout = layoutCache[getCurrentState()];
         computedLayout.computedBounds = finalRect;
@@ -289,11 +355,6 @@ namespace DxvUI {
         for (const auto& child : children) {
             child->draw(renderer);
         }
-    }
-
-    int SceneNode::getNodeCount()
-    {
-        return nodeCount;
     }
 
     void SceneNode::sortChildrenIfDirty() {

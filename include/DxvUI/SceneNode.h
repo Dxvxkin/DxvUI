@@ -36,7 +36,6 @@ namespace DxvUI {
     };
 
     class SceneNode : public std::enable_shared_from_this<SceneNode> {
-        friend class EventManager;
     public:
         explicit SceneNode(std::string id = "");
         virtual ~SceneNode();
@@ -56,40 +55,42 @@ namespace DxvUI {
         template <typename T> [[nodiscard]] T* as() { return dynamic_cast<T*>(this); }
         template <typename T> [[nodiscard]] const T* as() const { return dynamic_cast<const T*>(this); }
 
-        Style& getStyle();
-
+        // --- Style & Layout ---
+        Style& getStyle(); // Should be renamed to editStyle() for clarity
         void markStyleDirty();
         void markLayoutDirty();
-
+        const ComputedAppearanceStyle& getComputedAppearance(WidgetState state);
+        const ComputedLayoutStyle& getComputedLayout(WidgetState state);
         Rect getGlobalBounds() const;
         Size getDesiredSize() const;
-        WidgetState getCurrentState() const; // New method
+        WidgetState getCurrentState() const;
+
+        // --- State & Hierarchy ---
+        bool isRoot() const;
         void setZIndex(int newZIndex);
         int getZIndex() const;
+        void setHovered(bool hovered);
+        void setPressed(bool pressed);
 
+        // --- Events & Lifecycle (Framework-level API) ---
         void on(EventType type, ActionCallback callback);
         virtual void dispatchEvent(DxvEvent& event);
         virtual void onAttach();
         virtual void onDetach();
         virtual void onUpdate(float deltaTime);
 
+        // --- Rendering Pipeline (Framework-level API) ---
         virtual Size measure(const Size& availableSize);
         virtual void arrange(const Rect& finalRect);
         virtual void draw(IRenderer& renderer);
 
         static int getNodeCount();
 
-        bool isHovered = false;
-        bool isPressed = false;
-
         std::weak_ptr<SceneNode> parent;
         std::vector<std::shared_ptr<SceneNode>> children;
         std::weak_ptr<Scene> scene;
 
     protected:
-        const ComputedAppearanceStyle& getComputedAppearance(WidgetState state);
-        const ComputedLayoutStyle& getComputedLayout(WidgetState state);
-
         std::string id;
         Style style;
 
@@ -104,6 +105,9 @@ namespace DxvUI {
         void resolveAppearance(WidgetState state);
         void resolveLayout(WidgetState state);
         void sortChildrenIfDirty();
+
+        bool isHovered = false;
+        bool isPressed = false;
 
         static int nodeCount;
 
