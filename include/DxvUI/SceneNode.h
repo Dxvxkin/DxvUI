@@ -72,6 +72,10 @@ namespace DxvUI {
         void setHovered(bool hovered);
         void setPressed(bool pressed);
 
+        bool isVisible() const;
+        void setVisible(bool visible);
+
+
         // --- Events & Lifecycle (Framework-level API) ---
         void on(EventType type, ActionCallback callback);
         virtual void dispatchEvent(DxvEvent& event);
@@ -108,6 +112,8 @@ namespace DxvUI {
 
         bool isHovered = false;
         bool isPressed = false;
+
+        bool visible = true;
 
         static int nodeCount;
 

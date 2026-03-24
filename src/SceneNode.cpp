@@ -118,10 +118,14 @@ namespace DxvUI {
     }
 
     std::shared_ptr<SceneNode> SceneNode::findNodeAt(int x, int y) {
-        if (!getGlobalBounds().contains(x, y)) return nullptr;
+        if (!visible || !getGlobalBounds().contains(x, y)) {
+            return nullptr;
+        }
         sortChildrenIfDirty();
         for (auto it = children.rbegin(); it != children.rend(); ++it) {
-            if (auto found = (*it)->findNodeAt(x, y)) return found;
+            if (auto found = (*it)->findNodeAt(x, y)) {
+                return found;
+            }
         }
         return shared_from_this();
     }
@@ -187,6 +191,17 @@ namespace DxvUI {
         }
     }
 
+    bool SceneNode::isVisible() const {
+        return visible;
+    }
+
+    void SceneNode::setVisible(bool newVisible) {
+        if (visible != newVisible) {
+            visible = newVisible;
+            markLayoutDirty();
+        }
+    }
+
     void SceneNode::setZIndex(int newZIndex) {
         if (zIndex != newZIndex) {
             zIndex = newZIndex;
@@ -233,6 +248,7 @@ namespace DxvUI {
     }
 
     void SceneNode::onUpdate(float deltaTime) {
+        if (!visible) return;
         for (const auto& child : children) {
             child->onUpdate(deltaTime);
         }
@@ -300,6 +316,9 @@ namespace DxvUI {
     }
 
     Size SceneNode::measure(const Size& availableSize) {
+        if (!visible) {
+            return desiredSize = {0, 0};
+        }
         Log::trace("{}Measuring '{}' | available: ({}, {})", indent(this), id, availableSize.width, availableSize.height);
         if (!isLayoutDirty) {
             Log::trace("{} > Skipping, not dirty. Returning cached: ({}, {})", indent(this), desiredSize.width, desiredSize.height);
@@ -335,6 +354,14 @@ namespace DxvUI {
     }
 
     void SceneNode::arrange(const Rect& finalRect) {
+        if (!visible) {
+            // Even if not visible, we need to set its computed bounds to something sensible (zero size)
+            // so that getGlobalBounds() doesn't return stale data.
+            auto& computedLayout = layoutCache[getCurrentState()];
+            computedLayout.computedBounds = {finalRect.x, finalRect.y, 0, 0};
+            isLayoutDirty = false;
+            return;
+        }
         Log::trace("{}Arranging '{}' | finalRect: ({}, {}, {}, {})", indent(this), id, finalRect.x, finalRect.y, finalRect.width, finalRect.height);
         if (!isLayoutDirty) {
             Log::trace("{} > Skipping, not dirty.", indent(this));
@@ -368,6 +395,9 @@ namespace DxvUI {
     }
 
     void SceneNode::draw(IRenderer& renderer) {
+        if (!visible) {
+            return;
+        }
         if (isStyleDirty) {
             isStyleDirty = false;
         }
