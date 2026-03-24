@@ -113,7 +113,7 @@ extern "C" int SDL_main(int /*argc*/, char* /*argv*/[]) {
         scene->draw();
         dxv_renderer.present();
     }
-
+    scene->shutdown();
     scene.reset();
     DxvUI::Log::info("Final node count: {}", DxvUI::SceneNode::getNodeCount());
 

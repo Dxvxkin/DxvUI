@@ -43,13 +43,14 @@ namespace DxvUI {
         void addChild(const std::shared_ptr<SceneNode>& child);
         void removeChild(const std::shared_ptr<SceneNode>& child);
         void detach();
+        void detachAllChildren();
 
         virtual void setScene(const std::shared_ptr<Scene>& scene);
         std::shared_ptr<Scene> getScene() const;
 
         const std::string& getId() const;
         void setId(const std::string& newId);
-        std::shared_ptr<SceneNode> findNodeById(const std::string& searchId);
+        std::shared_ptr<SceneNode> findNodeById(const std::string& searchId) const;
         virtual std::shared_ptr<SceneNode> findNodeAt(int x, int y);
 
         template <typename T> [[nodiscard]] T* as() { return dynamic_cast<T*>(this); }

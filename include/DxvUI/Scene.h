@@ -34,6 +34,9 @@ namespace DxvUI {
         void updateLayout(); // No longer needs renderer passed in
         void draw();         // No longer needs renderer passed in
 
+        void shutdown(); // New method for explicit cleanup
+        ~Scene();
+
     private:
         Scene();
         void init();

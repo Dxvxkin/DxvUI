@@ -8,6 +8,23 @@ namespace DxvUI {
 
     Scene::Scene() = default;
 
+    Scene::~Scene() {
+        shutdown();
+    }
+
+    void Scene::shutdown() {
+        if (!root) {
+            return;
+        }
+
+        Log::trace("Scene shutdown requested.");
+        root->detachAllChildren();
+        root->setScene(nullptr);
+        root.reset();
+
+        Log::trace("Scene shutdown complete.");
+    }
+
     std::shared_ptr<Scene> Scene::create() {
         auto scene = std::shared_ptr<Scene>(new Scene());
         scene->init();
@@ -21,9 +38,12 @@ namespace DxvUI {
     }
 
     void Scene::setRoot(const std::shared_ptr<SceneNode>& node) {
-        if (root) root->setScene(nullptr);
+        // Use shutdown to clear the old root, ensuring consistent cleanup logic.
+        shutdown();
         root = node;
-        if (root) root->setScene(shared_from_this());
+        if (root) {
+            root->setScene(shared_from_this());
+        }
         requestLayoutUpdate();
     }
 
@@ -43,9 +63,18 @@ namespace DxvUI {
     {
         if (auto _node = node.lock())
         {
+            Log::trace("Unregistering node '{}'", _node->getId());
+
+            if (_node->getId().empty()) return false; // Do not try to erase empty string
             auto count = nodeById.erase(_node->getId());
-            return count > 0;
+            if (count == 0)
+            {
+                Log::warn("Attempt to unregister node '{}' that is not registered", _node->getId());
+                return false;
+            }
+            return true;
         }
+        Log::warn("Attempt to unregister an expired node");
         return false;
     }
 
@@ -57,9 +86,11 @@ namespace DxvUI {
     {
         if (auto _node = node.lock())
         {
+            Log::trace("Registering node '{}'", _node->getId());
+
             if (_node->getId().empty())
             {
-                Log::error("Attempt to register node with empty id");
+                Log::warn("Attempt to register node with empty id");
                 return false;
             }
             if (nodeById.contains(_node->getId()))
@@ -71,6 +102,7 @@ namespace DxvUI {
             nodeById[_node->getId()] = node;
             return true;
         }
+        Log::warn("Attempt to register an expired node");
         return false;
     }
 
@@ -81,7 +113,14 @@ namespace DxvUI {
         {
             return nullptr;
         }
-        return it->second.lock();
+
+        if (auto locked = it->second.lock()) {
+            return locked;
+        }
+
+        // Optional: Clean up expired weak_ptr from the map
+        // nodeById.erase(it);
+        return nullptr;
     }
 
     void Scene::processEvent(const DxvEvent& event) {
