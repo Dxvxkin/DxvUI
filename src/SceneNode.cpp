@@ -122,7 +122,6 @@ namespace DxvUI {
 
         // If the node is being added to a new scene, register it
         if (const auto currentScene = scene.lock()) {
-
             if (!currentScene->registerNode(shared_from_this())) {
                 Log::error("{} Failed to register node '{}' to new scene", indent(this), id);
             }
@@ -252,16 +251,29 @@ namespace DxvUI {
     }
     int SceneNode::getZIndex() const { return zIndex; }
 
-    void SceneNode::on(EventType type, ActionCallback callback) { eventHandlers[type].push_back(std::move(callback)); }
+    void SceneNode::on(EventType type, std::function<void(DxvEvent&)> callback) {
+        eventHandlers[type].push_back(std::move(callback));
+    }
+
+    void SceneNode::on(EventType type, const std::shared_ptr<SceneNode>& owner, std::function<void(DxvEvent&)> callback) {
+        auto safe_callback = [weak_owner = std::weak_ptr(owner), cb = std::move(callback)](DxvEvent& event) {
+            if (weak_owner.lock()) {
+                cb(event);
+            }
+        };
+        eventHandlers[type].push_back(std::move(safe_callback));
+    }
 
     void SceneNode::dispatchEvent(DxvEvent& event) {
         if (eventHandlers.count(event.type)) {
-            for (const auto& callback : eventHandlers[event.type]) {
-                if (auto targetNode = event.target.lock()) callback(event);
+            for (const auto& callback : eventHandlers.at(event.type)) {
                 if (event.handled) return;
+                callback(event);
             }
         }
-        if (!event.handled && parent.lock()) parent.lock()->dispatchEvent(event);
+        if (!event.handled && parent.lock()) {
+            parent.lock()->dispatchEvent(event);
+        }
     }
 
     void SceneNode::onAttach()

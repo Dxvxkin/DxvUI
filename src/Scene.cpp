@@ -118,8 +118,6 @@ namespace DxvUI {
             return locked;
         }
 
-        // Optional: Clean up expired weak_ptr from the map
-        // nodeById.erase(it);
         return nullptr;
     }
 

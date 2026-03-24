@@ -78,7 +78,11 @@ namespace DxvUI {
 
 
         // --- Events & Lifecycle (Framework-level API) ---
-        void on(EventType type, ActionCallback callback);
+        // "Eternal" version for callbacks not tied to an object's lifecycle (e.g., from main)
+        void on(EventType type, std::function<void(DxvEvent&)> callback);
+        // Safe version for callbacks tied to an owner's lifecycle
+        void on(EventType type, const std::shared_ptr<SceneNode>& owner, std::function<void(DxvEvent&)> callback);
+
         virtual void dispatchEvent(DxvEvent& event);
         virtual void onAttach();
         virtual void onDetach();
@@ -113,11 +117,8 @@ namespace DxvUI {
 
         bool isHovered = false;
         bool isPressed = false;
-
         bool visible = true;
-
         static int nodeCount;
-
         int zIndex = 0;
         bool childrenOrderDirty = false;
         std::map<EventType, std::vector<ActionCallback>> eventHandlers;
