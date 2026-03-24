@@ -111,9 +111,8 @@ namespace DxvUI {
     void SceneNode::setId(const std::string& newId) { id = newId; }
 
     std::shared_ptr<SceneNode> SceneNode::findNodeById(const std::string& searchId) {
-        if (!searchId.empty() && id == searchId) return shared_from_this();
-        for (const auto& child : children) {
-            if (auto found = child->findNodeById(searchId)) return found;
+        if (auto s = getScene()) {
+            return s->findNodeById(searchId);
         }
         return nullptr;
     }
@@ -208,8 +207,30 @@ namespace DxvUI {
         if (!event.handled && parent.lock()) parent.lock()->dispatchEvent(event);
     }
 
-    void SceneNode::onAttach() { /* Base implementation is empty */ }
-    void SceneNode::onDetach() { /* Base implementation is empty */ }
+    void SceneNode::onAttach()
+    {
+        if (auto _scene =scene.lock())
+        {
+            Log::trace("{} Registering node '{}'", indent(this), id);
+
+            if (_scene->registerNode(shared_from_this()) == false)
+            {
+                Log::error("{} Registering node '{}' failed", indent(this), id);
+            }
+
+        }
+    }
+    void SceneNode::onDetach()
+    {
+        if (auto _scene = scene.lock())
+        {
+            Log::trace("{} Unregistering node '{}'", indent(this), id);
+            if (_scene->unregisterNode(shared_from_this()) == false)
+            {
+                Log::error("{} Unregistering node '{}' failed", indent(this), id);
+            }
+        }
+    }
 
     void SceneNode::onUpdate(float deltaTime) {
         for (const auto& child : children) {

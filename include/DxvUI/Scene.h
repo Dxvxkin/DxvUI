@@ -23,6 +23,10 @@ namespace DxvUI {
         ActionRegistry& getActionRegistry();
         EventManager& getEventManager();
 
+        bool unregisterNode(std::weak_ptr<SceneNode>);
+        bool registerNode(std::weak_ptr<SceneNode>);
+        std::shared_ptr<SceneNode> findNodeById(std::string);
+
         void requestLayoutUpdate();
 
         void processEvent(const DxvEvent& event);
@@ -39,6 +43,7 @@ namespace DxvUI {
         ActionRegistry actionRegistry;
         IRenderer* renderer = nullptr; // Now a persistent pointer
         bool layoutIsDirty = true;
+        std::unordered_map<std::string, std::weak_ptr<SceneNode>> nodeById;
     };
 
 }

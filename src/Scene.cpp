@@ -1,4 +1,6 @@
 #include "DxvUI/Scene.h"
+
+#include "DxvUI/Log.h"
 #include "DxvUI/SceneNode.h"
 #include "DxvUI/interfaces/IRenderer.h"
 
@@ -37,8 +39,49 @@ namespace DxvUI {
     ActionRegistry& Scene::getActionRegistry() { return actionRegistry; }
     EventManager& Scene::getEventManager() { return *eventManager; }
 
+    bool Scene::unregisterNode(std::weak_ptr<SceneNode> node)
+    {
+        if (auto _node = node.lock())
+        {
+            auto count = nodeById.erase(_node->getId());
+            return count > 0;
+        }
+        return false;
+    }
+
     void Scene::requestLayoutUpdate() {
         layoutIsDirty = true;
+    }
+
+    bool Scene::registerNode(std::weak_ptr<SceneNode> node)
+    {
+        if (auto _node = node.lock())
+        {
+            if (_node->getId().empty())
+            {
+                Log::error("Attempt to register node with empty id");
+                return false;
+            }
+            if (nodeById.contains(_node->getId()))
+            {
+                Log::error("Attempt to register node with id '{}' that is already registered", _node->getId());
+                return false;
+            }
+
+            nodeById[_node->getId()] = node;
+            return true;
+        }
+        return false;
+    }
+
+    std::shared_ptr<SceneNode> Scene::findNodeById(std::string id)
+    {
+        auto it = nodeById.find(id);
+        if (it == nodeById.end())
+        {
+            return nullptr;
+        }
+        return it->second.lock();
     }
 
     void Scene::processEvent(const DxvEvent& event) {
