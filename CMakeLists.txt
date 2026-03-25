@@ -14,33 +14,35 @@ find_package(GTest REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 
 
-
 # --- DxvUI Library ---
 add_library(DxvUI STATIC)
 
 target_sources(DxvUI PRIVATE
-    src/Log.cpp # Add the new Log source file
-    src/Color.cpp
-    src/EventManager.cpp
-    src/Scene.cpp
-    src/SceneNode.cpp
-    src/widgets/Button.cpp
-    src/widgets/Label.cpp
-    src/containers/CenterContainer.cpp
-    src/renderers/SDLRenderer.cpp
-    src/sources/SDLEventSource.cpp
+        src/Log.cpp # Add the new Log source file
+
+        src/EventManager.cpp
+        src/Scene.cpp
+        src/SceneNode.cpp
+        src/widgets/Button.cpp
+        src/widgets/Label.cpp
+        src/containers/CenterContainer.cpp
+        src/renderers/SDLRenderer.cpp
+        src/sources/SDLEventSource.cpp
+        src/style/Color.cpp
+        src/style/StyleResolver.cpp
+        src/style/Theme.cpp
 
 )
 
 target_include_directories(DxvUI PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
 )
 
 target_link_libraries(DxvUI PUBLIC
-    nlohmann_json::nlohmann_json
-    SDL2::SDL2
-    SDL2::SDL2_gfx
+        nlohmann_json::nlohmann_json
+        SDL2::SDL2
+        SDL2::SDL2_gfx
         SDL2_ttf::SDL2_ttf
         spdlog::spdlog
 )
@@ -49,19 +51,19 @@ target_link_libraries(DxvUI PUBLIC
 # --- Example ---
 add_executable(DxvUIExample examples/main.cpp)
 target_link_libraries(DxvUIExample PRIVATE
-    DxvUI
-    SDL2::SDL2main
+        DxvUI
+        SDL2::SDL2main
 )
 
 
 # --- Tests ---
 enable_testing()
 add_executable(DxvUITests
-    tests/ColorTests.cpp
+        tests/ColorTests.cpp
 )
 target_link_libraries(DxvUITests PRIVATE
-    DxvUI
-    GTest::gtest_main
+        DxvUI
+        GTest::gtest_main
 )
 
 include(GoogleTest)

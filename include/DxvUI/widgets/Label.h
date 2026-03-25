@@ -16,6 +16,7 @@ namespace DxvUI {
         const std::string& getText() const;
 
         // --- Overrides ---
+        const char* getNodeType() const override;
         Size measure(const Size& availableSize) override;
         void draw(IRenderer& renderer) override;
         // ---------------------

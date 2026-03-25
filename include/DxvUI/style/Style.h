@@ -1,7 +1,7 @@
 #ifndef DXVUI_STYLE_H
 #define DXVUI_STYLE_H
 
-#include "DxvUI/Color.h"
+#include "DxvUI/style/Color.h"
 #include "DxvUI/core.h" // For core types like Thickness, Alignment, CursorType
 #include <optional>
 #include <string>

@@ -19,6 +19,7 @@ namespace DxvUI {
         Label* getLabel() const;
 
         // --- Overrides ---
+        const char* getNodeType() const override;
         void onAttach() override;
         Size measure(const Size& availableSize) override;
         void arrange(const Rect& finalRect) override;

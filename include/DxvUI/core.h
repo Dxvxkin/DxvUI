@@ -2,12 +2,12 @@
 #define DXVUI_CORE_H
 
 #include <string>
-#include <vector>
+
 #include <functional> // For std::function
 #include <cstdint>  // For uint16_t
 #include <memory>
 
-#include "Color.h"
+#include "DxvUI/style/Color.h"
 
 namespace DxvUI {
 

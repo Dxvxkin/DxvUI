@@ -7,7 +7,7 @@
 #include <map>
 #include <functional>
 #include "core.h"
-#include "Style.h"
+#include "DxvUI/style/Style.h"
 #include "interfaces/IRenderer.h"
 
 namespace DxvUI {
@@ -56,15 +56,24 @@ namespace DxvUI {
         template <typename T> [[nodiscard]] T* as() { return dynamic_cast<T*>(this); }
         template <typename T> [[nodiscard]] const T* as() const { return dynamic_cast<const T*>(this); }
 
+        // --- Type Information ---
+        virtual const char* getNodeType() const;
+
         // --- Style & Layout ---
-        Style& editStyle(); // Should be renamed to editStyle() for clarity
+        Style& editStyle();
+        const Style& getStyle() const; // Read-only access
         void markStyleDirty();
         void markLayoutDirty();
-        const ComputedAppearanceStyle& getComputedAppearance(WidgetState state);
-        const ComputedLayoutStyle& getComputedLayout(WidgetState state);
+        const ComputedAppearanceStyle& getComputedAppearance(WidgetState state) const;
+        const ComputedLayoutStyle& getComputedLayout(WidgetState state) const;
         Rect getGlobalBounds() const;
         Size getDesiredSize() const;
         WidgetState getCurrentState() const;
+
+        // --- Framework Internals ---
+        void recomputeStyles();
+        bool isStyleDirty_get() const { return isStyleDirty; }
+
 
         // --- State & Hierarchy ---
         bool isRoot() const;
@@ -72,17 +81,11 @@ namespace DxvUI {
         int getZIndex() const;
         void setHovered(bool hovered);
         void setPressed(bool pressed);
-
         bool isVisible() const;
         void setVisible(bool visible);
 
-
         // --- Events & Lifecycle (Framework-level API) ---
-        // "Eternal" version for callbacks not tied to an object's lifecycle (e.g., from main)
-        void on(EventType type, std::function<void(DxvEvent&)> callback);
-        // Safe version for callbacks tied to an owner's lifecycle
-        void on(EventType type, const std::shared_ptr<SceneNode>& owner, std::function<void(DxvEvent&)> callback);
-
+        void on(EventType type, ActionCallback callback);
         virtual void dispatchEvent(DxvEvent& event);
         virtual void onAttach();
         virtual void onDetach();
@@ -100,19 +103,19 @@ namespace DxvUI {
         std::weak_ptr<Scene> scene;
 
     protected:
+        friend class StyleResolver; // Allow StyleResolver to access protected members
+
         std::string id;
         Style style;
 
-        std::map<WidgetState, ComputedAppearanceStyle> appearanceCache;
-        std::map<WidgetState, ComputedLayoutStyle> layoutCache;
+        mutable std::map<WidgetState, ComputedAppearanceStyle> appearanceCache;
+        mutable std::map<WidgetState, ComputedLayoutStyle> layoutCache;
         Size desiredSize;
 
-        bool isLayoutDirty = true;
-        bool isStyleDirty = true;
+        mutable bool isLayoutDirty = true;
+        mutable bool isStyleDirty = true;
 
     private:
-        void resolveAppearance(WidgetState state);
-        void resolveLayout(WidgetState state);
         void sortChildrenIfDirty();
 
         bool isHovered = false;

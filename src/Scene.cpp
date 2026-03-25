@@ -4,6 +4,8 @@
 #include "DxvUI/SceneNode.h"
 #include "DxvUI/interfaces/IRenderer.h"
 
+#include <queue>
+
 namespace DxvUI {
 
     Scene::Scene() = default;
@@ -33,6 +35,8 @@ namespace DxvUI {
 
     void Scene::init() {
         eventManager = std::make_unique<EventManager>(*this);
+        // The Theme now self-initializes with framework defaults.
+        // User can override styles via getTheme().setDefaultRule(...)
         root = std::make_shared<SceneNode>("root");
         root->setScene(shared_from_this());
     }
@@ -58,6 +62,7 @@ namespace DxvUI {
     std::shared_ptr<SceneNode> Scene::getRoot() const { return root; }
     ActionRegistry& Scene::getActionRegistry() { return actionRegistry; }
     EventManager& Scene::getEventManager() { return *eventManager; }
+    Theme& Scene::getTheme() { return theme; }
 
     bool Scene::unregisterNode(std::weak_ptr<SceneNode> node)
     {
@@ -65,7 +70,7 @@ namespace DxvUI {
         {
             Log::trace("Unregistering node '{}'", _node->getId());
 
-            if (_node->getId().empty()) return false; // Do not try to erase empty string
+            if (_node->getId().empty()) return false;
             auto count = nodeById.erase(_node->getId());
             if (count == 0)
             {
@@ -86,7 +91,7 @@ namespace DxvUI {
     {
         if (auto _node = node.lock())
         {
-            Log::trace("Registering node '{}'", _node->getId());
+            Log::trace("Registering node '{}'", _node->getId());// не удалять
 
             if (_node->getId().empty())
             {
@@ -131,8 +136,34 @@ namespace DxvUI {
         }
     }
 
+    void Scene::resolveDirtyStyles() {
+        if (!root) return;
+        // Use a queue for a breadth-first (top-down) traversal.
+        // This ensures parent styles are resolved before their children need to inherit from them.
+        std::queue<std::shared_ptr<SceneNode>> nodesToProcess;
+        nodesToProcess.push(root);
+
+        while(!nodesToProcess.empty()) {
+            auto node = nodesToProcess.front();
+            nodesToProcess.pop();
+
+            if (node->isStyleDirty_get()) {
+                node->recomputeStyles();
+            }
+
+            for(const auto& child : node->children) {
+                nodesToProcess.push(child);
+            }
+        }
+    }
+
     void Scene::updateLayout() {
         if (layoutIsDirty && root && renderer) {
+
+            // First, resolve all dirty styles in the tree
+            resolveDirtyStyles();
+
+            // Now, perform layout calculations
             Size viewportSize = renderer->getViewportSize();
             Rect viewportRect = {0, 0, (int)viewportSize.width, (int)viewportSize.height};
 

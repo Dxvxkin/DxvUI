@@ -12,6 +12,10 @@ namespace DxvUI {
     Label::Label(std::string id, std::string text)
         : SceneNode(std::move(id)), text(std::move(text)) {}
 
+    const char* Label::getNodeType() const {
+        return "Label";
+    }
+
     void Label::setText(const std::string& newText) {
         if (text != newText) {
             text = newText;

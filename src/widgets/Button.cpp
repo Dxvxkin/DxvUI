@@ -1,9 +1,8 @@
 #include "DxvUI/widgets/Button.h"
 #include "DxvUI/widgets/Label.h"
-#include "DxvUI/Colors.h"
 #include <utility>
 #include <limits>
-#include <iostream>
+
 
 namespace DxvUI {
 
@@ -14,25 +13,18 @@ namespace DxvUI {
     }
 
     Button::Button(std::string id) : SceneNode(std::move(id)) {
-        StyleRule defaultStyle;
-        defaultStyle.backgroundColor = {220, 220, 220, 255};
-        defaultStyle.textColor = {0, 0, 0, 255};
-        defaultStyle.padding = {5, 10, 5, 10};
-        defaultStyle.horizontalAlignment = Alignment::Center;
-        defaultStyle.verticalAlignment = Alignment::Center;
-        editStyle().set(WidgetState::Normal, defaultStyle);
+        // Style is now handled by the Theme
+    }
+
+    const char* Button::getNodeType() const {
+        return "Button";
     }
 
     void Button::onAttach() {
         SceneNode::onAttach();
         if (!label) {
             label = Label::create(id + "_label", initialText);
-
-            StyleRule labelStyle;
-            labelStyle.backgroundColor = Colors::Transparent;
-            labelStyle.borderThickness = 0;
-            label->editStyle().set(WidgetState::Normal, labelStyle);
-
+            // The label's style will also be handled by the Theme
             addChild(label);
         }
     }

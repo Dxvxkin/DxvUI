@@ -1,6 +1,6 @@
 #include <DxvUI/DxvUI.h>
 #include <DxvUI/Log.h>
-#include <DxvUI/Colors.h>
+#include <DxvUI/style/Colors.h>
 #include <DxvUI/renderers/SDLRenderer.h>
 #include <DxvUI/sources/SDLEventSource.h>
 #include <DxvUI/widgets/Label.h>
