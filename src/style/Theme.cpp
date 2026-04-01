@@ -1,60 +1,48 @@
 #include "DxvUI/style/Theme.h"
-#include "DxvUI/style/Colors.h"
 #include "DxvUI/Log.h"
 
 namespace DxvUI {
 
-    // A static, constant map to hold the framework's built-in default styles.
-    // This is declarative and easy to read.
-    static const std::unordered_map<std::string, StyleRule> frameworkDefaults = {
-        {
-            "Button",
-            {
-                .backgroundColor = {{220, 220, 220, 255}},
-                .textColor = {{0, 0, 0, 255}},
-                .padding = {{5, 10, 5, 10}},
-                .horizontalAlignment = {Alignment::Center},
-                .verticalAlignment = {Alignment::Center}
-            }
-        },
-        {
-            "Label",
-            {
-                .backgroundColor = {Colors::Transparent},
-                .textColor = {{0, 0, 0, 255}}
-            }
-        }
-    };
-
-    Theme::Theme() {
-        Log::trace("Theme object created.");
+    // Use the "Construct on First Use" idiom to avoid the static initialization order fiasco.
+    // This function's local static variable is guaranteed to be initialized only once,
+    // the first time this function is called.
+    static auto& getFrameworkDefaults() {
+        static std::map<std::string, Theme::StateStyleMap> frameworkDefaults;
+        return frameworkDefaults;
     }
 
-    void Theme::setDefaultRule(const std::string& widgetType, StyleRule rule) {
-        Log::trace("Setting user-defined default rule for widget type '{}'", widgetType);
-        typeStyles[widgetType] = std::move(rule);
+    void Theme::registerDefaultStyle(const std::string& widgetType, StateStyleMap styles) {
+        auto& defaults = getFrameworkDefaults();
+
+        // Check for collisions to prevent accidental overwrites.
+        if (defaults.contains(widgetType)) {
+            // We can't use the logger here, as it might not be initialized yet itself.
+            // This is a classic issue with static initialization.
+            // For now, we'll just allow overwrites. A more robust system might
+            // queue up log messages.
+        }
+
+        defaults[widgetType] = std::move(styles);
     }
 
-    const StyleRule* Theme::getDefaultRule(const std::string& widgetType) const {
-        Log::trace("Querying default rule for widget type '{}'", widgetType);
+    const StyleRule* Theme::getDefaultRule(const std::string& widgetType, WidgetState state) const {
+        const auto& defaults = getFrameworkDefaults();
 
-        // 1. First, check for a user-defined override.
-        auto it = typeStyles.find(widgetType);
-        if (it != typeStyles.end()) {
-            Log::trace("  > Found user-defined override.");
-            return &it->second;
+        // 1. Find the style map for the given widget type.
+        auto type_it = defaults.find(widgetType);
+        if (type_it == defaults.end()) {
+            return nullptr; // No styles registered for this widget type.
         }
 
-        // 2. If no override exists, check for a framework-defined default.
-        auto framework_it = frameworkDefaults.find(widgetType);
-        if (framework_it != frameworkDefaults.end()) {
-            Log::trace("  > Found framework-defined default.");
-            return &framework_it->second;
+        // 2. Find the specific rule for the given state within that widget's style map.
+        const auto& state_styles = type_it->second;
+        auto state_it = state_styles.find(state);
+        if (state_it == state_styles.end()) {
+            return nullptr; // This widget has styles, but not for this specific state.
         }
 
-        // 3. If no style is found, return nullptr.
-        Log::trace("  > No default rule found for this type.");
-        return nullptr;
+        // 3. Return the found rule.
+        return &state_it->second;
     }
 
 }

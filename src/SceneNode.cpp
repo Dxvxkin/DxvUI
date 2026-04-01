@@ -1,5 +1,5 @@
+#include "DxvUI/SceneNode.h"
 #include "DxvUI/Scene.h"
-
 #include "DxvUI/Log.h"
 #include "DxvUI/style/StyleResolver.h"
 #include <utility>
@@ -39,6 +39,7 @@ namespace DxvUI {
 
     SceneNode::~SceneNode() {
         nodeCount--;
+        Log::trace("{} Destroying node {}", indent(this), id);
     }
 
     int SceneNode::getNodeCount() {
@@ -276,19 +277,23 @@ namespace DxvUI {
     }
 
     const ComputedAppearanceStyle& SceneNode::getComputedAppearance(WidgetState state) const {
-        // This check is a safeguard. In a correct implementation, the Scene's updateLayout
-        // should have already called recomputeStyles() before the draw phase.
-        if (isStyleDirty) {
-            Log::warn("getComputedAppearance called on dirty node '{}' during draw. Styles should be resolved before this.", id);
+        auto it = appearanceCache.find(state);
+        if (it == appearanceCache.end()) {
+            Log::error("FATAL: getComputedAppearance failed for node '{}' (state {}). Cache not populated before use. This indicates a severe logic error in the layout/style update cycle.", id, (int)state);
+            static const ComputedAppearanceStyle empty{};
+            return empty;
         }
-        return appearanceCache.at(state);
+        return it->second;
     }
 
     const ComputedLayoutStyle& SceneNode::getComputedLayout(WidgetState state) const {
-        // During the measure/arrange pass, it's expected that this might be called on a dirty node
-        // before its own arrange() method has had a chance to clear the isLayoutDirty flag.
-        // Therefore, we don't warn here.
-        return layoutCache.at(state);
+        auto it = layoutCache.find(state);
+        if (it == layoutCache.end()) {
+            Log::error("FATAL: getComputedLayout failed for node '{}' (state {}). Cache not populated before use. This indicates a severe logic error in the layout/style update cycle.", id, (int)state);
+            static const ComputedLayoutStyle empty{};
+            return empty;
+        }
+        return it->second;
     }
 
     void SceneNode::sortChildrenIfDirty() {

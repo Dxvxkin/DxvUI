@@ -3,9 +3,8 @@
 #include "DxvUI/style/Theme.h"
 #include "DxvUI/style/Colors.h"
 #include "DxvUI/Log.h"
-#include <string>
-
 #include "DxvUI/SceneNode.h"
+#include <string>
 
 namespace DxvUI {
 
@@ -31,38 +30,14 @@ namespace DxvUI {
     // --- Helper to apply a StyleRule over a computed style ---
     void applyRule(ComputedAppearanceStyle& computed, const StyleRule* rule) {
         if (!rule) return;
-        if (rule->backgroundColor.has_value()) {
-            Log::trace("    Applying backgroundColor: {}", toString(rule->backgroundColor.value()));
-            computed.backgroundColor = rule->backgroundColor.value();
-        }
-        if (rule->textColor.has_value()) {
-            Log::trace("    Applying textColor: {}", toString(rule->textColor.value()));
-            computed.textColor = rule->textColor.value();
-        }
-        if (rule->borderColor.has_value()) {
-            Log::trace("    Applying borderColor: {}", toString(rule->borderColor.value()));
-            computed.borderColor = rule->borderColor.value();
-        }
-        if (rule->borderThickness.has_value()) {
-            Log::trace("    Applying borderThickness: {}", rule->borderThickness.value());
-            computed.borderThickness = rule->borderThickness.value();
-        }
-        if (rule->borderRadius.has_value()) {
-            Log::trace("    Applying borderRadius: {}", rule->borderRadius.value());
-            computed.borderRadius = rule->borderRadius.value();
-        }
-        if (rule->cursor.has_value()) {
-            Log::trace("    Applying cursor");
-            computed.cursor = rule->cursor.value();
-        }
-        if (rule->fontSize.has_value()) {
-            Log::trace("    Applying fontSize: {}", rule->fontSize.value());
-            computed.fontSize = rule->fontSize.value();
-        }
-        if (rule->fontPath.has_value()) {
-            Log::trace("    Applying fontPath: {}", rule->fontPath.value());
-            computed.fontPath = rule->fontPath.value();
-        }
+        if (rule->backgroundColor.has_value()) computed.backgroundColor = rule->backgroundColor.value();
+        if (rule->textColor.has_value()) computed.textColor = rule->textColor.value();
+        if (rule->borderColor.has_value()) computed.borderColor = rule->borderColor.value();
+        if (rule->borderThickness.has_value()) computed.borderThickness = rule->borderThickness.value();
+        if (rule->borderRadius.has_value()) computed.borderRadius = rule->borderRadius.value();
+        if (rule->cursor.has_value()) computed.cursor = rule->cursor.value();
+        if (rule->fontSize.has_value()) computed.fontSize = rule->fontSize.value();
+        if (rule->fontPath.has_value()) computed.fontPath = rule->fontPath.value();
     }
 
     void applyRule(ComputedLayoutStyle& computed, const StyleRule* rule) {
@@ -80,75 +55,64 @@ namespace DxvUI {
     // --- Main Resolution Logic ---
 
     ComputedAppearanceStyle StyleResolver::resolveAppearance(const SceneNode& node, WidgetState state) {
-        Log::trace("Resolving appearance for node '{}' ({}) in state {}", node.getId(), node.getNodeType(), (int)state);
         auto scene = node.getScene();
-        if (!scene) {
-            Log::warn("Node '{}' has no scene, returning framework default appearance.", node.getId());
-            return FRAMEWORK_DEFAULT_APPEARANCE;
+        if (!scene) return FRAMEWORK_DEFAULT_APPEARANCE;
+
+        // The cascade order is critical and layered:
+        // 1. Base: Start with framework-wide defaults.
+        // 2. Inheritance: Inherit text properties from the parent's 'Normal' state.
+        // 3. Normal Layer: Establish the full 'Normal' style.
+        //    a. Apply theme's 'Normal' style.
+        //    b. Apply node's own 'Normal' style, overriding the theme.
+        // 4. State Layer: If the state is not 'Normal', apply state-specific styles on top.
+        //    a. Apply theme's state-specific style.
+        //    b. Apply node's own state-specific style, overriding the theme.
+
+        ComputedAppearanceStyle computed = FRAMEWORK_DEFAULT_APPEARANCE; // Step 1
+
+        if (auto parent = node.parent.lock()) { // Step 2
+            const auto& parentStyle = parent->getComputedAppearance(WidgetState::Normal);
+            computed.textColor = parentStyle.textColor;
+            computed.fontSize = parentStyle.fontSize;
+            computed.fontPath = parentStyle.fontPath;
         }
 
-        ComputedAppearanceStyle computed;
-        if (auto parent = node.parent.lock()) {
-            Log::trace("  1. Inheriting from parent '{}'", parent->getId());
-            computed = parent->getComputedAppearance(WidgetState::Normal);
-        } else {
-            Log::trace("  1. No parent, starting with framework defaults.");
-            computed = FRAMEWORK_DEFAULT_APPEARANCE;
-        }
+        // --- Step 3: Build the full 'Normal' style ---
+        applyRule(computed, scene->getTheme().getDefaultRule(node.getNodeType(), WidgetState::Normal)); // 3a
+        applyRule(computed, node.getStyle().get(WidgetState::Normal));                                  // 3b
 
-        const auto* themeRule = scene->getTheme().getDefaultRule(node.getNodeType());
-        if (themeRule) {
-            Log::trace("  2. Applying theme rule for type '{}'", node.getNodeType());
-            applyRule(computed, themeRule);
-        }
-
-        const auto* normalRule = node.getStyle().get(WidgetState::Normal);
-        if (normalRule) {
-            Log::trace("  3. Applying node's 'Normal' state rule.");
-            applyRule(computed, normalRule);
-        }
-
+        // --- Step 4: Layer state-specific styles on top ---
         if (state != WidgetState::Normal) {
-            const auto* stateRule = node.getStyle().get(state);
-            if (stateRule) {
-                Log::trace("  4. Applying node's state-specific rule for state {}.", (int)state);
-                applyRule(computed, stateRule);
-            }
+            applyRule(computed, scene->getTheme().getDefaultRule(node.getNodeType(), state)); // 4a
+            applyRule(computed, node.getStyle().get(state));                                  // 4b
         }
 
-        Log::trace("  > Final computed background: {}", toString(computed.backgroundColor));
         return computed;
     }
 
     ComputedLayoutStyle StyleResolver::resolveLayout(const SceneNode& node, WidgetState state) {
-        Log::trace("Resolving layout for node '{}' ({}) in state {}", node.getId(), node.getNodeType(), (int)state);
         auto scene = node.getScene();
-        if (!scene) {
-            Log::warn("Node '{}' has no scene, returning framework default layout.", node.getId());
-            return FRAMEWORK_DEFAULT_LAYOUT;
-        }
+        if (!scene) return FRAMEWORK_DEFAULT_LAYOUT;
 
-        ComputedLayoutStyle computed = FRAMEWORK_DEFAULT_LAYOUT;
-        Log::trace("  1. Starting with framework default layout.");
+        // Layout properties are not inherited. The cascade is layered like appearance.
+        // 1. Base: Start with framework defaults.
+        // 2. Normal Layer:
+        //    a. Apply theme's 'Normal' style.
+        //    b. Apply node's own 'Normal' style.
+        // 3. State Layer:
+        //    a. Apply theme's state-specific style.
+        //    b. Apply node's own state-specific style.
 
-        const auto* themeRule = scene->getTheme().getDefaultRule(node.getNodeType());
-        if (themeRule) {
-            Log::trace("  2. Applying theme rule for type '{}'", node.getNodeType());
-            applyRule(computed, themeRule);
-        }
+        ComputedLayoutStyle computed = FRAMEWORK_DEFAULT_LAYOUT; // Step 1
 
-        const auto* normalRule = node.getStyle().get(WidgetState::Normal);
-        if (normalRule) {
-            Log::trace("  3. Applying node's 'Normal' state rule.");
-            applyRule(computed, normalRule);
-        }
+        // --- Step 2: Build the full 'Normal' style ---
+        applyRule(computed, scene->getTheme().getDefaultRule(node.getNodeType(), WidgetState::Normal)); // 2a
+        applyRule(computed, node.getStyle().get(WidgetState::Normal));                                  // 2b
 
+        // --- Step 3: Layer state-specific styles on top ---
         if (state != WidgetState::Normal) {
-            const auto* stateRule = node.getStyle().get(state);
-            if (stateRule) {
-                Log::trace("  4. Applying node's state-specific rule for state {}.", (int)state);
-                applyRule(computed, stateRule);
-            }
+            applyRule(computed, scene->getTheme().getDefaultRule(node.getNodeType(), state)); // 3a
+            applyRule(computed, node.getStyle().get(state));                                  // 3b
         }
 
         return computed;

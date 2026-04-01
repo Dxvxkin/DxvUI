@@ -1,10 +1,46 @@
 #include "DxvUI/widgets/Button.h"
 #include "DxvUI/widgets/Label.h"
+
+#include "DxvUI/style/Theme.h"
+#include "DxvUI/style/Colors.h"
 #include <utility>
 #include <limits>
 
-
 namespace DxvUI {
+
+    // --- Self-registration of default styles ---
+    namespace {
+        struct ButtonStyleRegistrar {
+            ButtonStyleRegistrar() {
+                Theme::registerDefaultStyle("Button", {
+                    {
+                        WidgetState::Normal,
+                        {
+                            .backgroundColor = Colors::CornflowerBlue,
+                            .textColor = Colors::White,
+                            .borderRadius = 5,
+                            .cursor = CursorType::Hand,
+                            .padding = {{10, 20, 10, 20}}
+                        }
+                    },
+                    {
+                        WidgetState::Hovered,
+                        {
+                            .backgroundColor = Colors::RoyalBlue,
+                        }
+                    },
+                    {
+                        WidgetState::Pressed,
+                        {
+                            .backgroundColor = Colors::MidnightBlue,
+                        }
+                    }
+                });
+            }
+        };
+        // The static instance that triggers registration on program startup.
+        const ButtonStyleRegistrar registrar;
+    }
 
     std::shared_ptr<Button> Button::create(std::string id, std::string text) {
         auto btn = std::shared_ptr<Button>(new Button(std::move(id)));

@@ -1,9 +1,29 @@
 #include "DxvUI/widgets/Label.h"
 #include "DxvUI/interfaces/IRenderer.h"
 #include "DxvUI/Scene.h"
+#include "DxvUI/style/Theme.h"
+#include "DxvUI/style/Colors.h"
 #include <utility>
 
 namespace DxvUI {
+
+    // --- Self-registration of default styles ---
+    namespace {
+        struct LabelStyleRegistrar {
+            LabelStyleRegistrar() {
+                Theme::registerDefaultStyle("Label", {
+                    {
+                        WidgetState::Normal,
+                        {
+                            .backgroundColor = Colors::Transparent,
+                            .textColor = Colors::Black,
+                        }
+                    }
+                });
+            }
+        };
+        const LabelStyleRegistrar registrar;
+    }
 
     std::shared_ptr<Label> Label::create(std::string id, std::string text) {
         return std::make_shared<Label>(std::move(id), std::move(text));
