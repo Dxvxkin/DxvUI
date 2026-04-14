@@ -2,7 +2,9 @@
 #define DXVUI_LABEL_H
 
 #include "DxvUI/SceneNode.h"
+#include "DxvUI/interfaces/ITexture.h"
 #include <string>
+#include <memory>
 
 namespace DxvUI {
 
@@ -12,17 +14,23 @@ namespace DxvUI {
 
         explicit Label(std::string id = "", std::string text = "");
 
-        void setText(const std::string& text);
+        void setText(std::string text);
         const std::string& getText() const;
 
         // --- Overrides ---
-        const char* getNodeType() const override;
+        const char* getNodeType() const noexcept override;
         Size measure(const Size& availableSize) override;
         void draw(IRenderer& renderer) override;
         // ---------------------
 
     private:
         std::string text;
+
+        std::shared_ptr<ITexture> textTexture;
+        std::string cachedText;
+        std::string cachedFontPath;
+        int cachedFontSize = 0;
+        Color cachedTextColor;
     };
 
 }

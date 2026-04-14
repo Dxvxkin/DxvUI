@@ -24,6 +24,17 @@ namespace DxvUI {
         CursorType cursor;
         int fontSize;
         std::string fontPath;
+
+        bool operator==(const ComputedAppearanceStyle& other) const {
+            return backgroundColor == other.backgroundColor &&
+                   textColor == other.textColor &&
+                   borderColor == other.borderColor &&
+                   borderThickness == other.borderThickness &&
+                   borderRadius == other.borderRadius &&
+                   cursor == other.cursor &&
+                   fontSize == other.fontSize &&
+                   fontPath == other.fontPath;
+        }
     };
 
     struct ComputedLayoutStyle {
