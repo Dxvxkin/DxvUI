@@ -7,13 +7,16 @@
 #include <iostream>
 #include <mutex>
 #include "DxvUI/core.h"
+#include "DxvUI/Log.h"
 
 namespace DxvUI {
 
     class SDLTexture : public ITexture {
     public:
-        SDLTexture(SDL_Texture* texture) : _texture(texture), width(0), height(0) {
-            SDL_QueryTexture(texture, nullptr, nullptr, &width, &height);
+        explicit SDLTexture(SDL_Texture* texture) : _texture(texture), width(0), height(0) {
+            if (_texture) {
+                SDL_QueryTexture(texture, nullptr, nullptr, &width, &height);
+            }
         }
         ~SDLTexture() override {
             if (_texture) {
@@ -155,18 +158,35 @@ namespace DxvUI {
     }
 
     std::shared_ptr<ITexture> SDLRenderer::createTextTexture(const std::string& text) {
-        auto font = getFont(currentFontPath, currentFontSize);
-        auto surf = TTF_RenderUTF8_Blended(font, text.c_str(), {currentColor.r, currentColor.g, currentColor.b, currentColor.a});
-        if (!surf) {
-            std::cerr << "TTF_RenderUTF8_Blended Error: " << std::endl;
+        if (text.empty()) {
             return nullptr;
         }
+
+        auto font = getFont(currentFontPath, currentFontSize);
+        if (!font) {
+            return nullptr;
+        }
+
+        auto surf = TTF_RenderUTF8_Blended(font, text.c_str(), {currentColor.r, currentColor.g, currentColor.b, currentColor.a});
+        if (!surf) {
+            Log::error("TTF_RenderUTF8_Blended Error: {}", TTF_GetError());
+
+            return nullptr;
+        }
+
         auto texture = SDL_CreateTextureFromSurface(renderer, surf);
         SDL_FreeSurface(surf);
+
+        if (!texture) {
+            Log::error("SDL_CreateTextureFromSurface Error: {}", SDL_GetError());
+            return nullptr;
+        }
+
         return std::make_shared<SDLTexture>(texture);
     }
 
     void SDLRenderer::drawTexture(std::shared_ptr<ITexture>& texture, const Rect& dstRect) {
+        if (!texture) return;
         SDL_Rect dst = {dstRect.x, dstRect.y, dstRect.width, dstRect.height};
         SDL_RenderCopy(renderer, dynamic_cast<SDLTexture*>(texture.get())->_texture, nullptr, &dst);
     }

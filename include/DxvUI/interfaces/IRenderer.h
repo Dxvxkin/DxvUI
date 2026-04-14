@@ -2,18 +2,14 @@
 #define DXVUI_IRENDERER_H
 
 #include "DxvUI/core.h"
+#include "DxvUI/interfaces/ITexture.h"
+
 #include <string>
 #include <memory>
 
 namespace DxvUI {
 
-    class ITexture
-    {
-    public:
-        virtual ~ITexture() = default;
-        virtual int getWidth() const = 0;
-        virtual int getHeight() const = 0;
-    };
+
 
     class IRenderer {
     public:

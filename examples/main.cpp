@@ -52,9 +52,10 @@ void buildUI(std::shared_ptr<DxvUI::Scene> scene)
         int randomX = rand() % (SCREEN_WIDTH - 200);
         int randomY = rand() % (SCREEN_HEIGHT - 50);
 
+        static size_t label_count = 0;
         auto label = DxvUI::Label::create(
-            std::format("label_{}", DxvUI::SceneNode::getNodeCount()),
-            std::format("Click to remove {}", DxvUI::SceneNode::getNodeCount())
+            std::format("label_{}", label_count++),
+            std::format("Click to remove {}", label_count)
         );
 
         // Set style for the new label
@@ -68,7 +69,10 @@ void buildUI(std::shared_ptr<DxvUI::Scene> scene)
         label->on(DxvUI::EventType::Click, [](DxvUI::DxvEvent& event)
         {
             if(auto target = event.target.lock())
+            {
                 target->detach();
+            }
+
         });
 
         root->addChild(label);

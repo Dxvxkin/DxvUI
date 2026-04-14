@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
-#include <DxvUI/Color.h>
-#include <DxvUI/Colors.h>
+#include <DxvUI/style/Color.h>
+#include <DxvUI/style/Colors.h>
 
 // Test fixture for Color class
 class ColorTest : public ::testing::Test {};
