@@ -66,6 +66,37 @@ namespace DxvUI {
         std::map<WidgetState, StyleRule> stateStyles;
     };
 
+    struct ComputedAppearanceStyle {
+        Color backgroundColor;
+        Color textColor;
+        Color borderColor;
+        int borderThickness;
+        int borderRadius;
+        CursorType cursor;
+        int fontSize;
+        std::string fontPath;
+
+        bool operator==(const ComputedAppearanceStyle& other) const {
+            return backgroundColor == other.backgroundColor &&
+                   textColor == other.textColor &&
+                   borderColor == other.borderColor &&
+                   borderThickness == other.borderThickness &&
+                   borderRadius == other.borderRadius &&
+                   cursor == other.cursor &&
+                   fontSize == other.fontSize &&
+                   fontPath == other.fontPath;
+        }
+    };
+
+    struct ComputedLayoutStyle {
+        float left, top, width, height;
+        Thickness padding;
+        Thickness margin;
+        Alignment horizontalAlignment;
+        Alignment verticalAlignment;
+        Rect computedBounds;
+    };
+
 }
 
 #endif // DXVUI_STYLE_H

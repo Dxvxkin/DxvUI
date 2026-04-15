@@ -7,6 +7,7 @@
 #include <map>
 #include <functional>
 #include "core.h"
+#include "UIBinding.h"
 #include "DxvUI/style/Style.h"
 #include "interfaces/IRenderer.h"
 
@@ -14,37 +15,6 @@ namespace DxvUI {
 
     class Scene;
     class EventManager;
-
-    struct ComputedAppearanceStyle {
-        Color backgroundColor;
-        Color textColor;
-        Color borderColor;
-        int borderThickness;
-        int borderRadius;
-        CursorType cursor;
-        int fontSize;
-        std::string fontPath;
-
-        bool operator==(const ComputedAppearanceStyle& other) const {
-            return backgroundColor == other.backgroundColor &&
-                   textColor == other.textColor &&
-                   borderColor == other.borderColor &&
-                   borderThickness == other.borderThickness &&
-                   borderRadius == other.borderRadius &&
-                   cursor == other.cursor &&
-                   fontSize == other.fontSize &&
-                   fontPath == other.fontPath;
-        }
-    };
-
-    struct ComputedLayoutStyle {
-        float left, top, width, height;
-        Thickness padding;
-        Thickness margin;
-        Alignment horizontalAlignment;
-        Alignment verticalAlignment;
-        Rect computedBounds;
-    };
 
     class SceneNode : public std::enable_shared_from_this<SceneNode> {
     public:
@@ -113,6 +83,12 @@ namespace DxvUI {
         std::vector<std::shared_ptr<SceneNode>> children;
         std::weak_ptr<Scene> scene;
 
+
+        // --- UIBinding logic
+        virtual void onChange(const UIBinding::value_t& val);
+        void bind(const std::shared_ptr<UIBinding>& binding);
+        std::shared_ptr<UIBinding> getBinding() const;
+
     protected:
         friend class StyleResolver; // Allow StyleResolver to access protected members
 
@@ -125,6 +101,9 @@ namespace DxvUI {
 
         mutable bool isLayoutDirty = true;
         mutable bool isStyleDirty = true;
+
+        std::shared_ptr<UIBinding> binding_;
+        std::unique_ptr<UIBinding::Connection> connection_;
 
     private:
         void sortChildrenIfDirty();

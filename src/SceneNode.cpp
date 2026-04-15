@@ -392,4 +392,28 @@ namespace DxvUI {
             child->draw(renderer);
         }
     }
+
+
+
+    void SceneNode::bind(const std::shared_ptr<UIBinding>& binding)
+    {
+        connection_.reset();
+        binding_ = binding;
+        if (binding_)
+        {
+            connection_ = binding_->subscribe([this](UIBinding::value_t value) {
+                this->onChange(std::move(value));
+            });
+        }
+    }
+
+    std::shared_ptr<UIBinding> SceneNode::getBinding() const
+    {
+        return binding_;
+    }
+
+    void SceneNode::onChange(const UIBinding::value_t& val)
+    {
+
+    }
 }
