@@ -23,6 +23,7 @@ target_sources(DxvUI PRIVATE
         src/EventManager.cpp
         src/Scene.cpp
         src/SceneNode.cpp
+        src/UIBinding.cpp
         src/widgets/Button.cpp
         src/widgets/Label.cpp
         src/containers/CenterContainer.cpp
@@ -59,7 +60,9 @@ target_link_libraries(DxvUIExample PRIVATE
 # --- Tests ---
 enable_testing()
 add_executable(DxvUITests
+        tests/UIBindingTests.cpp
         tests/ColorTests.cpp
+
 )
 target_link_libraries(DxvUITests PRIVATE
         DxvUI
