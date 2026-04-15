@@ -3,10 +3,8 @@
 
 // Core
 #include "core.h"
-#include "ActionRegistry.h"
 #include "Scene.h"
 #include "SceneNode.h"
-#include "WidgetFactory.h"
 
 // Interfaces
 #include "interfaces/IRenderer.h"
@@ -18,5 +16,7 @@
 
 // Widgets
 #include "widgets/Button.h"
+#include "widgets/Label.h"
+
 
 #endif //DXVUI_H

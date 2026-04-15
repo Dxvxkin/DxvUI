@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # --- Find Dependencies via vcpkg ---
-find_package(nlohmann_json CONFIG REQUIRED)
+#find_package(nlohmann_json CONFIG REQUIRED)
 find_package(SDL2 REQUIRED)
 find_package(SDL2_ttf REQUIRED)
 find_package(sdl2-gfx REQUIRED)
@@ -41,7 +41,7 @@ target_include_directories(DxvUI PUBLIC
 )
 
 target_link_libraries(DxvUI PUBLIC
-        nlohmann_json::nlohmann_json
+#        nlohmann_json::nlohmann_json
         SDL2::SDL2
         SDL2::SDL2_gfx
         SDL2_ttf::SDL2_ttf
