@@ -3,7 +3,6 @@
 
 #include <memory>
 #include "EventManager.h"
-#include "ActionRegistry.h"
 #include "DxvUI/style/Theme.h" // Include the new Theme header
 
 namespace DxvUI {
@@ -22,7 +21,6 @@ namespace DxvUI {
         void setRenderer(IRenderer* renderer);
         IRenderer* getRenderer();
 
-        ActionRegistry& getActionRegistry();
         EventManager& getEventManager();
         Theme& getTheme(); // Getter for the theme
 
@@ -46,7 +44,6 @@ namespace DxvUI {
 
         std::shared_ptr<SceneNode> root;
         std::unique_ptr<EventManager> eventManager;
-        ActionRegistry actionRegistry;
         Theme theme; // Add Theme object
         IRenderer* renderer = nullptr;
         bool layoutIsDirty = true;

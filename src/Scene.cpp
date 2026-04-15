@@ -60,7 +60,7 @@ namespace DxvUI {
     }
 
     std::shared_ptr<SceneNode> Scene::getRoot() const { return root; }
-    ActionRegistry& Scene::getActionRegistry() { return actionRegistry; }
+
     EventManager& Scene::getEventManager() { return *eventManager; }
     Theme& Scene::getTheme() { return theme; }
 
