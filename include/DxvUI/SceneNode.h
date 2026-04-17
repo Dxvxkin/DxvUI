@@ -85,7 +85,7 @@ namespace DxvUI {
 
 
         // --- UIBinding logic
-        virtual void onChange(const UIBinding::value_t& val);
+        virtual void onChange(const UIBinding& binding);
         void bind(const std::shared_ptr<UIBinding>& binding);
         std::shared_ptr<UIBinding> getBinding() const;
 

@@ -14,9 +14,9 @@ namespace DxvUI {
         static std::shared_ptr<Button> create(std::string id, std::string text = "");
 
         void setText(const std::string& text);
-        const std::string& getText() const;
+        const std::string getText() const;
 
-        Label* getLabel() const;
+        std::shared_ptr<Label> getLabel() const;
 
         // --- Overrides ---
         const char* getNodeType() const override;
@@ -28,11 +28,10 @@ namespace DxvUI {
         // ---------------------
 
     protected:
-        explicit Button(std::string id);
+        explicit Button(std::string id, std::string text);
 
     private:
         std::shared_ptr<Label> label;
-        std::string initialText;
     };
 
 }

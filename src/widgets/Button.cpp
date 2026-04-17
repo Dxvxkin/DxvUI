@@ -43,13 +43,13 @@ namespace DxvUI {
     }
 
     std::shared_ptr<Button> Button::create(std::string id, std::string text) {
-        auto btn = std::shared_ptr<Button>(new Button(std::move(id)));
-        btn->initialText = std::move(text);
+        auto btn = std::shared_ptr<Button>(new Button(std::move(id), std::move(text)));
         return btn;
     }
 
-    Button::Button(std::string id) : SceneNode(std::move(id)) {
-        // Style is now handled by the Theme
+    Button::Button(std::string id, std::string text) : SceneNode(std::move(id)) {
+            auto binding = UIBinding::create(text);
+            bind(binding);
     }
 
     const char* Button::getNodeType() const {
@@ -59,8 +59,9 @@ namespace DxvUI {
     void Button::onAttach() {
         SceneNode::onAttach();
         if (!label) {
-            label = Label::create(id + "_label", initialText);
-            // The label's style will also be handled by the Theme
+            label = Label::create(id + "_label", getBinding()->getString().value_or(""));
+            label->bind(binding_);
+
             addChild(label);
         }
     }
@@ -135,24 +136,16 @@ namespace DxvUI {
     }
 
     void Button::setText(const std::string& text) {
-        if (label) {
-            label->setText(text);
-        } else {
-            initialText = text;
-        }
+        getBinding()->set(std::move(text));
         markLayoutDirty();
     }
 
-    const std::string& Button::getText() const {
-        static const std::string empty;
-        if (label) {
-            return label->getText();
-        }
-        return initialText;
+    const std::string Button::getText() const {
+        return getBinding()->getString().value_or("");
     }
 
-    Label* Button::getLabel() const {
-        return label.get();
+    std::shared_ptr<Label> Button::getLabel() const {
+        return label;
     }
 
 }

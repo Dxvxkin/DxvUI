@@ -26,13 +26,15 @@ namespace DxvUI
     class UIBinding : public std::enable_shared_from_this<UIBinding> {
     public:
         class Connection; // Forward declaration
+
         using value_t = std::variant<int, float, std::string, bool>;
-        using callback_t = std::function<void(const value_t&)>;
+        using callback_t = std::function<void(const UIBinding&)>;
         using callbackID = uint64_t;
 
         // --- Factory and Public API ---
         [[nodiscard]] static std::shared_ptr<UIBinding> create(value_t val = {});
-        [[nodiscard]] std::unique_ptr<Connection> subscribe(const callback_t& callback);
+
+        [[nodiscard]] std::unique_ptr<Connection> subscribe(const callback_t& callback, bool notifyImmediately = true);
         void set(value_t newValue);
 
         // --- Inline, Type-safe Getters for Performance ---

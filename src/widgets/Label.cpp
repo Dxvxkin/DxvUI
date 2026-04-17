@@ -1,11 +1,13 @@
 #include "DxvUI/widgets/Label.h"
 #include "DxvUI/interfaces/IRenderer.h"
-#include "DxvUI/interfaces/ITexture.h"
+#include "DxvUI/UIBinding.h"
 #include "DxvUI/Scene.h"
 #include "DxvUI/style/Theme.h"
 #include "DxvUI/style/Colors.h"
 #include <utility>
 
+
+#include "DxvUI/Log.h"
 namespace DxvUI {
 
     // --- Self-registration of default styles ---
@@ -31,21 +33,31 @@ namespace DxvUI {
     }
 
     Label::Label(std::string id, std::string text)
-        : SceneNode(std::move(id)), text(std::move(text)) {}
+        : SceneNode(std::move(id))
+    {
+        auto binding = UIBinding::create(text);
+        bind(binding);
+    }
 
     const char* Label::getNodeType() const noexcept{
         return "Label";
     }
 
     void Label::setText(std::string newText) {
-        if (text != newText) { // Сравнение до перемещения
-            text = std::move(newText);
+        auto current_text = getBinding()->getString().value_or("");
+        if (current_text != newText) { // Сравнение до перемещения
+           binding_->set(std::move(newText));
             markLayoutDirty();
         }
     }
 
-    const std::string& Label::getText() const {
-        return text;
+    const std::string Label::getText() const {
+        return getBinding()->getString().value_or("");
+    }
+
+    void Label::onChange(const UIBinding& val)
+    {
+        Log::info("{} :: onChange value -> {}",getId(), val.getString().value_or(""));
     }
 
     Size Label::measure(const Size& availableSize) {
@@ -55,6 +67,7 @@ namespace DxvUI {
 
         auto scene = getScene();
         if (scene && scene->getRenderer()) {
+            auto text = getText();
             Rect measured = scene->getRenderer()->measureText(text, computedAppearance.fontPath, computedAppearance.fontSize);
             desiredSize = {static_cast<float>(measured.width), static_cast<float>(measured.height)};
         } else {
@@ -78,6 +91,7 @@ namespace DxvUI {
         // Это нужно, только если изменился текст, путь к шрифту или его размер.
         // Изменение цвета текста или фона не требует новой текстуры.
         // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: SDLRenderer "запекает" цвет в текстуру, поэтому изменение цвета ТАКЖЕ требует обновления.
+        auto text = getText();
         const bool needsTextureUpdate = !textTexture
             || cachedText != text
             || cachedFontPath != computedAppearance.fontPath

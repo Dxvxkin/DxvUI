@@ -401,7 +401,7 @@ namespace DxvUI {
         binding_ = binding;
         if (binding_)
         {
-            connection_ = binding_->subscribe([this](UIBinding::value_t value) {
+            connection_ = binding_->subscribe([this](const UIBinding& value) {
                 this->onChange(std::move(value));
             });
         }
@@ -412,7 +412,7 @@ namespace DxvUI {
         return binding_;
     }
 
-    void SceneNode::onChange(const UIBinding::value_t& val)
+    void SceneNode::onChange(const UIBinding& binding)
     {
 
     }

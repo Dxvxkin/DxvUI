@@ -15,16 +15,17 @@ namespace DxvUI {
         explicit Label(std::string id = "", std::string text = "");
 
         void setText(std::string text);
-        const std::string& getText() const;
+        const std::string getText() const;
 
         // --- Overrides ---
+        void onChange(const UIBinding& val) override;
+
         const char* getNodeType() const noexcept override;
         Size measure(const Size& availableSize) override;
         void draw(IRenderer& renderer) override;
         // ---------------------
 
     private:
-        std::string text;
 
         std::shared_ptr<ITexture> textTexture;
         std::string cachedText;
