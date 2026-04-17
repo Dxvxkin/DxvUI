@@ -64,12 +64,13 @@ namespace DxvUI {
         if (!isLayoutDirty) return desiredSize;
 
         const auto& computedAppearance = getComputedAppearance(getCurrentState());
+        auto padding = getComputedLayout(getCurrentState()).padding;
 
         auto scene = getScene();
         if (scene && scene->getRenderer()) {
             auto text = getText();
             Rect measured = scene->getRenderer()->measureText(text, computedAppearance.fontPath, computedAppearance.fontSize);
-            desiredSize = {static_cast<float>(measured.width), static_cast<float>(measured.height)};
+            desiredSize = {static_cast<float>(measured.width + padding.left + padding.right), static_cast<float>(measured.height + padding.top + padding.bottom)};
         } else {
             desiredSize = {0, 0};
         }
@@ -113,7 +114,13 @@ namespace DxvUI {
         }
 
         if (textTexture) {
-            renderer.drawTexture(textTexture, computedLayout.computedBounds); // Эта функция не принимает цвет, т.к. он уже в текстуре
+            //Временное решение для учета отступов
+            auto dstRect = computedLayout.computedBounds;
+            dstRect.x += computedLayout.padding.left;
+            dstRect.y += computedLayout.padding.top;
+            dstRect.width -= computedLayout.padding.right + computedLayout.padding.left;
+            dstRect.height -= computedLayout.padding.bottom + computedLayout.padding.top;
+            renderer.drawTexture(textTexture, dstRect); // Эта функция не принимает цвет, т.к. он уже в текстуре
         }
 
         SceneNode::draw(renderer);
