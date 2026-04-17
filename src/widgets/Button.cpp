@@ -1,10 +1,10 @@
 #include "DxvUI/widgets/Button.h"
 #include "DxvUI/widgets/Label.h"
+#include "DxvUI/containers/CenterContainer.h"
 
 #include "DxvUI/style/Theme.h"
 #include "DxvUI/style/Colors.h"
 #include <utility>
-#include <limits>
 
 namespace DxvUI {
 
@@ -38,18 +38,16 @@ namespace DxvUI {
                 });
             }
         };
-        // The static instance that triggers registration on program startup.
         const ButtonStyleRegistrar registrar;
     }
 
     std::shared_ptr<Button> Button::create(std::string id, std::string text) {
-        auto btn = std::shared_ptr<Button>(new Button(std::move(id), std::move(text)));
-        return btn;
+        return std::shared_ptr<Button>(new Button(std::move(id), std::move(text)));
     }
 
     Button::Button(std::string id, std::string text) : SceneNode(std::move(id)) {
-            auto binding = UIBinding::create(text);
-            bind(binding);
+        auto binding = UIBinding::create(std::move(text));
+        bind(binding);
     }
 
     const char* Button::getNodeType() const {
@@ -62,62 +60,31 @@ namespace DxvUI {
             label = Label::create(id + "_label", getBinding()->getString().value_or(""));
             label->bind(binding_);
 
-            addChild(label);
-        }
-    }
+            auto centerContainer = std::make_shared<CenterContainer>(id + "_center");
+            centerContainer->addChild(label);
 
-    std::shared_ptr<SceneNode> Button::findNodeAt(int x, int y) {
-        if (getGlobalBounds().contains(x, y)) {
-            return shared_from_this();
+            addChild(centerContainer);
         }
-        return nullptr;
     }
 
     Size Button::measure(const Size& availableSize) {
         if (!isLayoutDirty) return desiredSize;
 
-        if (label) {
-            label->measure({std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity()});
+        if (!children.empty()) {
+            desiredSize = children.front()->measure(availableSize);
+        } else {
+            desiredSize = {0, 0};
         }
-
-        const auto& computedLayout = getComputedLayout(getCurrentState());
-        const auto& padding = computedLayout.padding;
-        Size labelSize = label ? label->getDesiredSize() : Size{0, 0};
-
-        desiredSize = {
-            labelSize.width + padding.left + padding.right,
-            labelSize.height + padding.top + padding.bottom
-        };
-
-        if (computedLayout.width > 0) desiredSize.width = computedLayout.width;
-        if (computedLayout.height > 0) desiredSize.height = computedLayout.height;
 
         return desiredSize;
     }
 
     void Button::arrange(const Rect& finalRect) {
-        // The button itself takes up the finalRect
         auto& computedLayout = layoutCache[getCurrentState()];
         computedLayout.computedBounds = finalRect;
 
-        // Arrange the label centered within the button's content area
-        if (label) {
-            const auto& padding = computedLayout.padding;
-
-            Rect contentRect = {
-                finalRect.x + static_cast<int>(padding.left),
-                finalRect.y + static_cast<int>(padding.top),
-                finalRect.width - static_cast<int>(padding.left + padding.right),
-                finalRect.height - static_cast<int>(padding.top + padding.bottom)
-            };
-
-            Size labelDesiredSize = label->getDesiredSize();
-
-            int labelX = contentRect.x + (contentRect.width - static_cast<int>(labelDesiredSize.width)) / 2;
-            int labelY = contentRect.y + (contentRect.height - static_cast<int>(labelDesiredSize.height)) / 2;
-
-            Rect labelFinalRect = {labelX, labelY, static_cast<int>(labelDesiredSize.width), static_cast<int>(labelDesiredSize.height)};
-            label->arrange(labelFinalRect);
+        if (!children.empty()) {
+            children.front()->arrange(finalRect);
         }
 
         isLayoutDirty = false;
@@ -127,12 +94,23 @@ namespace DxvUI {
         const auto& computedAppearance = getComputedAppearance(getCurrentState());
         const auto& computedLayout = getComputedLayout(getCurrentState());
 
-        renderer.fillRoundRect(computedLayout.computedBounds, computedAppearance.borderRadius, computedAppearance.backgroundColor, {computedAppearance.borderColor, computedAppearance.borderThickness});
+        // 1. Draw the button's background
+        renderer.fillRoundRect(
+            computedLayout.computedBounds,
+            computedAppearance.borderRadius,
+            computedAppearance.backgroundColor,
+            {computedAppearance.borderColor, computedAppearance.borderThickness}
+        );
 
-        // Explicitly call draw on children, do NOT call SceneNode::draw
-        if (label) {
-            label->draw(renderer);
+        // 2. Let the base class handle drawing children (the container will draw the label)
+        SceneNode::draw(renderer);
+    }
+
+    std::shared_ptr<SceneNode> Button::findNodeAt(int x, int y) {
+        if (getGlobalBounds().contains(x, y)) {
+            return shared_from_this();
         }
+        return nullptr;
     }
 
     void Button::setText(const std::string& text) {
