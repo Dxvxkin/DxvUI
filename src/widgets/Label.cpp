@@ -57,7 +57,7 @@ namespace DxvUI {
 
     void Label::onChange(const UIBinding& val)
     {
-        Log::info("{} :: onChange value -> {}",getId(), val.getString().value_or(""));
+
     }
 
     Size Label::measure(const Size& availableSize) {

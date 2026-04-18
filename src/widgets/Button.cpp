@@ -46,8 +46,7 @@ namespace DxvUI {
     }
 
     Button::Button(std::string id, std::string text) : SceneNode(std::move(id)) {
-        auto binding = UIBinding::create(std::move(text));
-        bind(binding);
+        binding_ = UIBinding::create(std::move(text));
     }
 
     const char* Button::getNodeType() const {
