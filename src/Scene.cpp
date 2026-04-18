@@ -2,6 +2,7 @@
 
 #include "DxvUI/Log.h"
 #include "DxvUI/SceneNode.h"
+#include "DxvUI/containers/AbsoluteContainer.h" // Include the new container
 #include "DxvUI/interfaces/IRenderer.h"
 
 #include <queue>
@@ -35,9 +36,9 @@ namespace DxvUI {
 
     void Scene::init() {
         eventManager = std::make_unique<EventManager>(*this);
-        // The Theme now self-initializes with framework defaults.
-        // User can override styles via getTheme().setDefaultRule(...)
-        root = std::make_shared<SceneNode>("root");
+        // The root of the scene is now a FreeContainer, which provides the
+        // absolute positioning layout for its direct children.
+        root = std::make_shared<AbsoluteContainer>("root");
         root->setScene(shared_from_this());
     }
 

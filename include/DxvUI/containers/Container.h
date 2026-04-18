@@ -5,15 +5,13 @@
 
 namespace DxvUI {
 
-    /**
-     * @brief Base class for all layout containers.
-     * A container is a SceneNode that arranges its children according to specific layout rules.
-     */
     class Container : public SceneNode {
     public:
         using SceneNode::SceneNode; // Inherit constructors
 
-        // In the future, we might add common container properties here.
+        Size measure(const Size& availableSize) override = 0;
+
+        void arrange(const Rect& finalRect) override = 0;
     };
 
 }

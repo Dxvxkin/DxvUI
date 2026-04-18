@@ -27,6 +27,7 @@ target_sources(DxvUI PRIVATE
         src/widgets/Button.cpp
         src/widgets/Label.cpp
         src/containers/CenterContainer.cpp
+        src/containers/AbsoluteContainer.cpp
         src/renderers/SDLRenderer.cpp
         src/sources/SDLEventSource.cpp
         src/style/Color.cpp

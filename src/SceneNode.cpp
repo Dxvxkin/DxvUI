@@ -257,7 +257,6 @@ namespace DxvUI {
             }
         }
 
-        //Всплытие
         if (!event.handled) {
             if (const auto p = parent.lock()) {
                 p->dispatchEvent(event);
@@ -288,7 +287,7 @@ namespace DxvUI {
     }
 
     const ComputedAppearanceStyle& SceneNode::getComputedAppearance(WidgetState state) const {
-        auto it = appearanceCache.find(state);
+        const auto it = appearanceCache.find(state);
         if (it == appearanceCache.end()) {
             Log::error("FATAL: getComputedAppearance failed for node '{}' (state {}). Cache not populated before use. This indicates a severe logic error in the layout/style update cycle.", id, (int)state);
             static const ComputedAppearanceStyle empty{};
@@ -298,10 +297,10 @@ namespace DxvUI {
     }
 
     const ComputedLayoutStyle& SceneNode::getComputedLayout(WidgetState state) const {
-        auto it = layoutCache.find(state);
+        const auto it = layoutCache.find(state);
         if (it == layoutCache.end()) {
             Log::error("FATAL: getComputedLayout failed for node '{}' (state {}). Cache not populated before use. This indicates a severe logic error in the layout/style update cycle.", id, (int)state);
-            static const ComputedLayoutStyle empty{};
+            static constexpr ComputedLayoutStyle empty{};
             return empty;
         }
         return it->second;
@@ -309,7 +308,7 @@ namespace DxvUI {
 
     void SceneNode::sortChildrenIfDirty() {
         if (childrenOrderDirty) {
-            std::stable_sort(children.begin(), children.end(), [](const auto& a, const auto& b) {
+            std::ranges::stable_sort(children, [](const auto& a, const auto& b) {
                 return a->getZIndex() < b->getZIndex();
             });
             childrenOrderDirty = false;
@@ -317,74 +316,30 @@ namespace DxvUI {
     }
 
     Size SceneNode::measure(const Size& availableSize) {
+        if (!isLayoutDirty) return desiredSize;
+
         if (!visible) {
             desiredSize = {0, 0};
             return desiredSize;
         }
-        if (!isLayoutDirty && !isStyleDirty) {
-            return desiredSize;
-        }
 
         const auto& computedLayout = getComputedLayout(getCurrentState());
-        const auto& padding = computedLayout.padding;
 
-        float requiredWidth = 0.0f;
-        float requiredHeight = 0.0f;
-
-        for (const auto& child : children) {
-            Size childDesiredSize = child->measure(availableSize);
-            const auto& childLayout = child->getComputedLayout(child->getCurrentState());
-
-            float childLeft = childLayout.left;
-            float childTop = childLayout.top;
-            float childWidth = childLayout.width > 0 ? childLayout.width : childDesiredSize.width;
-            float childHeight = childLayout.height > 0 ? childLayout.height : childDesiredSize.height;
-
-            requiredWidth = std::max(requiredWidth, childLeft + childWidth);
-            requiredHeight = std::max(requiredHeight, childTop + childHeight);
-        }
-
-        desiredSize = { requiredWidth + padding.left + padding.right, requiredHeight + padding.top + padding.bottom };
-
-        if (computedLayout.width > 0) desiredSize.width = computedLayout.width;
-        if (computedLayout.height > 0) desiredSize.height = computedLayout.height;
+        desiredSize = {
+            computedLayout.width > 0 ? computedLayout.width : 0,
+            computedLayout.height > 0 ? computedLayout.height : 0
+        };
 
         return desiredSize;
     }
 
     void SceneNode::arrange(const Rect& finalRect) {
-        if (!visible) {
-            if (layoutCache.count(getCurrentState())) {
-                 auto& computedLayout = layoutCache[getCurrentState()];
-                 computedLayout.computedBounds = {finalRect.x, finalRect.y, 0, 0};
-            }
-            return;
-        }
-        if (!isLayoutDirty && !isStyleDirty) {
-            return;
-        }
-
         auto& computedLayout = layoutCache[getCurrentState()];
         computedLayout.computedBounds = finalRect;
 
-        const auto& padding = computedLayout.padding;
-        Rect contentRect = {
-            finalRect.x + (int)padding.left, finalRect.y + (int)padding.top,
-            finalRect.width - (int)(padding.left + padding.right),
-            finalRect.height - (int)(padding.top + padding.bottom)
-        };
-
-        for (const auto& child : children) {
-            const auto& childLayout = child->getComputedLayout(child->getCurrentState());
-            Size childDesiredSize = child->getDesiredSize();
-
-            int childX = contentRect.x + (int)childLayout.left;
-            int childY = contentRect.y + (int)childLayout.top;
-            int childW = (int)(childLayout.width > 0 ? childLayout.width : childDesiredSize.width);
-            int childH = (int)(childLayout.height > 0 ? childLayout.height : childDesiredSize.height);
-
-            Rect childFinalRect = {childX, childY, childW, childH};
-            child->arrange(childFinalRect);
+        if (!visible) {
+            computedLayout.computedBounds.width = 0;
+            computedLayout.computedBounds.height = 0;
         }
 
         isLayoutDirty = false;
@@ -395,16 +350,11 @@ namespace DxvUI {
             return;
         }
 
-        // This call is now just a safeguard. Styles should be clean.
-        getComputedAppearance(getCurrentState());
-
         sortChildrenIfDirty();
         for (const auto& child : children) {
             child->draw(renderer);
         }
     }
-
-
 
     void SceneNode::bind(const std::shared_ptr<UIBinding>& binding)
     {
@@ -432,8 +382,5 @@ namespace DxvUI {
         dispatchEvent(event);
     }
 
-    void SceneNode::onChange(const UIBinding& binding)
-    {
-
-    }
+    void SceneNode::onChange(const UIBinding& binding)  {}
 }
