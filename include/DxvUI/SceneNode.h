@@ -85,11 +85,14 @@ namespace DxvUI {
 
 
         // --- UIBinding logic
-        virtual void onChange(const UIBinding& binding);
+        void onBindingChange(const UIBinding& binding);
+
         void bind(const std::shared_ptr<UIBinding>& binding);
         std::shared_ptr<UIBinding> getBinding() const;
 
     protected:
+        virtual void onChange(const UIBinding& binding);
+
         friend class StyleResolver; // Allow StyleResolver to access protected members
 
         std::string id;

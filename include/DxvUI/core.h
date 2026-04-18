@@ -19,7 +19,7 @@ namespace DxvUI {
         // Raw input events
         MouseDown, MouseUp, MouseMove, KeyDown, KeyUp, TextInput, Quit,
         // Derived UI events
-        Click, HoverEnter, HoverLeave, FocusGained, FocusLost, Drag, Drop, Attach, Detach
+        Click, HoverEnter, HoverLeave, FocusGained, FocusLost, Drag, Drop, Attach, Detach, Change
     };
     enum class MouseButton { None, Left, Middle, Right };
     enum class PositionType { Relative, Absolute };

@@ -30,6 +30,18 @@ void buildUI(std::shared_ptr<DxvUI::Scene> scene)
     // --- Button 1: Uses default styles + overrides ---
     auto myButton = DxvUI::Button::create("my_button", "Click Me!");
 
+    root->on(DxvUI::EventType::Change, [](DxvUI::DxvEvent& event)
+    {
+        DxvUI::Log::info("Root callback");
+        DxvUI::Log::info("{} ::onChange({}) ", event.target.lock()->getId(), event.target.lock()->getBinding()->getString().value_or(""));
+    });
+
+    myButton->on(DxvUI::EventType::Change, [](DxvUI::DxvEvent& event)
+    {
+        DxvUI::Log::info("Button callback");
+        DxvUI::Log::info("{} ::onChange({}) ", event.target.lock()->getId(), event.target.lock()->getBinding()->getString().value_or(""));
+    });
+
 
 
     // Override only position and size. Colors, padding, etc., will come from the Button's default theme.
@@ -62,16 +74,16 @@ void buildUI(std::shared_ptr<DxvUI::Scene> scene)
 
         // Set style for the new label
         label->editStyle().set(DxvUI::WidgetState::Normal, {
-            .backgroundColor = DxvUI::Color(200, 200, 200, 20),
-            .textColor = DxvUI::Colors::Orange,
+            .backgroundColor = DxvUI::Color(0, 0, 0, 80),
+            .textColor = DxvUI::Colors::White,
             .borderColor = DxvUI::Colors::Black,
             .borderThickness = 1,
             .borderRadius = 5,
             .left = (float)randomX,
             .top = (float)randomY,
-            .padding = DxvUI::Thickness{20, 20, 20, 20},
+            .padding = DxvUI::Thickness{5, 5, 5, 5},
         });
-        label->editStyle().set(DxvUI::WidgetState::Hovered, {.backgroundColor = (DxvUI::Color(200, 200, 200, 60)),  .textColor = DxvUI::Colors::Red,.borderThickness = 1,  .borderRadius = 10 });
+        label->editStyle().set(DxvUI::WidgetState::Hovered, {.backgroundColor = (DxvUI::Color(0, 0, 0, 150)),.borderThickness = 1,  .borderRadius = 10 });
 
         label->on(DxvUI::EventType::Click, [](DxvUI::DxvEvent& event)
         {
@@ -124,7 +136,19 @@ void buildUI(std::shared_ptr<DxvUI::Scene> scene)
     {
         if (auto node = e.target.lock())
         {
-            node->getScene()->findNodeById("my_button")->as<DxvUI::Button>()->setText("FuckdUp!");
+
+            if (auto target = node->getScene()->findNodeById("label_7"))
+            {
+                auto style = target->as<DxvUI::Label>()->editStyle().get(DxvUI::WidgetState::Normal);
+                auto newStyle = DxvUI::StyleRule(*style);
+                newStyle.padding->left += 5;
+                newStyle.padding->top += 5;
+                newStyle.padding->right+= 5;
+                newStyle.padding->bottom += 5;
+                target->editStyle().set(DxvUI::WidgetState::Normal, newStyle);
+            }
+
+
         }
     });
     root->addChild(btn_test_def_styles);

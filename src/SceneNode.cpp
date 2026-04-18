@@ -243,7 +243,11 @@ namespace DxvUI {
     void SceneNode::on(EventType type, ActionCallback callback) { eventHandlers[type].push_back(std::move(callback)); }
 
     void SceneNode::dispatchEvent(DxvEvent& event) {
-        if (eventHandlers.count(event.type)) {
+        if (event.target.expired())
+        {
+            return;
+        }
+        if (eventHandlers.contains(event.type)) {
             for (const auto& callback : eventHandlers[event.type]) {
                 if (auto targetNode = event.target.lock()) callback(event);
                 if (event.handled) return;
@@ -402,7 +406,7 @@ namespace DxvUI {
         if (binding_)
         {
             connection_ = binding_->subscribe([this](const UIBinding& value) {
-                this->onChange(std::move(value));
+                this->onBindingChange(std::move(value));
             });
         }
     }
@@ -410,6 +414,15 @@ namespace DxvUI {
     std::shared_ptr<UIBinding> SceneNode::getBinding() const
     {
         return binding_;
+    }
+
+    void SceneNode::onBindingChange(const UIBinding& binding)
+    {
+        DxvEvent event;
+        event.target = weak_from_this();
+        event.type = EventType::Change;
+        onChange(std::move(binding));
+        dispatchEvent(event);
     }
 
     void SceneNode::onChange(const UIBinding& binding)
