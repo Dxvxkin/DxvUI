@@ -4,7 +4,6 @@
 #include <string>
 
 #include <functional> // For std::function
-#include <cstdint>  // For uint16_t
 #include <memory>
 
 #include "DxvUI/style/Color.h"
@@ -57,6 +56,7 @@ namespace DxvUI {
     struct DxvEvent {
         EventType type = EventType::None;
         std::weak_ptr<SceneNode> target;
+        std::weak_ptr<SceneNode> currentTarget;
         std::weak_ptr<SceneNode> relatedNode;
         bool handled = false;
 

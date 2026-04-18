@@ -243,18 +243,25 @@ namespace DxvUI {
     void SceneNode::on(EventType type, ActionCallback callback) { eventHandlers[type].push_back(std::move(callback)); }
 
     void SceneNode::dispatchEvent(DxvEvent& event) {
-        if (event.target.expired())
-        {
+        if (event.target.expired()) {
             return;
         }
+        event.currentTarget = weak_from_this();
+
         if (eventHandlers.contains(event.type)) {
             for (const auto& callback : eventHandlers[event.type]) {
-                if (auto targetNode = event.target.lock()) callback(event);
-                if (event.handled) return;
+                callback(event);
+                if (event.handled) {
+                    return;
+                }
             }
         }
-        if (!event.handled && parent.lock()) {
-            parent.lock()->dispatchEvent(event);
+
+        //Всплытие
+        if (!event.handled) {
+            if (const auto p = parent.lock()) {
+                p->dispatchEvent(event);
+            }
         }
     }
 

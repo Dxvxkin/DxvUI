@@ -42,6 +42,14 @@ void buildUI(std::shared_ptr<DxvUI::Scene> scene)
         DxvUI::Log::info("{} ::onChange({}) ", event.target.lock()->getId(), event.target.lock()->getBinding()->getString().value_or(""));
     });
 
+    myButton->on(DxvUI::EventType::Attach, [](DxvUI::DxvEvent& event)
+    {
+        if (event.target.lock() == event.currentTarget.lock())
+        {
+            DxvUI::Log::info("{} Attach", event.target.lock()->getId());
+        }
+
+    });
 
 
     // Override only position and size. Colors, padding, etc., will come from the Button's default theme.
