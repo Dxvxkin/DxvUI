@@ -5,19 +5,18 @@
 
 namespace DxvUI {
 
-    /**
-     * @brief A container that centers its first child within its own bounds.
-     */
-    class CenterContainer : public Container {
-    public:
-        using Container::Container; // Inherit constructors
+/**
+ * @brief A container that centers its first child within its own bounds.
+ */
+class CenterContainer : public Container {
+   public:
+    using Container::Container;  // Inherit constructors
 
+    // New two-pass layout methods
+    Size measure(const Size& availableSize) override;
+    void arrange(const Rect& finalRect) override;
+};
 
-        // New two-pass layout methods
-        Size measure(const Size& availableSize) override;
-        void arrange(const Rect& finalRect) override;
-    };
+}  // namespace DxvUI
 
-}
-
-#endif //DXVUI_CENTERCONTAINER_H
+#endif  // DXVUI_CENTERCONTAINER_H

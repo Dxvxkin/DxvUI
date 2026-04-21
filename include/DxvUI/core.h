@@ -10,111 +10,118 @@
 
 namespace DxvUI {
 
-    class SceneNode; // Forward declaration
+class SceneNode; // Forward declaration
 
-    // --- Enums ---
-    enum class EventType {
-        None,
-        // Raw input events
-        MouseDown, MouseUp, MouseMove, KeyDown, KeyUp, TextInput, Quit,
-        // Derived UI events
-        Click, HoverEnter, HoverLeave, FocusGained, FocusLost, Drag, Drop, Attach, Detach, Change
-    };
-    enum class MouseButton { None, Left, Middle, Right };
-    enum class PositionType { Relative, Absolute };
-    enum class Alignment { Start, Center, End, Stretch };
+// --- Enums ---
+enum class EventType {
+    None,
+    // Raw input events
+    MouseDown, MouseUp, MouseMove, KeyDown, KeyUp, TextInput, Quit,
+    // Derived UI events
+    Click, HoverEnter, HoverLeave, FocusGained, FocusLost, Drag, Drop, Attach, Detach, Change
+};
 
-    // System cursor types
-    enum class CursorType {
-        Arrow,      // Default pointer
-        IBeam,      // Text input
-        Wait,       // Busy indicator
-        Crosshair,
-        Hand,       // Hand pointer for links/buttons
-        ResizeNWSE, // Diagonal resize
-        ResizeNESW, // Diagonal resize
-        ResizeWE,   // Horizontal resize
-        ResizeNS,   // Vertical resize
-        ResizeAll,
-        No          // Hidden cursor
-    };
+enum class MouseButton { None, Left, Middle, Right };
 
-    enum KeyModifier : uint16_t {
-        None    = 0x0000,
-        LShift  = 0x0001,
-        RShift  = 0x0002,
-        LCtrl   = 0x0040,
-        RCtrl   = 0x0080,
-        LAlt    = 0x0100,
-        RAlt    = 0x0200,
-        Shift   = LShift | RShift,
-        Ctrl    = LCtrl | RCtrl,
-        Alt     = LAlt | RAlt,
-    };
+enum class PositionType { Relative, Absolute };
 
-    // --- Structs & Core Types ---
-    struct DxvEvent {
-        EventType type = EventType::None;
-        std::weak_ptr<SceneNode> target;
-        std::weak_ptr<SceneNode> currentTarget;
-        std::weak_ptr<SceneNode> relatedNode;
-        bool handled = false;
+enum class Alignment { Start, Center, End, Stretch };
 
-        struct {
-            int x = 0;
-            int y = 0;
-            int dx = 0;
-            int dy = 0;
-            MouseButton button = MouseButton::None;
-        } mouse;
+// System cursor types
+enum class CursorType {
+    Arrow, // Default pointer
+    IBeam, // Text input
+    Wait, // Busy indicator
+    Crosshair,
+    Hand, // Hand pointer for links/buttons
+    ResizeNWSE, // Diagonal resize
+    ResizeNESW, // Diagonal resize
+    ResizeWE, // Horizontal resize
+    ResizeNS, // Vertical resize
+    ResizeAll,
+    No // Hidden cursor
+};
 
-        struct {
-            int sym = 0;
-            int scancode = 0;
-            uint16_t mod = 0;
-        } key;
+enum KeyModifier : uint16_t {
+    None = 0x0000,
+    LShift = 0x0001,
+    RShift = 0x0002,
+    LCtrl = 0x0040,
+    RCtrl = 0x0080,
+    LAlt = 0x0100,
+    RAlt = 0x0200,
+    Shift = LShift | RShift,
+    Ctrl = LCtrl | RCtrl,
+    Alt = LAlt | RAlt,
+};
 
-        std::string text;
-    };
+// --- Structs & Core Types ---
+struct DxvEvent {
+    EventType type = EventType::None;
+    std::weak_ptr<SceneNode> target;
+    std::weak_ptr<SceneNode> currentTarget;
+    std::weak_ptr<SceneNode> relatedNode;
+    bool handled = false;
 
-    using ActionCallback = std::function<void(DxvEvent&)>;
+    struct {
+        int x = 0;
+        int y = 0;
+        int dx = 0;
+        int dy = 0;
+        MouseButton button = MouseButton::None;
+    } mouse;
 
-    struct Size {
-        float width = 0, height = 0;
-    };
+    struct {
+        int sym = 0;
+        int scancode = 0;
+        uint16_t mod = 0;
+    } key;
 
-    struct Rect {
-        int x = 0, y = 0, width = 0, height = 0;
-        bool contains(int pX, int pY) const { return (pX >= x && pX < (x + width) && pY >= y && pY < (y + height)); }
-    };
+    std::string text;
+};
 
-    struct Thickness {
-        float top = 0, right = 0, bottom = 0, left = 0;
-    };
+using ActionCallback = std::function<void(DxvEvent&)>;
 
-    struct Border {
-        Color color;
-        int thickness = 1;
-    };
+struct Size {
+    float width = 0, height = 0;
+};
 
-    template<typename T>
-    struct Point {
-        T x = 0, y = 0;
-    };
-    using PointI = Point<int>;
-    using PointF = Point<float>;
+struct Rect {
+    int x = 0, y = 0, width = 0, height = 0;
 
-    inline const char* getDefaultFontPath() {
-        #if defined(_WIN32) || defined(_WIN64)
-            return "C:/Windows/Fonts/Arial.ttf";
-        #elif defined(__APPLE__)
-            return "/System/Library/Fonts/Supplemental/Arial.ttf";
-        #elif defined(__linux__)
-            return "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
-        #else
-            return "";
-        #endif
+    bool contains(int pX, int pY) const {
+        return (pX >= x && pX < (x + width) && pY >= y && pY < (y + height));
     }
+};
+
+struct Thickness {
+    float top = 0, right = 0, bottom = 0, left = 0;
+};
+
+struct Border {
+    Color color;
+    int thickness = 1;
+};
+
+template <typename T>
+struct Point {
+    T x = 0, y = 0;
+};
+
+using PointI = Point<int>;
+using PointF = Point<float>;
+
+inline const char* getDefaultFontPath() {
+#if defined(_WIN32) || defined(_WIN64)
+    return "C:/Windows/Fonts/Arial.ttf";
+#elif defined(__APPLE__)
+    return "/System/Library/Fonts/Supplemental/Arial.ttf";
+#elif defined(__linux__)
+    return "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
+#else
+    return "";
+#endif
+}
 
 }
 

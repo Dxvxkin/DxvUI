@@ -8,31 +8,30 @@
 
 namespace DxvUI {
 
-    class Label : public SceneNode {
-    public:
-        static std::shared_ptr<Label> create(std::string id, std::string text = "");
+class Label : public SceneNode {
+public:
+    static std::shared_ptr<Label> create(std::string id, std::string text = "");
 
-        explicit Label(std::string id = "", std::string text = "");
+    explicit Label(std::string id = "", std::string text = "");
 
-        void setText(std::string text);
-        const std::string getText() const;
+    void setText(std::string text);
+    const std::string getText() const;
 
-        // --- Overrides ---
-        void onChange(const UIBinding& val) override;
+    // --- Overrides ---
+    void onChange(const UIBinding& val) override;
 
-        const char* getNodeType() const noexcept override;
-        Size measure(const Size& availableSize) override;
-        void draw(IRenderer& renderer) override;
-        // ---------------------
+    const char* getNodeType() const noexcept override;
+    Size measure(const Size& availableSize) override;
+    void draw(IRenderer& renderer) override;
+    // ---------------------
 
-    private:
-
-        std::shared_ptr<ITexture> textTexture;
-        std::string cachedText;
-        std::string cachedFontPath;
-        int cachedFontSize = 0;
-        Color cachedTextColor;
-    };
+private:
+    std::shared_ptr<ITexture> textTexture;
+    std::string cachedText;
+    std::string cachedFontPath;
+    int cachedFontSize = 0;
+    Color cachedTextColor;
+};
 
 }
 

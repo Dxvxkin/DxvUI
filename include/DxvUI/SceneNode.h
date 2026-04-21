@@ -13,112 +13,112 @@
 
 namespace DxvUI {
 
-    class Scene;
-    class EventManager;
+class Scene;
+class EventManager;
 
-    class SceneNode : public std::enable_shared_from_this<SceneNode> {
-    public:
-        explicit SceneNode(std::string id = "");
-        virtual ~SceneNode();
+class SceneNode : public std::enable_shared_from_this<SceneNode> {
+public:
+    explicit SceneNode(std::string id = "");
+    virtual ~SceneNode();
 
-        void addChild(const std::shared_ptr<SceneNode>& child);
-        void removeChild(const std::shared_ptr<SceneNode>& child);
-        void detach();
-        void detachAllChildren();
+    void addChild(const std::shared_ptr<SceneNode>& child);
+    void removeChild(const std::shared_ptr<SceneNode>& child);
+    void detach();
+    void detachAllChildren();
 
-        virtual void setScene(const std::shared_ptr<Scene>& scene);
-        std::shared_ptr<Scene> getScene() const;
+    virtual void setScene(const std::shared_ptr<Scene>& scene);
+    std::shared_ptr<Scene> getScene() const;
 
-        const std::string& getId() const;
-        void setId(const std::string& newId);
-        std::shared_ptr<SceneNode> findNodeById(const std::string& searchId) const;
-        virtual std::shared_ptr<SceneNode> findNodeAt(int x, int y);
+    const std::string& getId() const;
+    void setId(const std::string& newId);
+    std::shared_ptr<SceneNode> findNodeById(const std::string& searchId) const;
+    virtual std::shared_ptr<SceneNode> findNodeAt(int x, int y);
 
-        template <typename T> [[nodiscard]] T* as() { return dynamic_cast<T*>(this); }
-        template <typename T> [[nodiscard]] const T* as() const { return dynamic_cast<const T*>(this); }
+    template <typename T> [[nodiscard]] T* as() { return dynamic_cast<T*>(this); }
+    template <typename T> [[nodiscard]] const T* as() const { return dynamic_cast<const T*>(this); }
 
-        // --- Type Information ---
-        virtual const char* getNodeType() const;
+    // --- Type Information ---
+    virtual const char* getNodeType() const;
 
-        // --- Style & Layout ---
-        Style& editStyle();
-        const Style& getStyle() const; // Read-only access
-        void markStyleDirty();
-        void markLayoutDirty();
-        const ComputedAppearanceStyle& getComputedAppearance(WidgetState state) const;
-        const ComputedLayoutStyle& getComputedLayout(WidgetState state) const;
-        Rect getGlobalBounds() const;
-        Size getDesiredSize() const;
-        WidgetState getCurrentState() const;
+    // --- Style & Layout ---
+    Style& editStyle();
+    const Style& getStyle() const; // Read-only access
+    void markStyleDirty();
+    void markLayoutDirty();
+    const ComputedAppearanceStyle& getComputedAppearance(WidgetState state) const;
+    const ComputedLayoutStyle& getComputedLayout(WidgetState state) const;
+    Rect getGlobalBounds() const;
+    Size getDesiredSize() const;
+    WidgetState getCurrentState() const;
 
-        // --- Framework Internals ---
-        void recomputeStyles();
-        bool isStyleDirty_get() const { return isStyleDirty; }
-
-
-        // --- State & Hierarchy ---
-        bool isRoot() const;
-        void setZIndex(int newZIndex);
-        int getZIndex() const;
-        void setHovered(bool hovered);
-        void setPressed(bool pressed);
-        bool isVisible() const;
-        void setVisible(bool visible);
-
-        // --- Events & Lifecycle (Framework-level API) ---
-        void on(EventType type, ActionCallback callback);
-        virtual void dispatchEvent(DxvEvent& event);
-        virtual void onAttach();
-        virtual void onDetach();
-        virtual void onUpdate(float deltaTime);
-
-        // --- Rendering Pipeline (Framework-level API) ---
-        virtual Size measure(const Size& availableSize);
-        virtual void arrange(const Rect& finalRect);
-        virtual void draw(IRenderer& renderer);
-
-        static int getNodeCount();
-
-        std::weak_ptr<SceneNode> parent;
-        std::vector<std::shared_ptr<SceneNode>> children;
-        std::weak_ptr<Scene> scene;
+    // --- Framework Internals ---
+    void recomputeStyles();
+    bool isStyleDirty_get() const { return isStyleDirty; }
 
 
-        // --- UIBinding logic
-        void onBindingChange(const UIBinding& binding);
+    // --- State & Hierarchy ---
+    bool isRoot() const;
+    void setZIndex(int newZIndex);
+    int getZIndex() const;
+    void setHovered(bool hovered);
+    void setPressed(bool pressed);
+    bool isVisible() const;
+    void setVisible(bool visible);
 
-        void bind(const std::shared_ptr<UIBinding>& binding);
-        std::shared_ptr<UIBinding> getBinding() const;
+    // --- Events & Lifecycle (Framework-level API) ---
+    void on(EventType type, ActionCallback callback);
+    virtual void dispatchEvent(DxvEvent& event);
+    virtual void onAttach();
+    virtual void onDetach();
+    virtual void onUpdate(float deltaTime);
 
-    protected:
-        virtual void onChange(const UIBinding& binding);
+    // --- Rendering Pipeline (Framework-level API) ---
+    virtual Size measure(const Size& availableSize);
+    virtual void arrange(const Rect& finalRect);
+    virtual void draw(IRenderer& renderer);
 
-        friend class StyleResolver; // Allow StyleResolver to access protected members
+    static int getNodeCount();
 
-        std::string id;
-        Style style;
+    std::weak_ptr<SceneNode> parent;
+    std::vector<std::shared_ptr<SceneNode>> children;
+    std::weak_ptr<Scene> scene;
 
-        mutable std::map<WidgetState, ComputedAppearanceStyle> appearanceCache;
-        mutable std::map<WidgetState, ComputedLayoutStyle> layoutCache;
-        Size desiredSize;
 
-        mutable bool isLayoutDirty = true;
-        mutable bool isStyleDirty = true;
+    // --- UIBinding logic
+    void onBindingChange(const UIBinding& binding);
 
-        std::shared_ptr<UIBinding> binding_;
-        std::unique_ptr<UIBinding::Connection> connection_;
+    void bind(const std::shared_ptr<UIBinding>& binding);
+    std::shared_ptr<UIBinding> getBinding() const;
 
-    private:
-        void sortChildrenIfDirty();
+protected:
+    virtual void onChange(const UIBinding& binding);
 
-        bool isHovered = false;
-        bool isPressed = false;
-        bool visible = true;
-        static int nodeCount;
-        int zIndex = 0;
-        bool childrenOrderDirty = false;
-        std::map<EventType, std::vector<ActionCallback>> eventHandlers;
-    };
+    friend class StyleResolver; // Allow StyleResolver to access protected members
+
+    std::string id;
+    Style style;
+
+    mutable std::map<WidgetState, ComputedAppearanceStyle> appearanceCache;
+    mutable std::map<WidgetState, ComputedLayoutStyle> layoutCache;
+    Size desiredSize;
+
+    mutable bool isLayoutDirty = true;
+    mutable bool isStyleDirty = true;
+
+    std::shared_ptr<UIBinding> binding_;
+    std::unique_ptr<UIBinding::Connection> connection_;
+
+private:
+    void sortChildrenIfDirty();
+
+    bool isHovered = false;
+    bool isPressed = false;
+    bool visible = true;
+    static int nodeCount;
+    int zIndex = 0;
+    bool childrenOrderDirty = false;
+    std::map<EventType, std::vector<ActionCallback>> eventHandlers;
+};
 
 }
 

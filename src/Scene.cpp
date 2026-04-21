@@ -1,184 +1,167 @@
 #include "DxvUI/Scene.h"
 
+#include <queue>
+
 #include "DxvUI/Log.h"
 #include "DxvUI/SceneNode.h"
-#include "DxvUI/containers/AbsoluteContainer.h" // Include the new container
+#include "DxvUI/containers/AbsoluteContainer.h"
 #include "DxvUI/interfaces/IRenderer.h"
-
-#include <queue>
 
 namespace DxvUI {
 
-    Scene::Scene() = default;
+Scene::Scene() = default;
 
-    Scene::~Scene() {
-        shutdown();
+Scene::~Scene() { shutdown(); }
+
+void Scene::shutdown() {
+    if (!root) {
+        return;
     }
 
-    void Scene::shutdown() {
-        if (!root) {
-            return;
-        }
+    Log::trace("Scene shutdown requested.");
+    root->detachAllChildren();
+    root->setScene(nullptr);
+    root.reset();
 
-        Log::trace("Scene shutdown requested.");
-        root->detachAllChildren();
-        root->setScene(nullptr);
-        root.reset();
+    Log::trace("Scene shutdown complete.");
+}
 
-        Log::trace("Scene shutdown complete.");
-    }
+std::shared_ptr<Scene> Scene::create() {
+    auto scene = std::shared_ptr<Scene>(new Scene());
+    scene->init();
+    return scene;
+}
 
-    std::shared_ptr<Scene> Scene::create() {
-        auto scene = std::shared_ptr<Scene>(new Scene());
-        scene->init();
-        return scene;
-    }
+void Scene::init() {
+    eventManager = std::make_unique<EventManager>(*this);
+    root = std::make_shared<AbsoluteContainer>("root");
+    root->setScene(shared_from_this());
+}
 
-    void Scene::init() {
-        eventManager = std::make_unique<EventManager>(*this);
-        // The root of the scene is now a FreeContainer, which provides the
-        // absolute positioning layout for its direct children.
-        root = std::make_shared<AbsoluteContainer>("root");
+void Scene::setRoot(const std::shared_ptr<SceneNode>& node) {
+    // Use shutdown to clear the old root, ensuring consistent cleanup logic.
+    shutdown();
+    root = node;
+    if (root) {
         root->setScene(shared_from_this());
     }
+    requestLayoutUpdate();
+}
 
-    void Scene::setRoot(const std::shared_ptr<SceneNode>& node) {
-        // Use shutdown to clear the old root, ensuring consistent cleanup logic.
-        shutdown();
-        root = node;
-        if (root) {
-            root->setScene(shared_from_this());
+void Scene::setRenderer(IRenderer* newRenderer) { renderer = newRenderer; }
+
+IRenderer* Scene::getRenderer() { return renderer; }
+
+std::shared_ptr<SceneNode> Scene::getRoot() const { return root; }
+
+EventManager& Scene::getEventManager() { return *eventManager; }
+Theme& Scene::getTheme() { return theme; }
+
+bool Scene::unregisterNode(std::weak_ptr<SceneNode> node) {
+    if (auto _node = node.lock()) {
+        Log::trace("Unregistering node '{}'", _node->getId());
+
+        if (_node->getId().empty()) return false;
+        auto count = nodeById.erase(_node->getId());
+        if (count == 0) {
+            Log::warn("Attempt to unregister node '{}' that is not registered", _node->getId());
+            return false;
         }
-        requestLayoutUpdate();
+        return true;
     }
+    Log::warn("Attempt to unregister an expired node");
+    return false;
+}
 
-    void Scene::setRenderer(IRenderer* newRenderer) {
-        renderer = newRenderer;
-    }
+void Scene::requestLayoutUpdate() { layoutIsDirty = true; }
 
-    IRenderer* Scene::getRenderer() {
-        return renderer;
-    }
+bool Scene::registerNode(std::weak_ptr<SceneNode> node) {
+    if (auto _node = node.lock()) {
+        Log::trace("Registering node '{}'", _node->getId());  // не удалять
 
-    std::shared_ptr<SceneNode> Scene::getRoot() const { return root; }
-
-    EventManager& Scene::getEventManager() { return *eventManager; }
-    Theme& Scene::getTheme() { return theme; }
-
-    bool Scene::unregisterNode(std::weak_ptr<SceneNode> node)
-    {
-        if (auto _node = node.lock())
-        {
-            Log::trace("Unregistering node '{}'", _node->getId());
-
-            if (_node->getId().empty()) return false;
-            auto count = nodeById.erase(_node->getId());
-            if (count == 0)
-            {
-                Log::warn("Attempt to unregister node '{}' that is not registered", _node->getId());
-                return false;
-            }
-            return true;
+        if (_node->getId().empty()) {
+            Log::warn("Attempt to register node with empty id");
+            return false;
         }
-        Log::warn("Attempt to unregister an expired node");
-        return false;
-    }
-
-    void Scene::requestLayoutUpdate() {
-        layoutIsDirty = true;
-    }
-
-    bool Scene::registerNode(std::weak_ptr<SceneNode> node)
-    {
-        if (auto _node = node.lock())
-        {
-            Log::trace("Registering node '{}'", _node->getId());// не удалять
-
-            if (_node->getId().empty())
-            {
-                Log::warn("Attempt to register node with empty id");
-                return false;
-            }
-            if (nodeById.contains(_node->getId()))
-            {
-                Log::error("Attempt to register node with id '{}' that is already registered", _node->getId());
-                return false;
-            }
-
-            nodeById[_node->getId()] = node;
-            return true;
-        }
-        Log::warn("Attempt to register an expired node");
-        return false;
-    }
-
-    std::shared_ptr<SceneNode> Scene::findNodeById(std::string id)
-    {
-        auto it = nodeById.find(id);
-        if (it == nodeById.end())
-        {
-            return nullptr;
+        if (nodeById.contains(_node->getId())) {
+            Log::error(
+                "Attempt to register node with id '{}' that is already "
+                "registered",
+                _node->getId());
+            return false;
         }
 
-        if (auto locked = it->second.lock()) {
-            return locked;
-        }
+        nodeById[_node->getId()] = node;
+        return true;
+    }
+    Log::warn("Attempt to register an expired node");
+    return false;
+}
 
+std::shared_ptr<SceneNode> Scene::findNodeById(std::string id) {
+    auto it = nodeById.find(id);
+    if (it == nodeById.end()) {
         return nullptr;
     }
 
-    void Scene::processEvent(const DxvEvent& event) {
-        eventManager->processRawEvent(event);
+    if (auto locked = it->second.lock()) {
+        return locked;
     }
 
-    void Scene::update(float deltaTime) {
-        if (root) {
-            root->onUpdate(deltaTime);
-        }
-    }
-
-    void Scene::resolveDirtyStyles() {
-        if (!root) return;
-        // Use a queue for a breadth-first (top-down) traversal.
-        // This ensures parent styles are resolved before their children need to inherit from them.
-        std::queue<std::shared_ptr<SceneNode>> nodesToProcess;
-        nodesToProcess.push(root);
-
-        while(!nodesToProcess.empty()) {
-            auto node = nodesToProcess.front();
-            nodesToProcess.pop();
-
-            if (node->isStyleDirty_get()) {
-                node->recomputeStyles();
-            }
-
-            for(const auto& child : node->children) {
-                nodesToProcess.push(child);
-            }
-        }
-    }
-
-    void Scene::updateLayout() {
-        if (layoutIsDirty && root && renderer) {
-
-            // First, resolve all dirty styles in the tree
-            resolveDirtyStyles();
-
-            // Now, perform layout calculations
-            Size viewportSize = renderer->getViewportSize();
-            Rect viewportRect = {0, 0, (int)viewportSize.width, (int)viewportSize.height};
-
-            root->measure(viewportSize);
-            root->arrange(viewportRect);
-
-            layoutIsDirty = false;
-        }
-    }
-
-    void Scene::draw() {
-        if (root && renderer) {
-            root->draw(*renderer);
-        }
-    }
-
+    return nullptr;
 }
+
+void Scene::processEvent(const DxvEvent& event) { eventManager->processRawEvent(event); }
+
+void Scene::update(float deltaTime) {
+    if (root) {
+        root->onUpdate(deltaTime);
+    }
+}
+
+// TODO: Эта логика должна быть перенесена в Theme или Style
+void Scene::resolveDirtyStyles() {
+    if (!root) return;
+    // Use a queue for a breadth-first (top-down) traversal.
+    // This ensures parent styles are resolved before their children need to
+    // inherit from them.
+    std::queue<std::shared_ptr<SceneNode>> nodesToProcess;
+    nodesToProcess.push(root);
+
+    while (!nodesToProcess.empty()) {
+        auto node = nodesToProcess.front();
+        nodesToProcess.pop();
+
+        if (node->isStyleDirty_get()) {
+            node->recomputeStyles();
+        }
+
+        for (const auto& child : node->children) {
+            nodesToProcess.push(child);
+        }
+    }
+}
+
+void Scene::updateLayout() {
+    if (layoutIsDirty && root && renderer) {
+        // First, resolve all dirty styles in the tree
+        resolveDirtyStyles();
+
+        // Now, perform layout calculations
+        Size viewportSize = renderer->getViewportSize();
+        Rect viewportRect = {0, 0, (int)viewportSize.width, (int)viewportSize.height};
+
+        root->measure(viewportSize);
+        root->arrange(viewportRect);
+
+        layoutIsDirty = false;
+    }
+}
+
+void Scene::draw() {
+    if (root && renderer) {
+        root->draw(*renderer);
+    }
+}
+
+}  // namespace DxvUI

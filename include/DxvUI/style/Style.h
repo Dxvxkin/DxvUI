@@ -6,6 +6,7 @@
 #include <optional>
 #include <string>
 #include <map>
+#include <utility>
 
 namespace DxvUI {
 
@@ -51,7 +52,7 @@ namespace DxvUI {
     public:
         void set(WidgetState state, StyleRule rule) {
             // For now, we just overwrite. A more advanced implementation could merge.
-            stateStyles[state] = rule;
+            stateStyles[state] = std::move(rule);
         }
 
         const StyleRule* get(WidgetState state) const {

@@ -1,6 +1,6 @@
-#include <gtest/gtest.h>
 #include <DxvUI/style/Color.h>
 #include <DxvUI/style/Colors.h>
+#include <gtest/gtest.h>
 
 // Test fixture for Color class
 class ColorTest : public ::testing::Test {};
@@ -40,9 +40,7 @@ TEST_F(ColorTest, FromHex) {
     EXPECT_EQ(c2.a, 128);
 }
 
-TEST_F(ColorTest, ToHex) {
-    EXPECT_EQ(DxvUI::Colors::Blue.toHex(), "#0000ffff");
-}
+TEST_F(ColorTest, ToHex) { EXPECT_EQ(DxvUI::Colors::Blue.toHex(), "#0000ffff"); }
 
 TEST_F(ColorTest, Lerp) {
     DxvUI::Color black = DxvUI::Colors::Black;
@@ -65,12 +63,12 @@ TEST_F(ColorTest, Lerp) {
 TEST_F(ColorTest, LightenAndDarken) {
     DxvUI::Color base(100, 100, 100);
 
-    DxvUI::Color lighter = base.lighten(0.5f); // 100 * 1.5 = 150
+    DxvUI::Color lighter = base.lighten(0.5f);  // 100 * 1.5 = 150
     EXPECT_EQ(lighter.r, 150);
     EXPECT_EQ(lighter.g, 150);
     EXPECT_EQ(lighter.b, 150);
 
-    DxvUI::Color darker = base.darken(0.5f); // 100 * 0.5 = 50
+    DxvUI::Color darker = base.darken(0.5f);  // 100 * 0.5 = 50
     EXPECT_EQ(darker.r, 50);
     EXPECT_EQ(darker.g, 50);
     EXPECT_EQ(darker.b, 50);

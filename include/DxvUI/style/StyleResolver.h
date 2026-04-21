@@ -5,15 +5,15 @@
 
 namespace DxvUI {
 
-    // Forward declarations
-    class Theme;
+// Forward declarations
+class Theme;
 
-    class StyleResolver {
-    public:
-        static ComputedAppearanceStyle resolveAppearance(const SceneNode& node, WidgetState state);
-        static ComputedLayoutStyle resolveLayout(const SceneNode& node, WidgetState state);
-    };
+class StyleResolver {
+   public:
+    static ComputedAppearanceStyle resolveAppearance(const SceneNode& node, WidgetState state);
+    static ComputedLayoutStyle resolveLayout(const SceneNode& node, WidgetState state);
+};
 
-}
+}  // namespace DxvUI
 
-#endif //DXVUI_STYLERESOLVER_H
+#endif  // DXVUI_STYLERESOLVER_H

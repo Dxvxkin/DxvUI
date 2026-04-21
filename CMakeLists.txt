@@ -42,7 +42,7 @@ target_include_directories(DxvUI PUBLIC
 )
 
 target_link_libraries(DxvUI PUBLIC
-#        nlohmann_json::nlohmann_json
+        #        nlohmann_json::nlohmann_json
         SDL2::SDL2
         SDL2::SDL2_gfx
         SDL2_ttf::SDL2_ttf

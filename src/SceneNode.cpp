@@ -8,379 +8,390 @@
 
 namespace DxvUI {
 
-    int SceneNode::nodeCount = 0;
+int SceneNode::nodeCount = 0;
 
-    // --- Logging Helpers ---
-    static int get_depth(const SceneNode* node) {
-        int depth = 0;
-        if (node) {
-            auto p = node->parent.lock();
-            while (p) {
-                depth++;
-                p = p->parent.lock();
-            }
+// --- Logging Helpers ---
+static int get_depth(const SceneNode* node) {
+    int depth = 0;
+    if (node) {
+        auto p = node->parent.lock();
+        while (p) {
+            depth++;
+            p = p->parent.lock();
         }
-        return depth;
     }
-    static std::string indent(const SceneNode* node) { return std::string(get_depth(node) * 2, ' '); }
-    static std::string state_to_string(WidgetState state) {
-        switch (state) {
-            case WidgetState::Normal: return "Normal";
-            case WidgetState::Hovered: return "Hovered";
-            case WidgetState::Pressed: return "Pressed";
-            case WidgetState::Disabled: return "Disabled";
-        }
-        return "Unknown";
-    }
+    return depth;
+}
 
-    SceneNode::SceneNode(std::string id) : id(std::move(id)) {
-        nodeCount++;
-    }
+static std::string indent(const SceneNode* node) { return std::string(get_depth(node) * 2, ' '); }
 
-    SceneNode::~SceneNode() {
-        nodeCount--;
-        Log::trace("{} Destroying node {}", indent(this), id);
+static std::string state_to_string(WidgetState state) {
+    switch (state) {
+        case WidgetState::Normal:
+            return "Normal";
+        case WidgetState::Hovered:
+            return "Hovered";
+        case WidgetState::Pressed:
+            return "Pressed";
+        case WidgetState::Disabled:
+            return "Disabled";
     }
+    return "Unknown";
+}
 
-    int SceneNode::getNodeCount() {
-        return nodeCount;
-    }
+SceneNode::SceneNode(std::string id) : id(std::move(id)) {
+    nodeCount++;
+}
 
-    void SceneNode::addChild(const std::shared_ptr<SceneNode>& child) {
-        if (!child) return;
-        child->detach();
-        children.push_back(child);
-        child->parent = shared_from_this();
-        child->setScene(this->getScene());
-        child->onAttach();
+SceneNode::~SceneNode() {
+    nodeCount--;
+    Log::trace("{} Destroying node {}", indent(this), id);
+}
+
+int SceneNode::getNodeCount() {
+    return nodeCount;
+}
+
+void SceneNode::addChild(const std::shared_ptr<SceneNode>& child) {
+    if (!child) return;
+    child->detach();
+    children.push_back(child);
+    child->parent = shared_from_this();
+    child->setScene(this->getScene());
+    child->onAttach();
+    DxvEvent event;
+    event.type = EventType::Attach;
+    event.target = child;
+    child->dispatchEvent(event);
+    childrenOrderDirty = true;
+    markLayoutDirty();
+}
+
+void SceneNode::removeChild(const std::shared_ptr<SceneNode>& child) {
+    if (!child) return;
+    auto it = std::remove_if(children.begin(), children.end(),
+                             [&](const std::shared_ptr<SceneNode>& p) { return p == child; });
+    if (it != children.end()) {
+        child->onDetach();
         DxvEvent event;
-        event.type = EventType::Attach;
+        event.type = EventType::Detach;
         event.target = child;
         child->dispatchEvent(event);
-        childrenOrderDirty = true;
+        children.erase(it, children.end());
+        child->parent.reset();
+        child->setScene(nullptr);
         markLayoutDirty();
     }
+}
 
-    void SceneNode::removeChild(const std::shared_ptr<SceneNode>& child) {
-        if (!child) return;
-        auto it = std::remove_if(children.begin(), children.end(),
-                                 [&](const std::shared_ptr<SceneNode>& p) { return p == child; });
-        if (it != children.end()) {
-            child->onDetach();
-            DxvEvent event;
-            event.type = EventType::Detach;
-            event.target = child;
-            child->dispatchEvent(event);
-            children.erase(it, children.end());
-            child->parent.reset();
-            child->setScene(nullptr);
-            markLayoutDirty();
+void SceneNode::detach() {
+    if (auto p = parent.lock()) {
+        p->removeChild(shared_from_this());
+    }
+}
+
+void SceneNode::detachAllChildren() {
+    auto childrenCopy = children;
+    for (const auto& child : childrenCopy) {
+        child->detachAllChildren();
+    }
+    detach();
+}
+
+void SceneNode::setScene(const std::shared_ptr<Scene>& newScene) {
+    if (scene.lock() == newScene) return;
+
+    if (const auto oldScene = scene.lock()) {
+        oldScene->unregisterNode(shared_from_this());
+    }
+
+    scene = newScene;
+
+    if (const auto currentScene = scene.lock()) {
+        if (!currentScene->registerNode(shared_from_this())) {
+            Log::error("{} Failed to register node '{}' to new scene", indent(this), id);
         }
     }
 
-    void SceneNode::detach() {
-        if (auto p = parent.lock()) {
-            p->removeChild(shared_from_this());
-        }
+    markStyleDirty(); // When scene changes, styles need re-evaluation
+    for (const auto& child : children) {
+        child->setScene(newScene);
+    }
+}
+
+std::shared_ptr<Scene> SceneNode::getScene() const { return scene.lock(); }
+const std::string& SceneNode::getId() const { return id; }
+
+void SceneNode::setId(const std::string& newId) {
+    if (id == newId) return;
+
+    if (const auto s = getScene()) {
+        s->unregisterNode(shared_from_this());
     }
 
-    void SceneNode::detachAllChildren()
-    {
-        auto childrenCopy = children;
-        for (const auto& child : childrenCopy)
-        {
-            child->detachAllChildren();
-        }
-        detach();
+    id = newId;
+
+    if (const auto s = getScene()) {
+        s->registerNode(shared_from_this());
     }
+}
 
-    void SceneNode::setScene(const std::shared_ptr<Scene>& newScene) {
-        if (scene.lock() == newScene) return;
+const char* SceneNode::getNodeType() const {
+    return "SceneNode";
+}
 
-        if (const auto oldScene = scene.lock()) {
-            oldScene->unregisterNode(shared_from_this());
-        }
-
-        scene = newScene;
-
-        if (const auto currentScene = scene.lock()) {
-            if (!currentScene->registerNode(shared_from_this())) {
-                Log::error("{} Failed to register node '{}' to new scene", indent(this), id);
-            }
-        }
-
-        markStyleDirty(); // When scene changes, styles need re-evaluation
-        for (const auto& child : children) {
-            child->setScene(newScene);
-        }
+std::shared_ptr<SceneNode> SceneNode::findNodeById(const std::string& searchId) const {
+    if (auto s = getScene()) {
+        return s->findNodeById(searchId);
     }
+    return nullptr;
+}
 
-    std::shared_ptr<Scene> SceneNode::getScene() const { return scene.lock(); }
-    const std::string& SceneNode::getId() const { return id; }
-
-    void SceneNode::setId(const std::string& newId) {
-        if (id == newId) return;
-
-        if (const auto s = getScene()) {
-            s->unregisterNode(shared_from_this());
-        }
-
-        id = newId;
-
-        if (const auto s = getScene()) {
-            s->registerNode(shared_from_this());
-        }
-    }
-
-    const char* SceneNode::getNodeType() const {
-        return "SceneNode";
-    }
-
-    std::shared_ptr<SceneNode> SceneNode::findNodeById(const std::string& searchId) const
-    {
-        if (auto s = getScene()) {
-            return s->findNodeById(searchId);
-        }
+std::shared_ptr<SceneNode> SceneNode::findNodeAt(int x, int y) {
+    if (!visible || !getGlobalBounds().contains(x, y)) {
         return nullptr;
     }
-
-    std::shared_ptr<SceneNode> SceneNode::findNodeAt(int x, int y) {
-        if (!visible || !getGlobalBounds().contains(x, y)) {
-            return nullptr;
+    sortChildrenIfDirty();
+    for (auto it = children.rbegin(); it != children.rend(); ++it) {
+        if (auto found = (*it)->findNodeAt(x, y)) {
+            return found;
         }
-        sortChildrenIfDirty();
-        for (auto it = children.rbegin(); it != children.rend(); ++it) {
-            if (auto found = (*it)->findNodeAt(x, y)) {
-                return found;
-            }
-        }
-        return shared_from_this();
     }
+    return shared_from_this();
+}
 
-    Style& SceneNode::editStyle() {
+Style& SceneNode::editStyle() {
+    markStyleDirty();
+    return style;
+}
+
+const Style& SceneNode::getStyle() const {
+    return style;
+}
+
+void SceneNode::markStyleDirty() {
+    if (isStyleDirty) return;
+    isStyleDirty = true;
+    markLayoutDirty();
+    for (auto& child : children) {
+        child->markStyleDirty();
+    }
+}
+
+void SceneNode::markLayoutDirty() {
+    if (isLayoutDirty) return;
+    isLayoutDirty = true;
+    if (auto p = parent.lock()) {
+        p->markLayoutDirty();
+    } else {
+        if (auto s = getScene()) s->requestLayoutUpdate();
+    }
+}
+
+Rect SceneNode::getGlobalBounds() const {
+    if (isLayoutDirty) {
+        if (auto s = scene.lock()) s->updateLayout();
+    }
+    auto it = layoutCache.find(getCurrentState());
+    return it != layoutCache.end() ? it->second.computedBounds : Rect{};
+}
+
+Size SceneNode::getDesiredSize() const { return desiredSize; }
+
+WidgetState SceneNode::getCurrentState() const {
+    if (isPressed) return WidgetState::Pressed;
+    if (isHovered) return WidgetState::Hovered;
+    return WidgetState::Normal;
+}
+
+bool SceneNode::isRoot() const {
+    if (auto s = scene.lock()) {
+        return s->getRoot().get() == this;
+    }
+    return false;
+}
+
+void SceneNode::setHovered(bool hovered) {
+    if (isHovered != hovered) {
+        isHovered = hovered;
         markStyleDirty();
-        return style;
     }
+}
 
-    const Style& SceneNode::getStyle() const {
-        return style;
+void SceneNode::setPressed(bool pressed) {
+    if (isPressed != pressed) {
+        isPressed = pressed;
+        markStyleDirty();
     }
+}
 
-    void SceneNode::markStyleDirty() {
-        if (isStyleDirty) return;
-        isStyleDirty = true;
+bool SceneNode::isVisible() const {
+    return visible;
+}
+
+void SceneNode::setVisible(bool newVisible) {
+    if (visible != newVisible) {
+        visible = newVisible;
         markLayoutDirty();
-        for (auto& child : children) {
-            child->markStyleDirty();
-        }
     }
+}
 
-    void SceneNode::markLayoutDirty() {
-        if (isLayoutDirty) return;
-        isLayoutDirty = true;
-        if (auto p = parent.lock()) {
-            p->markLayoutDirty();
-        } else {
-            if (auto s = getScene()) s->requestLayoutUpdate();
-        }
+void SceneNode::setZIndex(int newZIndex) {
+    if (zIndex != newZIndex) {
+        zIndex = newZIndex;
+        if (auto p = parent.lock()) p->childrenOrderDirty = true;
     }
+}
 
-    Rect SceneNode::getGlobalBounds() const {
-        if (isLayoutDirty) {
-            if(auto s = scene.lock()) s->updateLayout();
-        }
-        auto it = layoutCache.find(getCurrentState());
-        return it != layoutCache.end() ? it->second.computedBounds : Rect{};
+int SceneNode::getZIndex() const { return zIndex; }
+
+void SceneNode::on(EventType type, ActionCallback callback) {
+    eventHandlers[type].push_back(std::move(callback));
+}
+
+void SceneNode::dispatchEvent(DxvEvent& event) {
+    if (event.target.expired()) {
+        return;
     }
-    Size SceneNode::getDesiredSize() const { return desiredSize; }
+    event.currentTarget = weak_from_this();
 
-    WidgetState SceneNode::getCurrentState() const {
-        if (isPressed) return WidgetState::Pressed;
-        if (isHovered) return WidgetState::Hovered;
-        return WidgetState::Normal;
-    }
-
-    bool SceneNode::isRoot() const {
-        if (auto s = scene.lock()) {
-            return s->getRoot().get() == this;
-        }
-        return false;
-    }
-
-    void SceneNode::setHovered(bool hovered) {
-        if (isHovered != hovered) {
-            isHovered = hovered;
-            markStyleDirty();
-        }
-    }
-
-    void SceneNode::setPressed(bool pressed) {
-        if (isPressed != pressed) {
-            isPressed = pressed;
-            markStyleDirty();
-        }
-    }
-
-    bool SceneNode::isVisible() const {
-        return visible;
-    }
-
-    void SceneNode::setVisible(bool newVisible) {
-        if (visible != newVisible) {
-            visible = newVisible;
-            markLayoutDirty();
-        }
-    }
-
-    void SceneNode::setZIndex(int newZIndex) {
-        if (zIndex != newZIndex) {
-            zIndex = newZIndex;
-            if (auto p = parent.lock()) p->childrenOrderDirty = true;
-        }
-    }
-    int SceneNode::getZIndex() const { return zIndex; }
-
-    void SceneNode::on(EventType type, ActionCallback callback) { eventHandlers[type].push_back(std::move(callback)); }
-
-    void SceneNode::dispatchEvent(DxvEvent& event) {
-        if (event.target.expired()) {
-            return;
-        }
-        event.currentTarget = weak_from_this();
-
-        if (eventHandlers.contains(event.type)) {
-            for (const auto& callback : eventHandlers[event.type]) {
-                callback(event);
-                if (event.handled) {
-                    return;
-                }
-            }
-        }
-
-        if (!event.handled) {
-            if (const auto p = parent.lock()) {
-                p->dispatchEvent(event);
+    if (eventHandlers.contains(event.type)) {
+        for (const auto& callback : eventHandlers[event.type]) {
+            callback(event);
+            if (event.handled) {
+                return;
             }
         }
     }
 
-    void SceneNode::onAttach() {}
-    void SceneNode::onDetach() {}
-
-    void SceneNode::onUpdate(float deltaTime) {
-        if (!visible) return;
-        for (const auto& child : children) {
-            child->onUpdate(deltaTime);
+    if (!event.handled) {
+        if (const auto p = parent.lock()) {
+            p->dispatchEvent(event);
         }
     }
+}
 
-    void SceneNode::recomputeStyles() {
-        appearanceCache.clear();
-        layoutCache.clear();
+void SceneNode::onAttach() {
+}
 
-        for (int i = 0; i < 4; ++i) {
-            WidgetState s = static_cast<WidgetState>(i);
-            appearanceCache[s] = StyleResolver::resolveAppearance(*this, s);
-            layoutCache[s] = StyleResolver::resolveLayout(*this, s);
-        }
-        isStyleDirty = false;
+void SceneNode::onDetach() {
+}
+
+void SceneNode::onUpdate(float deltaTime) {
+    if (!visible) return;
+    for (const auto& child : children) {
+        child->onUpdate(deltaTime);
     }
+}
 
-    const ComputedAppearanceStyle& SceneNode::getComputedAppearance(WidgetState state) const {
-        const auto it = appearanceCache.find(state);
-        if (it == appearanceCache.end()) {
-            Log::error("FATAL: getComputedAppearance failed for node '{}' (state {}). Cache not populated before use. This indicates a severe logic error in the layout/style update cycle.", id, (int)state);
-            static const ComputedAppearanceStyle empty{};
-            return empty;
-        }
-        return it->second;
+void SceneNode::recomputeStyles() {
+    appearanceCache.clear();
+    layoutCache.clear();
+
+    for (int i = 0; i < 4; ++i) {
+        WidgetState s = static_cast<WidgetState>(i);
+        appearanceCache[s] = StyleResolver::resolveAppearance(*this, s);
+        layoutCache[s] = StyleResolver::resolveLayout(*this, s);
     }
+    isStyleDirty = false;
+}
 
-    const ComputedLayoutStyle& SceneNode::getComputedLayout(WidgetState state) const {
-        const auto it = layoutCache.find(state);
-        if (it == layoutCache.end()) {
-            Log::error("FATAL: getComputedLayout failed for node '{}' (state {}). Cache not populated before use. This indicates a severe logic error in the layout/style update cycle.", id, (int)state);
-            static constexpr ComputedLayoutStyle empty{};
-            return empty;
-        }
-        return it->second;
+const ComputedAppearanceStyle& SceneNode::getComputedAppearance(WidgetState state) const {
+    const auto it = appearanceCache.find(state);
+    if (it == appearanceCache.end()) {
+        Log::error(
+            "FATAL: getComputedAppearance failed for node '{}' (state {}). Cache not populated before use. This indicates a severe logic error in the layout/style update cycle.",
+            id, (int)state);
+        static const ComputedAppearanceStyle empty{};
+        return empty;
     }
+    return it->second;
+}
 
-    void SceneNode::sortChildrenIfDirty() {
-        if (childrenOrderDirty) {
-            std::ranges::stable_sort(children, [](const auto& a, const auto& b) {
-                return a->getZIndex() < b->getZIndex();
-            });
-            childrenOrderDirty = false;
-        }
+const ComputedLayoutStyle& SceneNode::getComputedLayout(WidgetState state) const {
+    const auto it = layoutCache.find(state);
+    if (it == layoutCache.end()) {
+        Log::error(
+            "FATAL: getComputedLayout failed for node '{}' (state {}). Cache not populated before use. This indicates a severe logic error in the layout/style update cycle.",
+            id, (int)state);
+        static constexpr ComputedLayoutStyle empty{};
+        return empty;
     }
+    return it->second;
+}
 
-    Size SceneNode::measure(const Size& availableSize) {
-        if (!isLayoutDirty) return desiredSize;
+void SceneNode::sortChildrenIfDirty() {
+    if (childrenOrderDirty) {
+        std::ranges::stable_sort(children, [](const auto& a, const auto& b) {
+            return a->getZIndex() < b->getZIndex();
+        });
+        childrenOrderDirty = false;
+    }
+}
 
-        if (!visible) {
-            desiredSize = {0, 0};
-            return desiredSize;
-        }
+Size SceneNode::measure(const Size& availableSize) {
+    if (!isLayoutDirty) return desiredSize;
 
-        const auto& computedLayout = getComputedLayout(getCurrentState());
-
-        desiredSize = {
-            computedLayout.width > 0 ? computedLayout.width : 0,
-            computedLayout.height > 0 ? computedLayout.height : 0
-        };
-
+    if (!visible) {
+        desiredSize = {0, 0};
         return desiredSize;
     }
 
-    void SceneNode::arrange(const Rect& finalRect) {
-        auto& computedLayout = layoutCache[getCurrentState()];
-        computedLayout.computedBounds = finalRect;
+    const auto& computedLayout = getComputedLayout(getCurrentState());
 
-        if (!visible) {
-            computedLayout.computedBounds.width = 0;
-            computedLayout.computedBounds.height = 0;
-        }
+    desiredSize = {
+        computedLayout.width > 0 ? computedLayout.width : 0,
+        computedLayout.height > 0 ? computedLayout.height : 0
+    };
 
-        isLayoutDirty = false;
+    return desiredSize;
+}
+
+void SceneNode::arrange(const Rect& finalRect) {
+    auto& computedLayout = layoutCache[getCurrentState()];
+    computedLayout.computedBounds = finalRect;
+
+    if (!visible) {
+        computedLayout.computedBounds.width = 0;
+        computedLayout.computedBounds.height = 0;
     }
 
-    void SceneNode::draw(IRenderer& renderer) {
-        if (!visible) {
-            return;
-        }
+    isLayoutDirty = false;
+}
 
-        sortChildrenIfDirty();
-        for (const auto& child : children) {
-            child->draw(renderer);
-        }
+void SceneNode::draw(IRenderer& renderer) {
+    if (!visible) {
+        return;
     }
 
-    void SceneNode::bind(const std::shared_ptr<UIBinding>& binding)
-    {
-        connection_.reset();
-        binding_ = binding;
-        if (binding_)
-        {
-            connection_ = binding_->subscribe([this](const UIBinding& value) {
-                this->onBindingChange(std::move(value));
-            });
-        }
+    sortChildrenIfDirty();
+    for (const auto& child : children) {
+        child->draw(renderer);
     }
+}
 
-    std::shared_ptr<UIBinding> SceneNode::getBinding() const
-    {
-        return binding_;
+void SceneNode::bind(const std::shared_ptr<UIBinding>& binding) {
+    connection_.reset();
+    binding_ = binding;
+    if (binding_) {
+        connection_ = binding_->subscribe([this](const UIBinding& value) {
+            this->onBindingChange(std::move(value));
+        });
     }
+}
 
-    void SceneNode::onBindingChange(const UIBinding& binding)
-    {
-        DxvEvent event;
-        event.target = weak_from_this();
-        event.type = EventType::Change;
-        onChange(std::move(binding));
-        dispatchEvent(event);
-    }
+std::shared_ptr<UIBinding> SceneNode::getBinding() const {
+    return binding_;
+}
 
-    void SceneNode::onChange(const UIBinding& binding)  {}
+void SceneNode::onBindingChange(const UIBinding& binding) {
+    DxvEvent event;
+    event.target = weak_from_this();
+    event.type = EventType::Change;
+    onChange(std::move(binding));
+    dispatchEvent(event);
+}
+
+void SceneNode::onChange(const UIBinding& binding) {
+}
 }
