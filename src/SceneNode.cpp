@@ -1,10 +1,12 @@
 #include "DxvUI/SceneNode.h"
-#include "DxvUI/Scene.h"
-#include "DxvUI/Log.h"
-#include "DxvUI/style/StyleResolver.h"
-#include <utility>
+
 #include <algorithm>
 #include <string>
+#include <utility>
+
+#include "DxvUI/Log.h"
+#include "DxvUI/Scene.h"
+#include "DxvUI/style/StyleResolver.h"
 
 namespace DxvUI {
 
@@ -39,20 +41,16 @@ static std::string state_to_string(WidgetState state) {
     return "Unknown";
 }
 
-SceneNode::SceneNode(std::string id) : id(std::move(id)) {
-    nodeCount++;
-}
+SceneNode::SceneNode(std::string id) : id(std::move(id)) { nodeCount++; }
 
 SceneNode::~SceneNode() {
     nodeCount--;
     Log::trace("{} Destroying node {}", indent(this), id);
 }
 
-int SceneNode::getNodeCount() {
-    return nodeCount;
-}
+int SceneNode::getNodeCount() { return nodeCount; }
 
-void SceneNode::addChild(const std::shared_ptr<SceneNode>& child) {
+void SceneNode::addChild(const SharedPtr& child) {
     if (!child) return;
     child->detach();
     children.push_back(child);
@@ -136,9 +134,7 @@ void SceneNode::setId(const std::string& newId) {
     }
 }
 
-const char* SceneNode::getNodeType() const {
-    return "SceneNode";
-}
+const char* SceneNode::getNodeType() const { return "SceneNode"; }
 
 std::shared_ptr<SceneNode> SceneNode::findNodeById(const std::string& searchId) const {
     if (auto s = getScene()) {
@@ -165,9 +161,7 @@ Style& SceneNode::editStyle() {
     return style;
 }
 
-const Style& SceneNode::getStyle() const {
-    return style;
-}
+const Style& SceneNode::getStyle() const { return style; }
 
 void SceneNode::markStyleDirty() {
     if (isStyleDirty) return;
@@ -190,7 +184,7 @@ void SceneNode::markLayoutDirty() {
 
 Rect SceneNode::getGlobalBounds() const {
     if (isLayoutDirty) {
-        if (auto s = scene.lock()) s->updateLayout();
+        if (auto s = scene.lock()) s->forceLayoutUpdate();
     }
     auto it = layoutCache.find(getCurrentState());
     return it != layoutCache.end() ? it->second.computedBounds : Rect{};
@@ -225,9 +219,7 @@ void SceneNode::setPressed(bool pressed) {
     }
 }
 
-bool SceneNode::isVisible() const {
-    return visible;
-}
+bool SceneNode::isVisible() const { return visible; }
 
 void SceneNode::setVisible(bool newVisible) {
     if (visible != newVisible) {
@@ -271,11 +263,9 @@ void SceneNode::dispatchEvent(DxvEvent& event) {
     }
 }
 
-void SceneNode::onAttach() {
-}
+void SceneNode::onAttach() {}
 
-void SceneNode::onDetach() {
-}
+void SceneNode::onDetach() {}
 
 void SceneNode::onUpdate(float deltaTime) {
     if (!visible) return;
@@ -300,7 +290,8 @@ const ComputedAppearanceStyle& SceneNode::getComputedAppearance(WidgetState stat
     const auto it = appearanceCache.find(state);
     if (it == appearanceCache.end()) {
         Log::error(
-            "FATAL: getComputedAppearance failed for node '{}' (state {}). Cache not populated before use. This indicates a severe logic error in the layout/style update cycle.",
+            "FATAL: getComputedAppearance failed for node '{}' (state {}). Cache not populated "
+            "before use. This indicates a severe logic error in the layout/style update cycle.",
             id, (int)state);
         static const ComputedAppearanceStyle empty{};
         return empty;
@@ -312,7 +303,8 @@ const ComputedLayoutStyle& SceneNode::getComputedLayout(WidgetState state) const
     const auto it = layoutCache.find(state);
     if (it == layoutCache.end()) {
         Log::error(
-            "FATAL: getComputedLayout failed for node '{}' (state {}). Cache not populated before use. This indicates a severe logic error in the layout/style update cycle.",
+            "FATAL: getComputedLayout failed for node '{}' (state {}). Cache not populated before "
+            "use. This indicates a severe logic error in the layout/style update cycle.",
             id, (int)state);
         static constexpr ComputedLayoutStyle empty{};
         return empty;
@@ -322,9 +314,8 @@ const ComputedLayoutStyle& SceneNode::getComputedLayout(WidgetState state) const
 
 void SceneNode::sortChildrenIfDirty() {
     if (childrenOrderDirty) {
-        std::ranges::stable_sort(children, [](const auto& a, const auto& b) {
-            return a->getZIndex() < b->getZIndex();
-        });
+        std::ranges::stable_sort(
+            children, [](const auto& a, const auto& b) { return a->getZIndex() < b->getZIndex(); });
         childrenOrderDirty = false;
     }
 }
@@ -339,10 +330,8 @@ Size SceneNode::measure(const Size& availableSize) {
 
     const auto& computedLayout = getComputedLayout(getCurrentState());
 
-    desiredSize = {
-        computedLayout.width > 0 ? computedLayout.width : 0,
-        computedLayout.height > 0 ? computedLayout.height : 0
-    };
+    desiredSize = {computedLayout.width > 0 ? computedLayout.width : 0,
+                   computedLayout.height > 0 ? computedLayout.height : 0};
 
     return desiredSize;
 }
@@ -374,15 +363,12 @@ void SceneNode::bind(const std::shared_ptr<UIBinding>& binding) {
     connection_.reset();
     binding_ = binding;
     if (binding_) {
-        connection_ = binding_->subscribe([this](const UIBinding& value) {
-            this->onBindingChange(std::move(value));
-        });
+        connection_ = binding_->subscribe(
+            [this](const UIBinding& value) { this->onBindingChange(std::move(value)); });
     }
 }
 
-std::shared_ptr<UIBinding> SceneNode::getBinding() const {
-    return binding_;
-}
+std::shared_ptr<UIBinding> SceneNode::getBinding() const { return binding_; }
 
 void SceneNode::onBindingChange(const UIBinding& binding) {
     DxvEvent event;
@@ -392,6 +378,5 @@ void SceneNode::onBindingChange(const UIBinding& binding) {
     dispatchEvent(event);
 }
 
-void SceneNode::onChange(const UIBinding& binding) {
-}
-}
+void SceneNode::onChange(const UIBinding& binding) {}
+}  // namespace DxvUI

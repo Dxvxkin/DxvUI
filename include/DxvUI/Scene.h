@@ -2,8 +2,9 @@
 #define DXVUI_SCENE_H
 
 #include <memory>
+
+#include "DxvUI/style/Theme.h"  // Include the new Theme header
 #include "EventManager.h"
-#include "DxvUI/style/Theme.h" // Include the new Theme header
 
 namespace DxvUI {
 
@@ -11,7 +12,7 @@ class SceneNode;
 class IRenderer;
 
 class Scene : public std::enable_shared_from_this<Scene> {
-public:
+   public:
     static std::shared_ptr<Scene> create();
     ~Scene();
 
@@ -22,7 +23,7 @@ public:
     IRenderer* getRenderer();
 
     EventManager& getEventManager();
-    Theme& getTheme(); // Getter for the theme
+    Theme& getTheme();  // Getter for the theme
 
     bool unregisterNode(std::weak_ptr<SceneNode>);
     bool registerNode(std::weak_ptr<SceneNode>);
@@ -32,24 +33,25 @@ public:
 
     void processEvent(const DxvEvent& event);
     void update(float deltaTime);
-    void updateLayout();
+    void forceLayoutUpdate();
     void draw();
 
     void shutdown();
 
-private:
+   private:
     Scene();
     void init();
     void resolveDirtyStyles();
+    void updateLayoutIfNeeded();
 
     std::shared_ptr<SceneNode> root;
     std::unique_ptr<EventManager> eventManager;
-    Theme theme; // Add Theme object
+    Theme theme;  // Add Theme object
     IRenderer* renderer = nullptr;
     bool layoutIsDirty = true;
     std::unordered_map<std::string, std::weak_ptr<SceneNode>> nodeById;
 };
 
-}
+}  // namespace DxvUI
 
-#endif //DXVUI_SCENE_H
+#endif  // DXVUI_SCENE_H

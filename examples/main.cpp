@@ -11,18 +11,50 @@
 #include <iostream>
 #include <memory>
 
+#include "DxvUI/containers/HorizontalContainer.h"
+
 constexpr int SCREEN_WIDTH = 800;
 constexpr int SCREEN_HEIGHT = 600;
+
+void ContanersBuildText(std::shared_ptr<DxvUI::SceneNode>& root) {
+    auto h_container = std::make_shared<DxvUI::HorizontalContainer>("container_horizontal");
+    h_container->setSpacing(30);
+    h_container->editStyle().set({.borderColor = DxvUI::Colors::Red,
+                                  .borderThickness = 1,
+                                  .left = 0,
+                                  .top = 0,
+                                  .width = SCREEN_WIDTH,
+                                  .padding = DxvUI::Thickness(10, 50, 10, 50)},
+                                 DxvUI::WidgetState::Normal);
+
+    auto btn = DxvUI::Button::create("h_btn1", "Хуй");
+
+    h_container->addChild(btn);
+    btn->on(DxvUI::EventType::Click, [](DxvUI::DxvEvent& event) {
+        if (auto target = event.target.lock()) {
+            if (auto p = target->parent.lock()) {
+                p->editStyle().update({.borderColor = DxvUI::Colors::Green});
+            }
+        }
+    });
+
+    h_container->addChild(DxvUI::Button::create("h_btn2", "h_btn2"));
+    h_container->addChild(DxvUI::Button::create("h_btn3", "h_btn3"));
+
+    root->addChild(h_container);
+}
 
 void buildUI(const std::shared_ptr<DxvUI::Scene>& scene) {
     auto root = scene->getRoot();
 
-    // Set global font properties on the root node. These will be inherited by children.
-    root->editStyle().set(DxvUI::WidgetState::Normal, {.textColor = DxvUI::Colors::DarkGray,
-                                                       .fontSize = 18,
-                                                       .fontPath = "C:/Windows/Fonts/segoeui.ttf",
-                                                       .width = SCREEN_WIDTH,
-                                                       .height = SCREEN_HEIGHT});
+    // Set global font properties on the root node. These will be inherited by
+    // children.
+    root->editStyle().set({.textColor = DxvUI::Colors::DarkGray,
+                           .fontSize = 18,
+                           .fontPath = "C:/Windows/Fonts/segoeui.ttf",
+                           .width = SCREEN_WIDTH,
+                           .height = SCREEN_HEIGHT},
+                          DxvUI::WidgetState::Normal);
 
     // --- Button 1: Uses default styles + overrides ---
     auto myButton = DxvUI::Button::create("my_button", "Click Me!");
@@ -45,15 +77,15 @@ void buildUI(const std::shared_ptr<DxvUI::Scene>& scene) {
         }
     });
 
-    // Override only position and size. Colors, padding, etc., will come from the Button's default
-    // theme.
-    myButton->editStyle().set(DxvUI::WidgetState::Normal,
-                              {.left = 50, .top = 50, .width = 200, .height = 50});
+    // Override only position and size. Colors, padding, etc., will come from the
+    // Button's default theme.
+    myButton->editStyle().set({.left = 50, .top = 50, .width = 200, .height = 50},
+                              DxvUI::WidgetState::Normal);
 
     // We can still override state-specific styles if needed.
     // The base for this will be the Button's default Hovered style.
-    myButton->editStyle().set(DxvUI::WidgetState::Hovered,
-                              {.borderColor = DxvUI::Colors::White, .borderThickness = 2});
+    myButton->editStyle().set({.borderColor = DxvUI::Colors::White, .borderThickness = 2},
+                              DxvUI::WidgetState::Hovered);
 
     myButton->on(DxvUI::EventType::Click, [](DxvUI::DxvEvent& event) {
         auto root = event.target.lock()->getScene()->getRoot();
@@ -65,21 +97,22 @@ void buildUI(const std::shared_ptr<DxvUI::Scene>& scene) {
                                           std::format("Click to remove {}", label_count));
 
         // Set style for the new label
-        label->editStyle().set(DxvUI::WidgetState::Normal,
-                               {
-                                   .backgroundColor = DxvUI::Color(0, 0, 0, 80),
-                                   .textColor = DxvUI::Colors::White,
-                                   .borderColor = DxvUI::Colors::Black,
-                                   .borderThickness = 1,
-                                   .borderRadius = 5,
-                                   .left = (float)randomX,
-                                   .top = (float)randomY,
-                                   .padding = DxvUI::Thickness{5, 5, 5, 5},
-                               });
-        label->editStyle().set(DxvUI::WidgetState::Hovered,
-                               {.backgroundColor = (DxvUI::Color(0, 0, 0, 150)),
+        label->editStyle().set(
+            {
+                .backgroundColor = DxvUI::Color(0, 0, 0, 80),
+                .textColor = DxvUI::Colors::White,
+                .borderColor = DxvUI::Colors::Black,
+                .borderThickness = 1,
+                .borderRadius = 5,
+                .left = (float)randomX,
+                .top = (float)randomY,
+                .padding = DxvUI::Thickness{5, 5, 5, 5},
+            },
+            DxvUI::WidgetState::Normal);
+        label->editStyle().set({.backgroundColor = (DxvUI::Color(0, 0, 0, 150)),
                                 .borderThickness = 1,
-                                .borderRadius = 10});
+                                .borderRadius = 10},
+                               DxvUI::WidgetState::Hovered);
 
         label->on(DxvUI::EventType::Click, [](DxvUI::DxvEvent& event) {
             if (auto target = event.target.lock()) {
@@ -98,12 +131,13 @@ void buildUI(const std::shared_ptr<DxvUI::Scene>& scene) {
     // --- Button 2: Uses default styles + different overrides ---
     auto btn2 = DxvUI::Button::create("find_btn", "Find");
     // Override position, size, and some colors.
-    btn2->editStyle().set(DxvUI::WidgetState::Normal, {.backgroundColor = DxvUI::Colors::DarkOrange,
-                                                       .textColor = DxvUI::Colors::MidnightBlue,
-                                                       .left = 300,
-                                                       .top = 50,
-                                                       .width = 200,
-                                                       .height = 50});
+    btn2->editStyle().set({.backgroundColor = DxvUI::Colors::DarkOrange,
+                           .textColor = DxvUI::Colors::MidnightBlue,
+                           .left = 300,
+                           .top = 50,
+                           .width = 200,
+                           .height = 50},
+                          DxvUI::WidgetState::Normal);
 
     btn2->on(DxvUI::EventType::Click, [](DxvUI::DxvEvent& event) {
         if (auto node = event.target.lock()) {
@@ -117,8 +151,8 @@ void buildUI(const std::shared_ptr<DxvUI::Scene>& scene) {
 
     // --- Button 3: Test default styles ---
     auto btn_test_def_styles = DxvUI::Button::create("btn_defStyle", "test");
-    btn_test_def_styles->editStyle().set(DxvUI::WidgetState::Normal,
-                                         {.left = 500, .top = 500, .width = 100, .height = 50});
+    btn_test_def_styles->editStyle().set({.left = 500, .top = 500, .width = 100, .height = 50},
+                                         DxvUI::WidgetState::Normal);
     btn_test_def_styles->on(DxvUI::EventType::Click, [](DxvUI::DxvEvent& e) {
         if (auto node = e.target.lock()) {
             if (auto target = node->getScene()->findNodeById("label_7")) {
@@ -129,11 +163,12 @@ void buildUI(const std::shared_ptr<DxvUI::Scene>& scene) {
                 newStyle.padding->top += 5;
                 newStyle.padding->right += 5;
                 newStyle.padding->bottom += 5;
-                target->editStyle().set(DxvUI::WidgetState::Normal, newStyle);
+                target->editStyle().set(newStyle, DxvUI::WidgetState::Normal);
             }
         }
     });
     root->addChild(btn_test_def_styles);
+    ContanersBuildText(root);
 }
 
 extern "C" int SDL_main(int /*argc*/, char* /*argv*/[]) {
@@ -147,6 +182,7 @@ extern "C" int SDL_main(int /*argc*/, char* /*argv*/[]) {
     scene->setRenderer(&dxv_renderer);
 
     buildUI(scene);
+    scene->forceLayoutUpdate();
 
     DxvUI::Log::info("Initial node count: {}", DxvUI::SceneNode::getNodeCount());
 
@@ -170,7 +206,6 @@ extern "C" int SDL_main(int /*argc*/, char* /*argv*/[]) {
         }
 
         scene->update(delta_time);
-        scene->updateLayout();
 
         dxv_renderer.clear(DxvUI::Colors::White);
         scene->draw();

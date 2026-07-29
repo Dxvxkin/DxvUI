@@ -115,8 +115,17 @@ void Scene::processEvent(const DxvEvent& event) { eventManager->processRawEvent(
 
 void Scene::update(float deltaTime) {
     if (root) {
+        // 1. Perform logical updates (e.g., animations, state changes)
         root->onUpdate(deltaTime);
+
+        // 2. Automatically update layout if needed
+        updateLayoutIfNeeded();
     }
+}
+
+void Scene::forceLayoutUpdate() {
+    requestLayoutUpdate();
+    updateLayoutIfNeeded();
 }
 
 // TODO: Эта логика должна быть перенесена в Theme или Style
@@ -142,7 +151,7 @@ void Scene::resolveDirtyStyles() {
     }
 }
 
-void Scene::updateLayout() {
+void Scene::updateLayoutIfNeeded() {
     if (layoutIsDirty && root && renderer) {
         // First, resolve all dirty styles in the tree
         resolveDirtyStyles();
