@@ -6,40 +6,12 @@
 
 #include "DxvUI/Log.h"
 #include "DxvUI/Scene.h"
+#include "DxvUI/Utils.h"
 #include "DxvUI/style/StyleResolver.h"
 
 namespace DxvUI {
 
 int SceneNode::nodeCount = 0;
-
-// --- Logging Helpers ---
-static int get_depth(const SceneNode* node) {
-    int depth = 0;
-    if (node) {
-        auto p = node->parent.lock();
-        while (p) {
-            depth++;
-            p = p->parent.lock();
-        }
-    }
-    return depth;
-}
-
-static std::string indent(const SceneNode* node) { return std::string(get_depth(node) * 2, ' '); }
-
-static std::string state_to_string(WidgetState state) {
-    switch (state) {
-        case WidgetState::Normal:
-            return "Normal";
-        case WidgetState::Hovered:
-            return "Hovered";
-        case WidgetState::Pressed:
-            return "Pressed";
-        case WidgetState::Disabled:
-            return "Disabled";
-    }
-    return "Unknown";
-}
 
 SceneNode::SceneNode(std::string id) : id(std::move(id)) { nodeCount++; }
 
@@ -111,7 +83,7 @@ void SceneNode::setScene(const std::shared_ptr<Scene>& newScene) {
         }
     }
 
-    markStyleDirty(); // When scene changes, styles need re-evaluation
+    markStyleDirty();  // When scene changes, styles need re-evaluation
     for (const auto& child : children) {
         child->setScene(newScene);
     }
@@ -376,6 +348,14 @@ void SceneNode::onBindingChange(const UIBinding& binding) {
     event.type = EventType::Change;
     onChange(std::move(binding));
     dispatchEvent(event);
+}
+
+std::size_t SceneNode::getDepth() const noexcept {
+    std::size_t depth = 0;
+    for (auto p = parent.lock(); p != nullptr; p = p->parent.lock()) {
+        depth++;
+    }
+    return depth;
 }
 
 void SceneNode::onChange(const UIBinding& binding) {}

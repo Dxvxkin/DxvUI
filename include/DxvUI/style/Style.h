@@ -13,11 +13,43 @@ namespace DxvUI {
 
 enum class WidgetState { Normal, Hovered, Pressed, Disabled };
 
-// Helper macro to merge optional fields.
-#define MERGE_PROPERTY(prop) \
-    if (other.prop) {        \
-        prop = other.prop;   \
+/**
+ * @brief Converts a WidgetState enum to its string representation.
+ * @param state The widget state.
+ * @return A string_view representing the widget state.
+ * @exceptionGuarantee No-throw guarantee.
+ */
+[[nodiscard]] constexpr std::string_view state_to_string(WidgetState state) noexcept {
+    switch (state) {
+        case WidgetState::Normal:
+            return "Normal";
+        case WidgetState::Hovered:
+            return "Hovered";
+        case WidgetState::Pressed:
+            return "Pressed";
+        case WidgetState::Disabled:
+            return "Disabled";
     }
+    return "Unknown";
+}
+
+namespace detail {
+/**
+ * @brief Merges an optional property from a source to a destination.
+ * If the source optional contains a value, it overwrites the destination.
+ * @tparam T The type of the value contained in the optional.
+ * @param dest The destination optional.
+ * @param src The source optional.
+ * @exceptionGuarantee No-throw guarantee (if T's copy assignment is no-throw).
+ */
+template <typename T>
+constexpr void merge_property(std::optional<T>& dest, const std::optional<T>& src) noexcept(
+    std::is_nothrow_copy_assignable_v<T>) {
+    if (src) {
+        dest = src;
+    }
+}
+}  // namespace detail
 
 // A single rule containing all possible style and layout properties.
 // std::optional is used to signify "not set".
@@ -55,39 +87,40 @@ struct StyleRule {
      * corresponding property in this StyleRule.
      *
      * @param other The StyleRule containing the properties to merge.
+     * @exceptionGuarantee Basic exception guarantee. std::string assignment can throw.
      */
     void merge(const StyleRule& other) {
         // Appearance
-        MERGE_PROPERTY(backgroundColor);
-        MERGE_PROPERTY(textColor);
-        MERGE_PROPERTY(borderColor);
-        MERGE_PROPERTY(borderThickness);
-        MERGE_PROPERTY(borderRadius);
-        MERGE_PROPERTY(cursor);
+        detail::merge_property(backgroundColor, other.backgroundColor);
+        detail::merge_property(textColor, other.textColor);
+        detail::merge_property(borderColor, other.borderColor);
+        detail::merge_property(borderThickness, other.borderThickness);
+        detail::merge_property(borderRadius, other.borderRadius);
+        detail::merge_property(cursor, other.cursor);
 
         // Text
-        MERGE_PROPERTY(fontSize);
-        MERGE_PROPERTY(fontPath);
+        detail::merge_property(fontSize, other.fontSize);
+        detail::merge_property(fontPath, other.fontPath);
 
         // Position
-        MERGE_PROPERTY(left);
-        MERGE_PROPERTY(top);
-        MERGE_PROPERTY(right);
-        MERGE_PROPERTY(bottom);
+        detail::merge_property(left, other.left);
+        detail::merge_property(top, other.top);
+        detail::merge_property(right, other.right);
+        detail::merge_property(bottom, other.bottom);
 
         // Size
-        MERGE_PROPERTY(width);
-        MERGE_PROPERTY(height);
-        MERGE_PROPERTY(minWidth);
-        MERGE_PROPERTY(minHeight);
-        MERGE_PROPERTY(maxWidth);
-        MERGE_PROPERTY(maxHeight);
+        detail::merge_property(width, other.width);
+        detail::merge_property(height, other.height);
+        detail::merge_property(minWidth, other.minWidth);
+        detail::merge_property(minHeight, other.minHeight);
+        detail::merge_property(maxWidth, other.maxWidth);
+        detail::merge_property(maxHeight, other.maxHeight);
 
         // Alignment & Spacing
-        MERGE_PROPERTY(padding);
-        MERGE_PROPERTY(margin);
-        MERGE_PROPERTY(horizontalAlignment);
-        MERGE_PROPERTY(verticalAlignment);
+        detail::merge_property(padding, other.padding);
+        detail::merge_property(margin, other.margin);
+        detail::merge_property(horizontalAlignment, other.horizontalAlignment);
+        detail::merge_property(verticalAlignment, other.verticalAlignment);
     }
 };
 
@@ -95,32 +128,49 @@ struct StyleRule {
 class Style {
    public:
     /**
-     * @brief Overwrites the style rule for a given state.
-     * @param rule The complete style rule to set.
+     * @brief Sets or overwrites the style rule for a given state.
+     * @param rule The style rule to set.
      * @param state The widget state to target.
+     * @exceptionGuarantee Strong exception guarantee.
      */
-    void set(StyleRule rule, WidgetState state = WidgetState::Normal) {
+    void set(const StyleRule& rule, WidgetState state = WidgetState::Normal) {
+        stateStyles[state] = rule;
+    }
+
+    /**
+     * @brief Sets or overwrites the style rule for a given state (move version).
+     * @param rule The style rule to move.
+     * @param state The widget state to target.
+     * @exceptionGuarantee Strong exception guarantee.
+     */
+    void set(StyleRule&& rule, WidgetState state = WidgetState::Normal) {
         stateStyles[state] = std::move(rule);
     }
 
     /**
      * @brief Merges new style properties into the existing rule for a given state.
      * If no rule exists for the state, a new one is created.
-     * @param state The widget state to target.
      * @param updates A StyleRule containing only the properties to change.
+     * @param state The widget state to target.
+     * @exceptionGuarantee Strong exception guarantee.
      */
     void update(const StyleRule& updates, WidgetState state = WidgetState::Normal) {
-        stateStyles[state].merge(updates);
+        auto it = stateStyles.find(state);
+        if (it != stateStyles.end()) {
+            it->second.merge(updates);
+        } else {
+            stateStyles.emplace(state, updates);
+        }
     }
 
     /**
      * @brief Gets the style rule for a given state.
      * @param state The widget state to query.
-     * @return A pointer to the StyleRule, or nullptr if not found.
+     * @return A const pointer to the StyleRule, or nullptr if not found.
+     * @exceptionGuarantee No-throw guarantee.
      */
-    const StyleRule* get(WidgetState state = WidgetState::Normal) const {
-        auto it = stateStyles.find(state);
-        if (it != stateStyles.end()) {
+    [[nodiscard]] const StyleRule* get(WidgetState state = WidgetState::Normal) const noexcept {
+        if (auto it = stateStyles.find(state); it != stateStyles.end()) {
             return &it->second;
         }
         return nullptr;

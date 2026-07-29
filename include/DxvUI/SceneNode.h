@@ -365,6 +365,18 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     std::weak_ptr<Scene> scene;
 
     ///@}
+    ///
+    /**
+     * @brief Gets the depth of this node in the scene graph hierarchy.
+     *
+     * The root node has a depth of 0. Its direct children have a depth of 1, and so on.
+     *
+     * @return The depth of the node.
+     * @complexity O(D), where D is the depth of the node. In the worst case, D can be N (number of
+     * nodes).
+     * @exception safety Nothrow.
+     */
+    [[nodiscard]] std::size_t getDepth() const noexcept;
 
    protected:
     virtual void onChange(const UIBinding& binding);
