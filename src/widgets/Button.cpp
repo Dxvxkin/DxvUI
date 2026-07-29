@@ -1,10 +1,11 @@
 #include "DxvUI/widgets/Button.h"
-#include "DxvUI/widgets/Label.h"
-#include "DxvUI/containers/CenterContainer.h"
 
-#include "DxvUI/style/Theme.h"
-#include "DxvUI/style/Colors.h"
 #include <utility>
+
+#include "DxvUI/containers/CenterContainer.h"
+#include "DxvUI/style/Colors.h"
+#include "DxvUI/style/Theme.h"
+#include "DxvUI/widgets/Label.h"
 
 namespace DxvUI {
 
@@ -12,35 +13,25 @@ namespace DxvUI {
 namespace {
 struct ButtonStyleRegistrar {
     ButtonStyleRegistrar() {
-        Theme::registerDefaultStyle("Button", {
-                                        {
-                                            WidgetState::Normal,
-                                            {
-                                                .backgroundColor = Colors::CornflowerBlue,
-                                                .textColor = Colors::White,
-                                                .borderRadius = 5,
-                                                .cursor = CursorType::Hand,
-                                                .padding = {{10, 20, 10, 20}}
-                                            }
-                                        },
-                                        {
-                                            WidgetState::Hovered,
-                                            {
-                                                .backgroundColor = Colors::RoyalBlue,
-                                            }
-                                        },
-                                        {
-                                            WidgetState::Pressed,
-                                            {
-                                                .backgroundColor = Colors::MidnightBlue,
-                                            }
-                                        }
-                                    });
+        Theme::registerDefaultStyle("Button", {{WidgetState::Normal,
+                                                {.backgroundColor = Colors::CornflowerBlue,
+                                                 .textColor = Colors::White,
+                                                 .borderRadius = 5,
+                                                 .cursor = CursorType::Hand,
+                                                 .padding = {{5, 5, 5, 5}}}},
+                                               {WidgetState::Hovered,
+                                                {
+                                                    .backgroundColor = Colors::RoyalBlue,
+                                                }},
+                                               {WidgetState::Pressed,
+                                                {
+                                                    .backgroundColor = Colors::MidnightBlue,
+                                                }}});
     }
 };
 
 const ButtonStyleRegistrar registrar;
-}
+}  // namespace
 
 std::shared_ptr<Button> Button::create(std::string id, std::string text) {
     return std::shared_ptr<Button>(new Button(std::move(id), std::move(text)));
@@ -50,9 +41,7 @@ Button::Button(std::string id, std::string text) : SceneNode(std::move(id)) {
     binding_ = UIBinding::create(std::move(text));
 }
 
-const char* Button::getNodeType() const {
-    return "Button";
-}
+const char* Button::getNodeType() const { return "Button"; }
 
 void Button::onAttach() {
     SceneNode::onAttach();
@@ -70,11 +59,16 @@ void Button::onAttach() {
 Size Button::measure(const Size& availableSize) {
     if (!isLayoutDirty) return desiredSize;
 
+    Size childDesiredSize = {0, 0};
     if (!children.empty()) {
-        desiredSize = children.front()->measure(availableSize);
-    } else {
-        desiredSize = {0, 0};
+        childDesiredSize = children.front()->measure(availableSize);
     }
+
+    const auto& computedLayout = getComputedLayout(getCurrentState());
+    const auto& padding = computedLayout.padding;
+
+    desiredSize = {childDesiredSize.width + padding.left + padding.right,
+                   childDesiredSize.height + padding.top + padding.bottom};
 
     return desiredSize;
 }
@@ -84,7 +78,12 @@ void Button::arrange(const Rect& finalRect) {
     computedLayout.computedBounds = finalRect;
 
     if (!children.empty()) {
-        children.front()->arrange(finalRect);
+        const auto& [top, right, bottom, left] = computedLayout.padding;
+        const Rect contentRect = {.x = finalRect.x + static_cast<int>(left),
+                                  .y = finalRect.y + static_cast<int>(top),
+                                  .width = finalRect.width - static_cast<int>(left + right),
+                                  .height = finalRect.height - static_cast<int>(top + bottom)};
+        children.front()->arrange(contentRect);
     }
 
     isLayoutDirty = false;
@@ -95,12 +94,9 @@ void Button::draw(IRenderer& renderer) {
     const auto& computedLayout = getComputedLayout(getCurrentState());
 
     // 1. Draw the button's background
-    renderer.fillRoundRect(
-        computedLayout.computedBounds,
-        computedAppearance.borderRadius,
-        computedAppearance.backgroundColor,
-        {computedAppearance.borderColor, computedAppearance.borderThickness}
-    );
+    renderer.fillRoundRect(computedLayout.computedBounds, computedAppearance.borderRadius,
+                           computedAppearance.backgroundColor,
+                           {.color = computedAppearance.borderColor, .thickness = computedAppearance.borderThickness});
 
     // 2. Let the base class handle drawing children (the container will draw the label)
     SceneNode::draw(renderer);
@@ -118,12 +114,8 @@ void Button::setText(const std::string& text) {
     markLayoutDirty();
 }
 
-const std::string Button::getText() const {
-    return getBinding()->getString().value_or("");
-}
+const std::string Button::getText() const { return getBinding()->getString().value_or(""); }
 
-std::shared_ptr<Label> Button::getLabel() const {
-    return label;
-}
+std::shared_ptr<Label> Button::getLabel() const { return label; }
 
-}
+}  // namespace DxvUI
