@@ -224,6 +224,9 @@ class Style {
 
     /**
      * @brief Marks the style as requiring re-resolution.
+     *
+     * Because descendants inherit text properties, StyleManager re-resolves the
+     * whole subtree below a dirty node in the next resolve pass.
      */
     void markDirty() noexcept { dirty = true; }
 

@@ -32,6 +32,9 @@ class StyleManager {
      *
      * Performs a breadth-first, top-down traversal so that a parent's computed
      * Normal style (used for inheritance) is resolved before its children.
+     * Resolving a dirty node cascades the dirty flag onto its children, so a
+     * change in inherited text properties propagates through the subtree in
+     * this single pass.
      * @param root The root of the subtree to walk.
      */
     void resolveDirtyStyles(const std::shared_ptr<SceneNode>& root);

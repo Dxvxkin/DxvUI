@@ -190,3 +190,22 @@ TEST(StyleManagerTest, AllStatesAreResolved) {
         EXPECT_FLOAT_EQ(node->getComputedLayout(state).width, 0.0f);
     }
 }
+
+TEST(StyleManagerTest, StateChangeSelectsCachedEntryWithoutReResolve) {
+    auto node = std::make_shared<SceneNode>("node");
+    node->editStyle().set({.textColor = Colors::Blue}, WidgetState::Hovered);
+    Theme theme;
+    StyleManager manager(theme);
+
+    manager.resolveDirtyStyles(node);
+
+    // All states are resolved up front, so switching the current state only
+    // selects a cached entry; it must not require a fresh resolution pass.
+    node->setHovered(true);
+    EXPECT_EQ(node->getComputedAppearance(node->getCurrentState()).textColor, Colors::Blue);
+    EXPECT_EQ(node->getComputedLayout(node->getCurrentState()).padding.top, 0.0f);
+
+    node->setHovered(false);
+    node->setPressed(true);
+    EXPECT_EQ(node->getComputedAppearance(node->getCurrentState()).textColor, Colors::Black);
+}

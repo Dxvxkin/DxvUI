@@ -144,6 +144,14 @@ void StyleManager::resolveDirtyStyles(const std::shared_ptr<SceneNode>& root) {
                 node->style.setComputedLayout(s, resolveLayout(*node, s));
             }
             node->style.markClean();
+
+            // Resolving a node can change the text properties its children
+            // inherit, so the whole subtree below a dirty node must be
+            // re-resolved as well. The children are already queued below and
+            // get processed in this same pass, parent before child.
+            for (const auto& child : node->children) {
+                child->style.markDirty();
+            }
         }
 
         for (const auto& child : node->children) {

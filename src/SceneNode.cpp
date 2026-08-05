@@ -138,9 +138,6 @@ void SceneNode::markStyleDirty() {
     if (style.isDirty()) return;
     style.markDirty();
     markLayoutDirty();
-    for (auto& child : children) {
-        child->markStyleDirty();
-    }
 }
 
 void SceneNode::markLayoutDirty() {
@@ -179,14 +176,14 @@ bool SceneNode::isRoot() const {
 void SceneNode::setHovered(bool hovered) {
     if (isHovered != hovered) {
         isHovered = hovered;
-        markStyleDirty();
+        markLayoutDirty();
     }
 }
 
 void SceneNode::setPressed(bool pressed) {
     if (isPressed != pressed) {
         isPressed = pressed;
-        markStyleDirty();
+        markLayoutDirty();
     }
 }
 
