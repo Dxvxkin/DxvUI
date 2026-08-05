@@ -74,29 +74,22 @@ void Label::draw(IRenderer& renderer) {
                            {computedAppearance.borderColor, computedAppearance.borderThickness});
 
     // Определяем, нужно ли пересоздавать текстуру.
-    // Это нужно, только если изменился текст, путь к шрифту или его размер.
-    // Изменение цвета текста или фона не требует новой текстуры.
-    // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: SDLRenderer "запекает" цвет в текстуру, поэтому изменение цвета
-    // ТАКЖЕ требует обновления.
+    // Это нужно, только если изменился текст или параметры, влияющие на
+    // отрисовку текста (шрифт, размер, цвет). SDLRenderer "запекает" цвет в
+    // текстуру, поэтому сравнение идёт по всему computed appearance: если оно
+    // изменилось, текстура пересоздаётся.
     auto text = getText();
-    const bool needsTextureUpdate = !textTexture || cachedText != text ||
-                                    cachedFontPath != computedAppearance.fontPath ||
-                                    cachedFontSize != computedAppearance.fontSize ||
-                                    cachedTextColor != computedAppearance.textColor;
+    const bool needsTextureUpdate =
+        !textTexture || cachedText != text || cachedAppearance != computedAppearance;
 
     if (needsTextureUpdate) {
         cachedText = text;
-        cachedFontPath = computedAppearance.fontPath;
-        cachedFontSize = computedAppearance.fontSize;
-        cachedTextColor = computedAppearance.textColor;
+        cachedAppearance = computedAppearance;
 
-        // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Установка состояния рендерера ПЕРЕД созданием текстуры.
-        // SDLRenderer использует свое внутреннее состояние для рендеринга текста.
-        renderer.setFont(cachedFontPath, cachedFontSize);
-        renderer.setDrawColor(cachedTextColor);
+        renderer.setFont(computedAppearance.fontPath, computedAppearance.fontSize);
+        renderer.setDrawColor(computedAppearance.textColor);
 
         textTexture = renderer.createTextTexture(cachedText);
-        // Теперь этот вызов сработает корректно.
     }
 
     if (textTexture) {

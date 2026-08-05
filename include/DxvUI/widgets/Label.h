@@ -29,9 +29,8 @@ class Label : public SceneNode {
    private:
     std::shared_ptr<ITexture> textTexture;
     std::string cachedText;
-    std::string cachedFontPath;
-    int cachedFontSize = 0;
-    Color cachedTextColor;
+    // The computed appearance the current texture was rasterized with.
+    ComputedAppearanceStyle cachedAppearance;
 };
 
 }  // namespace DxvUI

@@ -174,6 +174,15 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     void markLayoutDirty();
 
     /**
+     * @brief Gets the modification version of the node's local style rules.
+     *
+     * Bumped only when a rule actually changes; usable as a lightweight "style
+     * changed" signal.
+     * @return The current style version.
+     */
+    [[nodiscard]] std::uint64_t getStyleVersion() const noexcept;
+
+    /**
      * @brief Gets the computed appearance properties for a given state.
      * @param state The widget state (e.g., Normal, Hovered).
      * @return A const reference to the computed appearance style.

@@ -1,24 +1,38 @@
 #ifndef DXVUI_CORE_H
 #define DXVUI_CORE_H
 
-#include <string>
-
-#include <functional> // For std::function
+#include <functional>  // For std::function
 #include <memory>
+#include <string>
 
 #include "DxvUI/style/Color.h"
 
 namespace DxvUI {
 
-class SceneNode; // Forward declaration
+class SceneNode;  // Forward declaration
 
 // --- Enums ---
 enum class EventType {
     None,
     // Raw input events
-    MouseDown, MouseUp, MouseMove, KeyDown, KeyUp, TextInput, Quit,
+    MouseDown,
+    MouseUp,
+    MouseMove,
+    KeyDown,
+    KeyUp,
+    TextInput,
+    Quit,
     // Derived UI events
-    Click, HoverEnter, HoverLeave, FocusGained, FocusLost, Drag, Drop, Attach, Detach, Change
+    Click,
+    HoverEnter,
+    HoverLeave,
+    FocusGained,
+    FocusLost,
+    Drag,
+    Drop,
+    Attach,
+    Detach,
+    Change
 };
 
 enum class MouseButton { None, Left, Middle, Right };
@@ -29,17 +43,17 @@ enum class Alignment { Start, Center, End, Stretch };
 
 // System cursor types
 enum class CursorType {
-    Arrow, // Default pointer
-    IBeam, // Text input
-    Wait, // Busy indicator
+    Arrow,  // Default pointer
+    IBeam,  // Text input
+    Wait,   // Busy indicator
     Crosshair,
-    Hand, // Hand pointer for links/buttons
-    ResizeNWSE, // Diagonal resize
-    ResizeNESW, // Diagonal resize
-    ResizeWE, // Horizontal resize
-    ResizeNS, // Vertical resize
+    Hand,        // Hand pointer for links/buttons
+    ResizeNWSE,  // Diagonal resize
+    ResizeNESW,  // Diagonal resize
+    ResizeWE,    // Horizontal resize
+    ResizeNS,    // Vertical resize
     ResizeAll,
-    No // Hidden cursor
+    No  // Hidden cursor
 };
 
 enum KeyModifier : uint16_t {
@@ -96,6 +110,11 @@ struct Rect {
 
 struct Thickness {
     float top = 0, right = 0, bottom = 0, left = 0;
+
+    bool operator==(const Thickness& other) const {
+        return top == other.top && right == other.right && bottom == other.bottom &&
+               left == other.left;
+    }
 };
 
 struct Border {
@@ -123,6 +142,6 @@ inline const char* getDefaultFontPath() {
 #endif
 }
 
-}
+}  // namespace DxvUI
 
-#endif //DXVUI_CORE_H
+#endif  // DXVUI_CORE_H

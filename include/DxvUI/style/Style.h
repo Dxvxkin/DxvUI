@@ -3,6 +3,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <tuple>
@@ -90,6 +91,14 @@ struct StyleRule {
      * @exceptionGuarantee Basic exception guarantee. std::string assignment can throw.
      */
     void merge(const StyleRule& other);
+
+    /**
+     * @brief Checks whether two rules hold identical properties.
+     *
+     * Uses the same property descriptors as merge()/resolution, so equality
+     * cannot drift from the property list.
+     */
+    bool operator==(const StyleRule& other) const;
 };
 
 // Fully-resolved appearance properties after applying the style cascade.
@@ -195,6 +204,18 @@ constexpr void inheritAppearanceProp(ComputedAppearanceStyle& dest,
     }
 }
 
+template <typename Src, typename Dst>
+constexpr bool equalAppearanceProp(const StyleRule& a, const StyleRule& b,
+                                   const AppearanceProp<Src, Dst>& prop) {
+    return (a.*prop.src) == (b.*prop.src);
+}
+
+template <typename Src, typename Dst>
+constexpr bool equalLayoutProp(const StyleRule& a, const StyleRule& b,
+                               const LayoutProp<Src, Dst>& prop) {
+    return (a.*prop.src) == (b.*prop.src);
+}
+
 // The complete appearance property list. Each entry wires one StyleRule member
 // to its ComputedAppearanceStyle counterpart; 'inheritable' marks text
 // properties that are inherited from the parent's Normal state.
@@ -257,6 +278,19 @@ inline void StyleRule::merge(const StyleRule& other) {
                detail::layoutProps);
 }
 
+inline bool StyleRule::operator==(const StyleRule& other) const {
+    return std::apply(
+               [&](const auto&... prop) {
+                   return (true && ... && detail::equalAppearanceProp(*this, other, prop));
+               },
+               detail::appearanceProps) &&
+           std::apply(
+               [&](const auto&... prop) {
+                   return (true && ... && detail::equalLayoutProp(*this, other, prop));
+               },
+               detail::layoutProps);
+}
+
 /**
  * @class Style
  * @brief Owns the local style rules of a node plus its computed style cache.
@@ -271,12 +305,18 @@ class Style {
    public:
     /**
      * @brief Sets or overwrites the style rule for a given state.
+     *
+     * If the new rule equals the current one, nothing changes and the version
+     * is not bumped.
      * @param rule The style rule to set.
      * @param state The widget state to target.
      * @exceptionGuarantee Strong exception guarantee.
      */
     void set(const StyleRule& rule, WidgetState state = WidgetState::Normal) {
-        stateStyles[state_index(state)] = rule;
+        auto& slot = stateStyles[state_index(state)];
+        if (slot.has_value() && *slot == rule) return;
+        slot = rule;
+        version_++;
     }
 
     /**
@@ -286,7 +326,10 @@ class Style {
      * @exceptionGuarantee Strong exception guarantee.
      */
     void set(StyleRule&& rule, WidgetState state = WidgetState::Normal) {
-        stateStyles[state_index(state)] = std::move(rule);
+        auto& slot = stateStyles[state_index(state)];
+        if (slot.has_value() && *slot == rule) return;
+        slot = std::move(rule);
+        version_++;
     }
 
     /**
@@ -299,9 +342,12 @@ class Style {
     void update(const StyleRule& updates, WidgetState state = WidgetState::Normal) {
         auto& slot = stateStyles[state_index(state)];
         if (slot.has_value()) {
+            const StyleRule before = *slot;
             slot->merge(updates);
+            if (!(before == *slot)) version_++;
         } else {
             slot = updates;
+            version_++;
         }
     }
 
@@ -323,6 +369,16 @@ class Style {
      * @return True if the style was modified since the last resolution.
      */
     [[nodiscard]] bool isDirty() const noexcept { return dirty; }
+
+    /**
+     * @brief Gets the modification version of the local style rules.
+     *
+     * Incremented on every set()/update() that actually changes a rule; a
+     * no-op write does not bump it. Consumers (e.g. texture caches) can use it
+     * to detect that a node's style changed without comparing property values.
+     * @return The current version.
+     */
+    [[nodiscard]] std::uint64_t getVersion() const noexcept { return version_; }
 
     /**
      * @brief Marks the style as requiring re-resolution.
@@ -404,6 +460,7 @@ class Style {
     bool dirty = true;
     // True once the computed caches have been populated at least once.
     bool resolved = false;
+    std::uint64_t version_ = 0;
 };
 
 }  // namespace DxvUI

@@ -402,3 +402,30 @@ TEST(ThemeTest, VersionIncrementsOnMutation) {
     theme.clearDefaultStyle("TestWidget");  // no-op: not registered
     EXPECT_EQ(theme.getVersion(), afterClear);
 }
+
+TEST(StyleTest, VersionBumpsOnChangeNotOnNoop) {
+    auto node = std::make_shared<SceneNode>("node");
+    const std::uint64_t initial = node->getStyleVersion();
+
+    node->editStyle().set({.backgroundColor = Colors::Red}, WidgetState::Normal);
+    EXPECT_GT(node->getStyleVersion(), initial);
+
+    const std::uint64_t afterSet = node->getStyleVersion();
+    node->editStyle().set({.backgroundColor = Colors::Red}, WidgetState::Normal);  // same value
+    EXPECT_EQ(node->getStyleVersion(), afterSet);
+
+    node->editStyle().update({.backgroundColor = Colors::Red});  // no-op merge
+    EXPECT_EQ(node->getStyleVersion(), afterSet);
+
+    node->editStyle().update({.backgroundColor = Colors::Blue});
+    EXPECT_GT(node->getStyleVersion(), afterSet);
+}
+
+TEST(StyleRuleTest, EqualityFollowsPropertyList) {
+    StyleRule a = {.backgroundColor = Colors::Red, .borderThickness = 2};
+    StyleRule b = {.backgroundColor = Colors::Red, .borderThickness = 2};
+    StyleRule c = {.backgroundColor = Colors::Red, .borderThickness = 3};
+
+    EXPECT_EQ(a, b);
+    EXPECT_NE(a, c);
+}
