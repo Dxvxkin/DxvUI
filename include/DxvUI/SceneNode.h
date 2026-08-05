@@ -299,10 +299,24 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
 
     /**
      * @brief First pass of layout: calculates the desired size of the node.
+     *
+     * Non-virtual entry point. Applies the resolved size constraints (explicit
+     * width/height from style, then min/max clamping) on top of the virtual
+     * measureOverride() result, so widget authors never have to handle them.
      * @param availableSize The size available from the parent.
      * @return The desired size required by this node.
      */
-    virtual Size measure(const Size& availableSize);
+    Size measure(const Size& availableSize);
+
+    /**
+     * @brief Computes the intrinsic desired size of the node.
+     *
+     * Override this in widgets and containers instead of measure(); the base
+     * class applies style size constraints afterwards.
+     * @param availableSize The size available from the parent.
+     * @return The desired size before any style constraints are applied.
+     */
+    virtual Size measureOverride(const Size& availableSize);
 
     /**
      * @brief Second pass of layout: sets the final size and position of the node.
@@ -382,6 +396,12 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     std::unique_ptr<UIBinding::Connection> connection_;
 
    private:
+    /**
+     * @brief Applies the resolved explicit size and min/max constraints to a size.
+     * @param size The size to clamp in place.
+     */
+    void applySizeConstraints(Size& size) const;
+
     void sortChildrenIfDirty();
 
     bool isHovered = false;

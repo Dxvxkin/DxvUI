@@ -9,8 +9,6 @@ class Container : public SceneNode {
    public:
     using SceneNode::SceneNode;  // Inherit constructors
 
-    Size measure(const Size& availableSize) override = 0;
-
     void arrange(const Rect& finalRect) override = 0;
 };
 

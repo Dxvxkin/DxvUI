@@ -1,13 +1,13 @@
 #include "DxvUI/widgets/Label.h"
-#include "DxvUI/interfaces/IRenderer.h"
-#include "DxvUI/UIBinding.h"
-#include "DxvUI/Scene.h"
-#include "DxvUI/style/Theme.h"
-#include "DxvUI/style/Colors.h"
+
 #include <utility>
 
-
 #include "DxvUI/Log.h"
+#include "DxvUI/Scene.h"
+#include "DxvUI/UIBinding.h"
+#include "DxvUI/interfaces/IRenderer.h"
+#include "DxvUI/style/Colors.h"
+#include "DxvUI/style/Theme.h"
 
 namespace DxvUI {
 
@@ -15,34 +15,27 @@ namespace DxvUI {
 namespace {
 struct LabelStyleRegistrar {
     LabelStyleRegistrar() {
-        Theme::registerDefaultStyle("Label", {
-                                        {
-                                            WidgetState::Normal,
-                                            {
-                                                .backgroundColor = Colors::Transparent,
-                                                .textColor = Colors::Black,
-                                            }
-                                        }
-                                    });
+        Theme::registerDefaultStyle("Label", {{WidgetState::Normal,
+                                               {
+                                                   .backgroundColor = Colors::Transparent,
+                                                   .textColor = Colors::Black,
+                                               }}});
     }
 };
 
 const LabelStyleRegistrar registrar;
-}
+}  // namespace
 
 std::shared_ptr<Label> Label::create(std::string id, std::string text) {
     return std::make_shared<Label>(std::move(id), std::move(text));
 }
 
-Label::Label(std::string id, std::string text)
-    : SceneNode(std::move(id)) {
+Label::Label(std::string id, std::string text) : SceneNode(std::move(id)) {
     auto binding = UIBinding::create(text);
     bind(binding);
 }
 
-const char* Label::getNodeType() const noexcept {
-    return "Label";
-}
+const char* Label::getNodeType() const noexcept { return "Label"; }
 
 void Label::setText(std::string newText) {
     auto current_text = getBinding()->getString().value_or("");
@@ -53,17 +46,11 @@ void Label::setText(std::string newText) {
     }
 }
 
-const std::string Label::getText() const {
-    return getBinding()->getString().value_or("");
-}
+const std::string Label::getText() const { return getBinding()->getString().value_or(""); }
 
-void Label::onChange(const UIBinding& val) {
+void Label::onChange(const UIBinding& val) {}
 
-}
-
-Size Label::measure(const Size& availableSize) {
-    if (!isLayoutDirty) return desiredSize;
-
+Size Label::measureOverride(const Size& availableSize) {
     const auto& computedAppearance = getComputedAppearance(getCurrentState());
     auto padding = getComputedLayout(getCurrentState()).padding;
 
@@ -72,19 +59,10 @@ Size Label::measure(const Size& availableSize) {
         auto text = getText();
         Rect measured = scene->getRenderer()->measureText(text, computedAppearance.fontPath,
                                                           computedAppearance.fontSize);
-        desiredSize = {
-            static_cast<float>(measured.width + padding.left + padding.right),
-            static_cast<float>(measured.height + padding.top + padding.bottom)
-        };
-    } else {
-        desiredSize = {0, 0};
+        return {static_cast<float>(measured.width + padding.left + padding.right),
+                static_cast<float>(measured.height + padding.top + padding.bottom)};
     }
-
-    const auto& computedLayout = getComputedLayout(getCurrentState());
-    if (computedLayout.width > 0) desiredSize.width = computedLayout.width;
-    if (computedLayout.height > 0) desiredSize.height = computedLayout.height;
-
-    return desiredSize;
+    return {0, 0};
 }
 
 void Label::draw(IRenderer& renderer) {
@@ -92,20 +70,19 @@ void Label::draw(IRenderer& renderer) {
     const auto& computedLayout = getComputedLayout(getCurrentState());
 
     renderer.fillRoundRect(computedLayout.computedBounds, computedAppearance.borderRadius,
-                           computedAppearance.backgroundColor, {
-                               computedAppearance.borderColor, computedAppearance.borderThickness
-                           });
+                           computedAppearance.backgroundColor,
+                           {computedAppearance.borderColor, computedAppearance.borderThickness});
 
     // Определяем, нужно ли пересоздавать текстуру.
     // Это нужно, только если изменился текст, путь к шрифту или его размер.
     // Изменение цвета текста или фона не требует новой текстуры.
-    // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: SDLRenderer "запекает" цвет в текстуру, поэтому изменение цвета ТАКЖЕ требует обновления.
+    // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: SDLRenderer "запекает" цвет в текстуру, поэтому изменение цвета
+    // ТАКЖЕ требует обновления.
     auto text = getText();
-    const bool needsTextureUpdate = !textTexture
-                                    || cachedText != text
-                                    || cachedFontPath != computedAppearance.fontPath
-                                    || cachedFontSize != computedAppearance.fontSize
-                                    || cachedTextColor != computedAppearance.textColor;
+    const bool needsTextureUpdate = !textTexture || cachedText != text ||
+                                    cachedFontPath != computedAppearance.fontPath ||
+                                    cachedFontSize != computedAppearance.fontSize ||
+                                    cachedTextColor != computedAppearance.textColor;
 
     if (needsTextureUpdate) {
         cachedText = text;
@@ -123,7 +100,7 @@ void Label::draw(IRenderer& renderer) {
     }
 
     if (textTexture) {
-        //Временное решение для учета отступов
+        // Временное решение для учета отступов
         auto dstRect = computedLayout.computedBounds;
         dstRect.x += computedLayout.padding.left;
         dstRect.y += computedLayout.padding.top;
@@ -136,4 +113,4 @@ void Label::draw(IRenderer& renderer) {
     SceneNode::draw(renderer);
 }
 
-}
+}  // namespace DxvUI

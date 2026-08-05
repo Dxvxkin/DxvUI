@@ -14,11 +14,7 @@ void HorizontalContainer::setSpacing(float spacing) {
 
 float HorizontalContainer::getSpacing() const { return spacing_; }
 
-Size HorizontalContainer::measure(const Size& availableSize) {
-    if (!isLayoutDirty) {
-        return desiredSize;
-    }
-
+Size HorizontalContainer::measureOverride(const Size& availableSize) {
     float totalWidth = 0.0f;
     float maxHeight = 0.0f;
     bool firstVisibleChild = true;
@@ -41,14 +37,7 @@ Size HorizontalContainer::measure(const Size& availableSize) {
     const auto& computedLayout = getComputedLayout(getCurrentState());
     const auto& padding = computedLayout.padding;
 
-    desiredSize = {totalWidth + padding.left + padding.right,
-                   maxHeight + padding.top + padding.bottom};
-
-    // Explicit size from style overrides calculated size
-    if (computedLayout.width > 0) desiredSize.width = computedLayout.width;
-    if (computedLayout.height > 0) desiredSize.height = computedLayout.height;
-
-    return desiredSize;
+    return {totalWidth + padding.left + padding.right, maxHeight + padding.top + padding.bottom};
 }
 
 void HorizontalContainer::arrange(const Rect& finalRect) {

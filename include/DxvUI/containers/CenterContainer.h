@@ -13,7 +13,7 @@ class CenterContainer : public Container {
     using Container::Container;  // Inherit constructors
 
     // New two-pass layout methods
-    Size measure(const Size& availableSize) override;
+    Size measureOverride(const Size& availableSize) override;
     void arrange(const Rect& finalRect) override;
 };
 

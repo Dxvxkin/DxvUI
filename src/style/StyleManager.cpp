@@ -1,6 +1,7 @@
 #include "DxvUI/style/StyleManager.h"
 
 #include <queue>
+#include <tuple>
 
 #include "DxvUI/SceneNode.h"
 #include "DxvUI/style/Colors.h"
@@ -21,9 +22,7 @@ const ComputedAppearanceStyle FRAMEWORK_DEFAULT_APPEARANCE = {
     .fontPath = ""  // Let renderer decide
 };
 
-const ComputedLayoutStyle FRAMEWORK_DEFAULT_LAYOUT = {.left = 0,
-                                                      .top = 0,
-                                                      .width = 0,
+const ComputedLayoutStyle FRAMEWORK_DEFAULT_LAYOUT = {.width = 0,
                                                       .height = 0,
                                                       .padding = {},
                                                       .margin = {},
@@ -39,28 +38,15 @@ StyleManager::StyleManager(Theme& theme) : theme_(theme) {}
 
 void StyleManager::applyRule(ComputedAppearanceStyle& computed, const StyleRule* rule) {
     if (!rule) return;
-    if (rule->backgroundColor.has_value()) computed.backgroundColor = rule->backgroundColor.value();
-    if (rule->textColor.has_value()) computed.textColor = rule->textColor.value();
-    if (rule->borderColor.has_value()) computed.borderColor = rule->borderColor.value();
-    if (rule->borderThickness.has_value()) computed.borderThickness = rule->borderThickness.value();
-    if (rule->borderRadius.has_value()) computed.borderRadius = rule->borderRadius.value();
-    if (rule->cursor.has_value()) computed.cursor = rule->cursor.value();
-    if (rule->fontSize.has_value()) computed.fontSize = rule->fontSize.value();
-    if (rule->fontPath.has_value()) computed.fontPath = rule->fontPath.value();
+    std::apply(
+        [&](const auto&... prop) { (detail::applyAppearanceProp(computed, *rule, prop), ...); },
+        detail::appearanceProps);
 }
 
 void StyleManager::applyRule(ComputedLayoutStyle& computed, const StyleRule* rule) {
     if (!rule) return;
-    if (rule->left.has_value()) computed.left = rule->left.value();
-    if (rule->top.has_value()) computed.top = rule->top.value();
-    if (rule->width.has_value()) computed.width = rule->width.value();
-    if (rule->height.has_value()) computed.height = rule->height.value();
-    if (rule->padding.has_value()) computed.padding = rule->padding.value();
-    if (rule->margin.has_value()) computed.margin = rule->margin.value();
-    if (rule->horizontalAlignment.has_value())
-        computed.horizontalAlignment = rule->horizontalAlignment.value();
-    if (rule->verticalAlignment.has_value())
-        computed.verticalAlignment = rule->verticalAlignment.value();
+    std::apply([&](const auto&... prop) { (detail::applyLayoutProp(computed, *rule, prop), ...); },
+               detail::layoutProps);
 }
 
 // --- Main Resolution Logic ---
@@ -81,9 +67,11 @@ ComputedAppearanceStyle StyleManager::resolveAppearance(const SceneNode& node,
 
     if (auto parent = node.parent.lock()) {  // Step 2
         const auto& parentStyle = parent->getComputedAppearance(WidgetState::Normal);
-        computed.textColor = parentStyle.textColor;
-        computed.fontSize = parentStyle.fontSize;
-        computed.fontPath = parentStyle.fontPath;
+        std::apply(
+            [&](const auto&... prop) {
+                (detail::inheritAppearanceProp(computed, parentStyle, prop), ...);
+            },
+            detail::appearanceProps);
     }
 
     // --- Step 3: Build the full 'Normal' style ---

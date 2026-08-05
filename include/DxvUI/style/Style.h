@@ -4,6 +4,7 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <tuple>
 #include <utility>
 
 #include "DxvUI/core.h"  // For core types like Thickness, Alignment, CursorType
@@ -32,24 +33,6 @@ enum class WidgetState { Normal, Hovered, Pressed, Disabled };
     }
     return "Unknown";
 }
-
-namespace detail {
-/**
- * @brief Merges an optional property from a source to a destination.
- * If the source optional contains a value, it overwrites the destination.
- * @tparam T The type of the value contained in the optional.
- * @param dest The destination optional.
- * @param src The source optional.
- * @exceptionGuarantee No-throw guarantee (if T's copy assignment is no-throw).
- */
-template <typename T>
-constexpr void merge_property(std::optional<T>& dest, const std::optional<T>& src) noexcept(
-    std::is_nothrow_copy_assignable_v<T>) {
-    if (src) {
-        dest = src;
-    }
-}
-}  // namespace detail
 
 // A single rule containing all possible style and layout properties.
 // std::optional is used to signify "not set".
@@ -84,44 +67,14 @@ struct StyleRule {
      * @brief Merges another StyleRule into this one.
      *
      * For each property in 'other', if it has a value, it overwrites the
-     * corresponding property in this StyleRule.
+     * corresponding property in this StyleRule. The property list is defined
+     * once (see detail::appearanceProps / detail::layoutProps) and shared with
+     * the style resolution, so a new property cannot be forgotten here.
      *
      * @param other The StyleRule containing the properties to merge.
      * @exceptionGuarantee Basic exception guarantee. std::string assignment can throw.
      */
-    void merge(const StyleRule& other) {
-        // Appearance
-        detail::merge_property(backgroundColor, other.backgroundColor);
-        detail::merge_property(textColor, other.textColor);
-        detail::merge_property(borderColor, other.borderColor);
-        detail::merge_property(borderThickness, other.borderThickness);
-        detail::merge_property(borderRadius, other.borderRadius);
-        detail::merge_property(cursor, other.cursor);
-
-        // Text
-        detail::merge_property(fontSize, other.fontSize);
-        detail::merge_property(fontPath, other.fontPath);
-
-        // Position
-        detail::merge_property(left, other.left);
-        detail::merge_property(top, other.top);
-        detail::merge_property(right, other.right);
-        detail::merge_property(bottom, other.bottom);
-
-        // Size
-        detail::merge_property(width, other.width);
-        detail::merge_property(height, other.height);
-        detail::merge_property(minWidth, other.minWidth);
-        detail::merge_property(minHeight, other.minHeight);
-        detail::merge_property(maxWidth, other.maxWidth);
-        detail::merge_property(maxHeight, other.maxHeight);
-
-        // Alignment & Spacing
-        detail::merge_property(padding, other.padding);
-        detail::merge_property(margin, other.margin);
-        detail::merge_property(horizontalAlignment, other.horizontalAlignment);
-        detail::merge_property(verticalAlignment, other.verticalAlignment);
-    }
+    void merge(const StyleRule& other);
 };
 
 // Fully-resolved appearance properties after applying the style cascade.
@@ -144,14 +97,150 @@ struct ComputedAppearanceStyle {
 };
 
 // Fully-resolved layout properties after applying the style cascade.
+// left/top/right/bottom are optional because "not set" matters for absolute
+// positioning (e.g. 'right' only anchors to the right edge). width/height are
+// always present: 0 means "derive from measure". min/max sizes are optional
+// constraints applied on top of the measured size.
 struct ComputedLayoutStyle {
-    float left, top, width, height;
+    std::optional<float> left, top, right, bottom;
+    float width = 0, height = 0;
+    std::optional<float> minWidth, minHeight, maxWidth, maxHeight;
     Thickness padding;
     Thickness margin;
     Alignment horizontalAlignment;
     Alignment verticalAlignment;
     Rect computedBounds;
 };
+
+namespace detail {
+
+/**
+ * @brief A single appearance property descriptor: source member in StyleRule
+ * and destination member in ComputedAppearanceStyle.
+ *
+ * The list of descriptors (appearanceProps) is the single source of truth for
+ * merge, resolve (applyRule) and inheritance. Adding an inheritable property
+ * means adding a field plus one descriptor with inheritable = true.
+ */
+template <typename Src, typename Dst>
+struct AppearanceProp {
+    Src StyleRule::* src;
+    Dst ComputedAppearanceStyle::* dst;
+    bool inheritable = false;
+};
+
+/**
+ * @brief A single layout property descriptor: source member in StyleRule and
+ * destination member in ComputedLayoutStyle.
+ */
+template <typename Src, typename Dst>
+struct LayoutProp {
+    Src StyleRule::* src;
+    Dst ComputedLayoutStyle::* dst;
+};
+
+template <typename Src, typename Dst>
+constexpr void mergeAppearanceProp(StyleRule& dest, const StyleRule& src,
+                                   const AppearanceProp<Src, Dst>& prop) {
+    if ((src.*prop.src).has_value()) {
+        dest.*prop.src = (src.*prop.src).value();
+    }
+}
+
+template <typename Src, typename Dst>
+constexpr void mergeLayoutProp(StyleRule& dest, const StyleRule& src,
+                               const LayoutProp<Src, Dst>& prop) {
+    if ((src.*prop.src).has_value()) {
+        dest.*prop.src = (src.*prop.src).value();
+    }
+}
+
+template <typename Src, typename Dst>
+constexpr void applyAppearanceProp(ComputedAppearanceStyle& dest, const StyleRule& rule,
+                                   const AppearanceProp<Src, Dst>& prop) {
+    if ((rule.*prop.src).has_value()) {
+        dest.*prop.dst = (rule.*prop.src).value();
+    }
+}
+
+template <typename Src, typename Dst>
+constexpr void applyLayoutProp(ComputedLayoutStyle& dest, const StyleRule& rule,
+                               const LayoutProp<Src, Dst>& prop) {
+    if ((rule.*prop.src).has_value()) {
+        dest.*prop.dst = (rule.*prop.src).value();
+    }
+}
+
+template <typename Src, typename Dst>
+constexpr void inheritAppearanceProp(ComputedAppearanceStyle& dest,
+                                     const ComputedAppearanceStyle& parent,
+                                     const AppearanceProp<Src, Dst>& prop) {
+    if (prop.inheritable) {
+        dest.*prop.dst = parent.*prop.dst;
+    }
+}
+
+// The complete appearance property list. Each entry wires one StyleRule member
+// to its ComputedAppearanceStyle counterpart; 'inheritable' marks text
+// properties that are inherited from the parent's Normal state.
+inline constexpr auto appearanceProps = std::tuple{
+    AppearanceProp<std::optional<Color>, Color>{&StyleRule::backgroundColor,
+                                                &ComputedAppearanceStyle::backgroundColor},
+    AppearanceProp<std::optional<Color>, Color>{&StyleRule::textColor,
+                                                &ComputedAppearanceStyle::textColor, true},
+    AppearanceProp<std::optional<Color>, Color>{&StyleRule::borderColor,
+                                                &ComputedAppearanceStyle::borderColor},
+    AppearanceProp<std::optional<int>, int>{&StyleRule::borderThickness,
+                                            &ComputedAppearanceStyle::borderThickness},
+    AppearanceProp<std::optional<int>, int>{&StyleRule::borderRadius,
+                                            &ComputedAppearanceStyle::borderRadius},
+    AppearanceProp<std::optional<CursorType>, CursorType>{&StyleRule::cursor,
+                                                          &ComputedAppearanceStyle::cursor},
+    AppearanceProp<std::optional<int>, int>{&StyleRule::fontSize,
+                                            &ComputedAppearanceStyle::fontSize, true},
+    AppearanceProp<std::optional<std::string>, std::string>{
+        &StyleRule::fontPath, &ComputedAppearanceStyle::fontPath, true},
+};
+
+// The complete layout property list. left/top/right/bottom and min/max sizes
+// stay optional in the computed style because "not set" carries meaning there.
+inline constexpr auto layoutProps = std::tuple{
+    LayoutProp<std::optional<float>, std::optional<float>>{&StyleRule::left,
+                                                           &ComputedLayoutStyle::left},
+    LayoutProp<std::optional<float>, std::optional<float>>{&StyleRule::top,
+                                                           &ComputedLayoutStyle::top},
+    LayoutProp<std::optional<float>, std::optional<float>>{&StyleRule::right,
+                                                           &ComputedLayoutStyle::right},
+    LayoutProp<std::optional<float>, std::optional<float>>{&StyleRule::bottom,
+                                                           &ComputedLayoutStyle::bottom},
+    LayoutProp<std::optional<float>, float>{&StyleRule::width, &ComputedLayoutStyle::width},
+    LayoutProp<std::optional<float>, float>{&StyleRule::height, &ComputedLayoutStyle::height},
+    LayoutProp<std::optional<float>, std::optional<float>>{&StyleRule::minWidth,
+                                                           &ComputedLayoutStyle::minWidth},
+    LayoutProp<std::optional<float>, std::optional<float>>{&StyleRule::minHeight,
+                                                           &ComputedLayoutStyle::minHeight},
+    LayoutProp<std::optional<float>, std::optional<float>>{&StyleRule::maxWidth,
+                                                           &ComputedLayoutStyle::maxWidth},
+    LayoutProp<std::optional<float>, std::optional<float>>{&StyleRule::maxHeight,
+                                                           &ComputedLayoutStyle::maxHeight},
+    LayoutProp<std::optional<Thickness>, Thickness>{&StyleRule::padding,
+                                                    &ComputedLayoutStyle::padding},
+    LayoutProp<std::optional<Thickness>, Thickness>{&StyleRule::margin,
+                                                    &ComputedLayoutStyle::margin},
+    LayoutProp<std::optional<Alignment>, Alignment>{&StyleRule::horizontalAlignment,
+                                                    &ComputedLayoutStyle::horizontalAlignment},
+    LayoutProp<std::optional<Alignment>, Alignment>{&StyleRule::verticalAlignment,
+                                                    &ComputedLayoutStyle::verticalAlignment},
+};
+
+}  // namespace detail
+
+inline void StyleRule::merge(const StyleRule& other) {
+    std::apply([&](const auto&... prop) { (detail::mergeAppearanceProp(*this, other, prop), ...); },
+               detail::appearanceProps);
+    std::apply([&](const auto&... prop) { (detail::mergeLayoutProp(*this, other, prop), ...); },
+               detail::layoutProps);
+}
 
 /**
  * @class Style

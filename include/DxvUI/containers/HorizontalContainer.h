@@ -11,7 +11,7 @@ class HorizontalContainer : public Container {
    public:
     using Container::Container;  // Inherit constructors
 
-    Size measure(const Size& availableSize) override;
+    Size measureOverride(const Size& availableSize) override;
     void arrange(const Rect& finalRect) override;
 
     void draw(IRenderer& renderer) override;

@@ -282,12 +282,40 @@ Size SceneNode::measure(const Size& availableSize) {
         return desiredSize;
     }
 
+    Size size = measureOverride(availableSize);
+    applySizeConstraints(size);
+    desiredSize = size;
+    return desiredSize;
+}
+
+Size SceneNode::measureOverride(const Size& /*availableSize*/) { return {0, 0}; }
+
+void SceneNode::applySizeConstraints(Size& size) const {
     const auto& computedLayout = getComputedLayout(getCurrentState());
 
-    desiredSize = {computedLayout.width > 0 ? computedLayout.width : 0,
-                   computedLayout.height > 0 ? computedLayout.height : 0};
+    // An explicit size from the style wins over both the measured size and the
+    // min/max constraints.
+    if (computedLayout.width > 0) {
+        size.width = computedLayout.width;
+    } else {
+        if (computedLayout.minWidth.has_value()) {
+            size.width = std::max(size.width, computedLayout.minWidth.value());
+        }
+        if (computedLayout.maxWidth.has_value()) {
+            size.width = std::min(size.width, computedLayout.maxWidth.value());
+        }
+    }
 
-    return desiredSize;
+    if (computedLayout.height > 0) {
+        size.height = computedLayout.height;
+    } else {
+        if (computedLayout.minHeight.has_value()) {
+            size.height = std::max(size.height, computedLayout.minHeight.value());
+        }
+        if (computedLayout.maxHeight.has_value()) {
+            size.height = std::min(size.height, computedLayout.maxHeight.value());
+        }
+    }
 }
 
 void SceneNode::arrange(const Rect& finalRect) {

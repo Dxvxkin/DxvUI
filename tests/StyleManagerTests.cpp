@@ -6,6 +6,7 @@
 
 #include "DxvUI/Log.h"
 #include "DxvUI/SceneNode.h"
+#include "DxvUI/containers/AbsoluteContainer.h"
 #include "DxvUI/style/Colors.h"
 #include "DxvUI/style/StyleManager.h"
 #include "DxvUI/style/Theme.h"
@@ -21,6 +22,18 @@ class TestWidget : public SceneNode {
     explicit TestWidget(std::string id) : SceneNode(std::move(id)) {}
 
     const char* getNodeType() const override { return "TestWidget"; }
+};
+
+// A node whose intrinsic measured size is fixed, so that min/max clamping can
+// be exercised without a renderer.
+class FixedSizeWidget : public SceneNode {
+   public:
+    explicit FixedSizeWidget(std::string id, Size size) : SceneNode(std::move(id)), size_(size) {}
+
+    Size measureOverride(const Size& /*availableSize*/) override { return size_; }
+
+   private:
+    Size size_;
 };
 
 // SceneNode's destructor logs via DxvUI::Log, which requires an initialized
@@ -208,4 +221,119 @@ TEST(StyleManagerTest, StateChangeSelectsCachedEntryWithoutReResolve) {
     node->setHovered(false);
     node->setPressed(true);
     EXPECT_EQ(node->getComputedAppearance(node->getCurrentState()).textColor, Colors::Black);
+}
+
+TEST(StyleManagerTest, MinMaxSizeConstraintsAreResolved) {
+    auto node = std::make_shared<SceneNode>("node");
+    node->editStyle().set({.minWidth = 50, .minHeight = 30, .maxWidth = 200, .maxHeight = 100},
+                          WidgetState::Normal);
+    Theme theme;
+    StyleManager manager(theme);
+
+    manager.resolveDirtyStyles(node);
+
+    const auto& layout = node->getComputedLayout(WidgetState::Normal);
+    ASSERT_TRUE(layout.minWidth.has_value());
+    EXPECT_FLOAT_EQ(layout.minWidth.value(), 50.0f);
+    ASSERT_TRUE(layout.minHeight.has_value());
+    EXPECT_FLOAT_EQ(layout.minHeight.value(), 30.0f);
+    ASSERT_TRUE(layout.maxWidth.has_value());
+    EXPECT_FLOAT_EQ(layout.maxWidth.value(), 200.0f);
+    ASSERT_TRUE(layout.maxHeight.has_value());
+    EXPECT_FLOAT_EQ(layout.maxHeight.value(), 100.0f);
+}
+
+TEST(StyleManagerTest, MeasureClampsToMinMax) {
+    auto minNode = std::make_shared<FixedSizeWidget>("min", Size{20, 10});
+    minNode->editStyle().set({.minWidth = 50, .minHeight = 30}, WidgetState::Normal);
+
+    auto maxNode = std::make_shared<FixedSizeWidget>("max", Size{500, 400});
+    maxNode->editStyle().set({.maxWidth = 200, .maxHeight = 100}, WidgetState::Normal);
+
+    Theme theme;
+    StyleManager manager(theme);
+    manager.resolveDirtyStyles(minNode);
+    manager.resolveDirtyStyles(maxNode);
+
+    Size measured = minNode->measure({0, 0});
+    EXPECT_FLOAT_EQ(measured.width, 50.0f);
+    EXPECT_FLOAT_EQ(measured.height, 30.0f);
+
+    measured = maxNode->measure({0, 0});
+    EXPECT_FLOAT_EQ(measured.width, 200.0f);
+    EXPECT_FLOAT_EQ(measured.height, 100.0f);
+}
+
+TEST(StyleManagerTest, ExplicitSizeWinsOverMinMax) {
+    auto node = std::make_shared<FixedSizeWidget>("node", Size{500, 400});
+    node->editStyle().set({.width = 100, .height = 50, .minWidth = 80, .maxWidth = 60},
+                          WidgetState::Normal);
+    Theme theme;
+    StyleManager manager(theme);
+
+    manager.resolveDirtyStyles(node);
+
+    Size measured = node->measure({0, 0});
+    EXPECT_FLOAT_EQ(measured.width, 100.0f);
+    EXPECT_FLOAT_EQ(measured.height, 50.0f);
+}
+
+TEST(StyleManagerTest, RightBottomAreResolved) {
+    auto node = std::make_shared<SceneNode>("node");
+    node->editStyle().set({.left = 1, .top = 2, .right = 3, .bottom = 4}, WidgetState::Normal);
+    Theme theme;
+    StyleManager manager(theme);
+
+    manager.resolveDirtyStyles(node);
+
+    const auto& layout = node->getComputedLayout(WidgetState::Normal);
+    ASSERT_TRUE(layout.left.has_value());
+    EXPECT_FLOAT_EQ(layout.left.value(), 1.0f);
+    ASSERT_TRUE(layout.top.has_value());
+    EXPECT_FLOAT_EQ(layout.top.value(), 2.0f);
+    ASSERT_TRUE(layout.right.has_value());
+    EXPECT_FLOAT_EQ(layout.right.value(), 3.0f);
+    ASSERT_TRUE(layout.bottom.has_value());
+    EXPECT_FLOAT_EQ(layout.bottom.value(), 4.0f);
+}
+
+TEST(StyleManagerTest, AbsoluteContainerRightBottomPositioning) {
+    auto container = std::make_shared<AbsoluteContainer>("cont");
+    auto child = std::make_shared<SceneNode>("child");
+    child->editStyle().set({.right = 10, .bottom = 5, .width = 100, .height = 40},
+                           WidgetState::Normal);
+    container->addChild(child);
+
+    Theme theme;
+    StyleManager manager(theme);
+    manager.resolveDirtyStyles(container);
+
+    container->measure({500, 300});
+    container->arrange({0, 0, 500, 300});
+
+    const auto& childLayout = child->getComputedLayout(WidgetState::Normal);
+    // right=10 anchors the child's right edge to 500-10=490.
+    EXPECT_EQ(childLayout.computedBounds.x, 390);
+    // bottom=5 anchors the child's bottom edge to 300-5=295.
+    EXPECT_EQ(childLayout.computedBounds.y, 255);
+    EXPECT_EQ(childLayout.computedBounds.width, 100);
+    EXPECT_EQ(childLayout.computedBounds.height, 40);
+}
+
+TEST(StyleManagerTest, AbsoluteContainerLeftWinsOverRight) {
+    auto container = std::make_shared<AbsoluteContainer>("cont");
+    auto child = std::make_shared<SceneNode>("child");
+    child->editStyle().set({.left = 20, .right = 10, .width = 100, .height = 40},
+                           WidgetState::Normal);
+    container->addChild(child);
+
+    Theme theme;
+    StyleManager manager(theme);
+    manager.resolveDirtyStyles(container);
+
+    container->measure({500, 300});
+    container->arrange({0, 0, 500, 300});
+
+    const auto& childLayout = child->getComputedLayout(WidgetState::Normal);
+    EXPECT_EQ(childLayout.computedBounds.x, 20);
 }

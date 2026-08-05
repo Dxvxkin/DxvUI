@@ -56,9 +56,7 @@ void Button::onAttach() {
     }
 }
 
-Size Button::measure(const Size& availableSize) {
-    if (!isLayoutDirty) return desiredSize;
-
+Size Button::measureOverride(const Size& availableSize) {
     Size childDesiredSize = {0, 0};
     if (!children.empty()) {
         childDesiredSize = children.front()->measure(availableSize);
@@ -67,10 +65,8 @@ Size Button::measure(const Size& availableSize) {
     const auto& computedLayout = getComputedLayout(getCurrentState());
     const auto& padding = computedLayout.padding;
 
-    desiredSize = {childDesiredSize.width + padding.left + padding.right,
-                   childDesiredSize.height + padding.top + padding.bottom};
-
-    return desiredSize;
+    return {childDesiredSize.width + padding.left + padding.right,
+            childDesiredSize.height + padding.top + padding.bottom};
 }
 
 void Button::arrange(const Rect& finalRect) {

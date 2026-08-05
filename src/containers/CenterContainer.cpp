@@ -6,11 +6,7 @@ namespace DxvUI {
 
 // Helper to get the current state of a node
 
-Size CenterContainer::measure(const Size& availableSize) {
-    if (!isLayoutDirty) {
-        return desiredSize;
-    }
-
+Size CenterContainer::measureOverride(const Size& availableSize) {
     WidgetState currentState = getCurrentState();
     const auto& computedLayout = getComputedLayout(currentState);
     const auto& padding = computedLayout.padding;
@@ -23,17 +19,8 @@ Size CenterContainer::measure(const Size& availableSize) {
         childDesiredSize = children.front()->measure(contentAvailableSize);
     }
 
-    desiredSize = {childDesiredSize.width + padding.left + padding.right,
-                   childDesiredSize.height + padding.top + padding.bottom};
-
-    if (computedLayout.width > 0) {
-        desiredSize.width = computedLayout.width;
-    }
-    if (computedLayout.height > 0) {
-        desiredSize.height = computedLayout.height;
-    }
-
-    return desiredSize;
+    return {childDesiredSize.width + padding.left + padding.right,
+            childDesiredSize.height + padding.top + padding.bottom};
 }
 
 void CenterContainer::arrange(const Rect& finalRect) {
