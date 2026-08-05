@@ -1,6 +1,7 @@
 #ifndef DXVUI_STYLEMANAGER_H
 #define DXVUI_STYLEMANAGER_H
 
+#include <cstdint>
 #include <memory>
 
 #include "DxvUI/style/Theme.h"
@@ -71,6 +72,9 @@ class StyleManager {
     static void applyRule(ComputedLayoutStyle& computed, const StyleRule* rule);
 
     Theme& theme_;
+    // Theme version at the time of the last resolution. When the theme is
+    // mutated, the whole tree must be re-resolved in the next pass.
+    std::uint64_t lastResolvedThemeVersion_ = 0;
 };
 
 }  // namespace DxvUI

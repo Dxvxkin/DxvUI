@@ -34,6 +34,8 @@ void Scene::init() {
     eventManager = std::make_unique<EventManager>(*this);
     root = std::make_shared<AbsoluteContainer>("root");
     root->setScene(shared_from_this());
+    // Theme mutations invalidate cached styles, so schedule a layout/style refresh.
+    theme.setOnChanged([this] { requestLayoutUpdate(); });
 }
 
 void Scene::setRoot(const std::shared_ptr<SceneNode>& node) {

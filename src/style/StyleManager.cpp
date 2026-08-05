@@ -115,6 +115,13 @@ ComputedLayoutStyle StyleManager::resolveLayout(const SceneNode& node, WidgetSta
 void StyleManager::resolveDirtyStyles(const std::shared_ptr<SceneNode>& root) {
     if (!root) return;
 
+    // If the theme changed since the last pass, the whole tree is stale. Mark
+    // the root dirty: the pass below cascades the dirty flag onto every child.
+    if (theme_.getVersion() != lastResolvedThemeVersion_) {
+        lastResolvedThemeVersion_ = theme_.getVersion();
+        root->style.markDirty();
+    }
+
     // Use a queue for a breadth-first (top-down) traversal.
     // This ensures parent styles are resolved before their children need to
     // inherit from them.

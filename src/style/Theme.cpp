@@ -1,5 +1,7 @@
 #include "DxvUI/style/Theme.h"
 
+#include <utility>
+
 #include "DxvUI/Log.h"
 
 namespace DxvUI {
@@ -26,24 +28,66 @@ void Theme::registerDefaultStyle(const std::string& widgetType, StateStyleMap st
     defaults[widgetType] = std::move(styles);
 }
 
-const StyleRule* Theme::getDefaultRule(const std::string& widgetType, WidgetState state) const {
+void Theme::setDefaultStyle(const std::string& widgetType, const StateStyleMap& styles) {
+    // Start from the framework defaults for the widget type, then merge the
+    // instance rules on top so an override can tweak a single property.
+    auto& merged = overrides_[widgetType];
     const auto& defaults = getFrameworkDefaults();
+    if (auto it = defaults.find(widgetType); it != defaults.end()) {
+        merged = it->second;
+    } else {
+        merged.clear();
+    }
 
-    // 1. Find the style map for the given widget type.
+    for (const auto& [state, rule] : styles) {
+        merged[state].merge(rule);
+    }
+
+    version_++;
+    notifyChanged();
+}
+
+void Theme::clearDefaultStyle(const std::string& widgetType) {
+    if (overrides_.erase(widgetType) > 0) {
+        version_++;
+        notifyChanged();
+    }
+}
+
+void Theme::clear() {
+    if (overrides_.empty()) return;
+    overrides_.clear();
+    version_++;
+    notifyChanged();
+}
+
+const StyleRule* Theme::getDefaultRule(const std::string& widgetType, WidgetState state) const {
+    // 1. Prefer the instance override, which already contains the framework
+    //    defaults merged in at setDefaultStyle time.
+    if (auto it = overrides_.find(widgetType); it != overrides_.end()) {
+        auto state_it = it->second.find(state);
+        return state_it != it->second.end() ? &state_it->second : nullptr;
+    }
+
+    // 2. Fall back to the framework defaults.
+    const auto& defaults = getFrameworkDefaults();
     auto type_it = defaults.find(widgetType);
     if (type_it == defaults.end()) {
         return nullptr;  // No styles registered for this widget type.
     }
 
-    // 2. Find the specific rule for the given state within that widget's style map.
-    const auto& state_styles = type_it->second;
-    auto state_it = state_styles.find(state);
-    if (state_it == state_styles.end()) {
+    auto state_it = type_it->second.find(state);
+    if (state_it == type_it->second.end()) {
         return nullptr;  // This widget has styles, but not for this specific state.
     }
 
-    // 3. Return the found rule.
     return &state_it->second;
+}
+
+void Theme::notifyChanged() {
+    if (onChanged_) {
+        onChanged_();
+    }
 }
 
 }  // namespace DxvUI

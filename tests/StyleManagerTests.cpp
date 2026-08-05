@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>
@@ -336,4 +337,68 @@ TEST(StyleManagerTest, AbsoluteContainerLeftWinsOverRight) {
 
     const auto& childLayout = child->getComputedLayout(WidgetState::Normal);
     EXPECT_EQ(childLayout.computedBounds.x, 20);
+}
+
+TEST(ThemeTest, InstanceOverrideMergesOnFrameworkDefault) {
+    Theme::registerDefaultStyle("TestWidget",
+                                {{WidgetState::Normal, {.borderThickness = 3, .borderRadius = 5}}});
+
+    Theme theme;
+    theme.setDefaultStyle("TestWidget", {{WidgetState::Normal, {.borderThickness = 9}}});
+
+    auto node = std::make_shared<TestWidget>("node");
+    StyleManager manager(theme);
+    manager.resolveDirtyStyles(node);
+
+    // The override property wins, the untouched framework property is kept.
+    EXPECT_EQ(node->getComputedAppearance(WidgetState::Normal).borderThickness, 9);
+    EXPECT_EQ(node->getComputedAppearance(WidgetState::Normal).borderRadius, 5);
+}
+
+TEST(ThemeTest, ClearDefaultStyleRestoresFrameworkDefaults) {
+    Theme::registerDefaultStyle("TestWidget", {{WidgetState::Normal, {.borderThickness = 3}}});
+
+    Theme theme;
+    theme.setDefaultStyle("TestWidget", {{WidgetState::Normal, {.borderThickness = 9}}});
+
+    auto node = std::make_shared<TestWidget>("node");
+    StyleManager manager(theme);
+    manager.resolveDirtyStyles(node);
+    EXPECT_EQ(node->getComputedAppearance(WidgetState::Normal).borderThickness, 9);
+
+    theme.clearDefaultStyle("TestWidget");
+    manager.resolveDirtyStyles(node);
+    EXPECT_EQ(node->getComputedAppearance(WidgetState::Normal).borderThickness, 3);
+}
+
+TEST(ThemeTest, ThemeChangeReResolvesCachedStyles) {
+    Theme::registerDefaultStyle("TestWidget", {{WidgetState::Normal, {.borderThickness = 1}}});
+
+    auto node = std::make_shared<TestWidget>("node");
+    Theme theme;
+    StyleManager manager(theme);
+
+    manager.resolveDirtyStyles(node);
+    EXPECT_EQ(node->getComputedAppearance(WidgetState::Normal).borderThickness, 1);
+
+    // Mutating the theme must invalidate the already-cached computed styles.
+    theme.setDefaultStyle("TestWidget", {{WidgetState::Normal, {.borderThickness = 9}}});
+    manager.resolveDirtyStyles(node);
+    EXPECT_EQ(node->getComputedAppearance(WidgetState::Normal).borderThickness, 9);
+}
+
+TEST(ThemeTest, VersionIncrementsOnMutation) {
+    Theme theme;
+    const std::uint64_t initial = theme.getVersion();
+
+    theme.setDefaultStyle("TestWidget", {{WidgetState::Normal, {.borderThickness = 1}}});
+    EXPECT_GT(theme.getVersion(), initial);
+
+    const std::uint64_t afterSet = theme.getVersion();
+    theme.clearDefaultStyle("TestWidget");
+    EXPECT_GT(theme.getVersion(), afterSet);
+
+    const std::uint64_t afterClear = theme.getVersion();
+    theme.clearDefaultStyle("TestWidget");  // no-op: not registered
+    EXPECT_EQ(theme.getVersion(), afterClear);
 }
