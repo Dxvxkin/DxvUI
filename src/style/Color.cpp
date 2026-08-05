@@ -123,19 +123,15 @@ Color Color::fromHex(std::string hex) {
 }
 
 Color Color::lighten(float amount) const {
-    Hsv hsv = toHsv();
-    hsv.v = std::clamp(hsv.v + amount, 0.0f, 1.0f);
-    Color result = fromHsv(hsv);
-    result.a = this->a;  // Preserve original alpha
-    return result;
+    return Color(static_cast<uint8_t>(std::clamp(r * (1.0f + amount), 0.0f, 255.0f)),
+                 static_cast<uint8_t>(std::clamp(g * (1.0f + amount), 0.0f, 255.0f)),
+                 static_cast<uint8_t>(std::clamp(b * (1.0f + amount), 0.0f, 255.0f)), a);
 }
 
 Color Color::darken(float amount) const {
-    Hsv hsv = toHsv();
-    hsv.v = std::clamp(hsv.v - amount, 0.0f, 1.0f);
-    Color result = fromHsv(hsv);
-    result.a = this->a;  // Preserve original alpha
-    return result;
+    return Color(static_cast<uint8_t>(std::clamp(r * (1.0f - amount), 0.0f, 255.0f)),
+                 static_cast<uint8_t>(std::clamp(g * (1.0f - amount), 0.0f, 255.0f)),
+                 static_cast<uint8_t>(std::clamp(b * (1.0f - amount), 0.0f, 255.0f)), a);
 }
 
 Color Color::inverse() const {

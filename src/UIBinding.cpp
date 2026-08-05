@@ -26,7 +26,7 @@ std::unique_ptr<UIBinding::Connection> UIBinding::subscribe(const callback_t& ca
                                                             bool notifyImmediately) {
     callbackID new_id;
     {
-        std::unique_lock<std::shared_mutex> lock(mutex_);
+        std::lock_guard<std::mutex> lock(mutex_);
         new_id = id_counter_++;
         callbacks_[new_id] = callback;
     }
@@ -42,7 +42,7 @@ void UIBinding::set(value_t newValue) {
     std::vector<callback_t> callbacks_to_call;
 
     {
-        std::unique_lock<std::shared_mutex> lock(mutex_);
+        std::lock_guard<std::mutex> lock(mutex_);
         if (value_ == newValue) {
             return;
         }
@@ -64,7 +64,7 @@ void UIBinding::set(value_t newValue) {
 UIBinding::UIBinding(value_t initialValue) { value_ = std::move(initialValue); }
 
 void UIBinding::unsubscribe(callbackID id) {
-    std::unique_lock<std::shared_mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     if (callbacks_.erase(id) == 0) {
         assert(false && "Callback ID not found in binding on disconnect.");
     }

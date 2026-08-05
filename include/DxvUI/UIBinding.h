@@ -11,9 +11,9 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <ranges>
-#include <shared_mutex>
 #include <string>
 #include <variant>
 
@@ -43,7 +43,7 @@ class UIBinding : public std::enable_shared_from_this<UIBinding> {
 
     // --- Inline, Type-safe Getters for Performance ---
     [[nodiscard]] std::optional<int> getInt() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(mutex_);
+        std::lock_guard<std::mutex> lock(mutex_);
         return std::visit(
             overloaded{[](int arg) -> std::optional<int> { return arg; },
                        [](float arg) -> std::optional<int> { return static_cast<int>(arg); },
@@ -59,7 +59,7 @@ class UIBinding : public std::enable_shared_from_this<UIBinding> {
     }
 
     [[nodiscard]] std::optional<float> getFloat() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(mutex_);
+        std::lock_guard<std::mutex> lock(mutex_);
         return std::visit(
             overloaded{[](int arg) -> std::optional<float> { return static_cast<float>(arg); },
                        [](float arg) -> std::optional<float> { return arg; },
@@ -75,7 +75,7 @@ class UIBinding : public std::enable_shared_from_this<UIBinding> {
     }
 
     [[nodiscard]] std::optional<std::string> getString() const {
-        std::shared_lock<std::shared_mutex> lock(mutex_);
+        std::lock_guard<std::mutex> lock(mutex_);
         return std::visit(
             overloaded{[](int arg) { return std::to_string(arg); },
                        [](float arg) { return std::to_string(arg); },
@@ -85,7 +85,7 @@ class UIBinding : public std::enable_shared_from_this<UIBinding> {
     }
 
     [[nodiscard]] std::optional<bool> getBool() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(mutex_);
+        std::lock_guard<std::mutex> lock(mutex_);
         return std::visit(overloaded{[](int arg) -> std::optional<bool> { return arg != 0; },
                                      [](float arg) -> std::optional<bool> { return arg != 0.0f; },
                                      [](const std::string& arg) -> std::optional<bool> {
@@ -127,7 +127,7 @@ class UIBinding : public std::enable_shared_from_this<UIBinding> {
 
    private:
     value_t value_;
-    mutable std::shared_mutex mutex_;
+    mutable std::mutex mutex_;
     callbackID id_counter_ = 0;
     std::map<callbackID, callback_t> callbacks_;
 };
