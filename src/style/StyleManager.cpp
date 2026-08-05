@@ -133,7 +133,7 @@ void StyleManager::resolveDirtyStyles(const std::shared_ptr<SceneNode>& root) {
         nodesToProcess.pop();
 
         if (node->style.isDirty()) {
-            for (int i = 0; i < 4; ++i) {
+            for (size_t i = 0; i < kWidgetStateCount; ++i) {
                 WidgetState s = static_cast<WidgetState>(i);
                 node->style.setComputedAppearance(s, resolveAppearance(*node, s));
                 node->style.setComputedLayout(s, resolveLayout(*node, s));

@@ -1,7 +1,8 @@
 #ifndef DXVUI_STYLE_H
 #define DXVUI_STYLE_H
 
-#include <map>
+#include <array>
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <tuple>
@@ -13,6 +14,20 @@
 namespace DxvUI {
 
 enum class WidgetState { Normal, Hovered, Pressed, Disabled };
+
+// The number of states in WidgetState; keeps the per-node storage a fixed-size
+// array instead of a map.
+inline constexpr size_t kWidgetStateCount = 4;
+
+/**
+ * @brief Converts a WidgetState to a contiguous array index.
+ * @param state The widget state.
+ * @return An index in the range [0, kWidgetStateCount).
+ * @exceptionGuarantee No-throw guarantee.
+ */
+[[nodiscard]] constexpr size_t state_index(WidgetState state) noexcept {
+    return static_cast<size_t>(state);
+}
 
 /**
  * @brief Converts a WidgetState enum to its string representation.
@@ -261,7 +276,7 @@ class Style {
      * @exceptionGuarantee Strong exception guarantee.
      */
     void set(const StyleRule& rule, WidgetState state = WidgetState::Normal) {
-        stateStyles[state] = rule;
+        stateStyles[state_index(state)] = rule;
     }
 
     /**
@@ -271,7 +286,7 @@ class Style {
      * @exceptionGuarantee Strong exception guarantee.
      */
     void set(StyleRule&& rule, WidgetState state = WidgetState::Normal) {
-        stateStyles[state] = std::move(rule);
+        stateStyles[state_index(state)] = std::move(rule);
     }
 
     /**
@@ -282,11 +297,11 @@ class Style {
      * @exceptionGuarantee Strong exception guarantee.
      */
     void update(const StyleRule& updates, WidgetState state = WidgetState::Normal) {
-        auto it = stateStyles.find(state);
-        if (it != stateStyles.end()) {
-            it->second.merge(updates);
+        auto& slot = stateStyles[state_index(state)];
+        if (slot.has_value()) {
+            slot->merge(updates);
         } else {
-            stateStyles.emplace(state, updates);
+            slot = updates;
         }
     }
 
@@ -297,10 +312,8 @@ class Style {
      * @exceptionGuarantee No-throw guarantee.
      */
     [[nodiscard]] const StyleRule* get(WidgetState state = WidgetState::Normal) const noexcept {
-        if (auto it = stateStyles.find(state); it != stateStyles.end()) {
-            return &it->second;
-        }
-        return nullptr;
+        const auto& slot = stateStyles[state_index(state)];
+        return slot.has_value() ? &*slot : nullptr;
     }
 
     // --- Computed Style Cache ---
@@ -315,14 +328,18 @@ class Style {
      * @brief Marks the style as requiring re-resolution.
      *
      * Because descendants inherit text properties, StyleManager re-resolves the
-     * whole subtree below a dirty node in the next resolve pass.
+     * whole subtree below a dirty node in the next resolve pass. The previously
+     * computed values stay readable until the re-resolution happens.
      */
     void markDirty() noexcept { dirty = true; }
 
     /**
      * @brief Marks the computed cache as up-to-date.
      */
-    void markClean() noexcept { dirty = false; }
+    void markClean() noexcept {
+        dirty = false;
+        resolved = true;
+    }
 
     /**
      * @brief Stores the resolved appearance for a given state.
@@ -330,7 +347,7 @@ class Style {
      * @param computed The resolved appearance style.
      */
     void setComputedAppearance(WidgetState state, const ComputedAppearanceStyle& computed) {
-        appearanceCache[state] = computed;
+        appearanceCache[state_index(state)] = computed;
     }
 
     /**
@@ -339,7 +356,7 @@ class Style {
      * @param computed The resolved layout style.
      */
     void setComputedLayout(WidgetState state, const ComputedLayoutStyle& computed) {
-        layoutCache[state] = computed;
+        layoutCache[state_index(state)] = computed;
     }
 
     /**
@@ -351,7 +368,7 @@ class Style {
      * @param bounds The final rectangle of the node.
      */
     void setComputedBounds(WidgetState state, const Rect& bounds) {
-        layoutCache[state].computedBounds = bounds;
+        layoutCache[state_index(state)].computedBounds = bounds;
     }
 
     /**
@@ -362,10 +379,8 @@ class Style {
      */
     [[nodiscard]] const ComputedAppearanceStyle* getComputedAppearance(
         WidgetState state) const noexcept {
-        if (auto it = appearanceCache.find(state); it != appearanceCache.end()) {
-            return &it->second;
-        }
-        return nullptr;
+        if (!resolved) return nullptr;
+        return &appearanceCache[state_index(state)];
     }
 
     /**
@@ -375,17 +390,20 @@ class Style {
      * has not been populated for this state.
      */
     [[nodiscard]] const ComputedLayoutStyle* getComputedLayout(WidgetState state) const noexcept {
-        if (auto it = layoutCache.find(state); it != layoutCache.end()) {
-            return &it->second;
-        }
-        return nullptr;
+        if (!resolved) return nullptr;
+        return &layoutCache[state_index(state)];
     }
 
    private:
-    std::map<WidgetState, StyleRule> stateStyles;
-    std::map<WidgetState, ComputedAppearanceStyle> appearanceCache;
-    std::map<WidgetState, ComputedLayoutStyle> layoutCache;
+    // The node's own rules per state; an empty optional means the state has no
+    // local rule.
+    std::array<std::optional<StyleRule>, kWidgetStateCount> stateStyles;
+    // Computed caches, populated by StyleManager for every state on resolution.
+    std::array<ComputedAppearanceStyle, kWidgetStateCount> appearanceCache;
+    std::array<ComputedLayoutStyle, kWidgetStateCount> layoutCache;
     bool dirty = true;
+    // True once the computed caches have been populated at least once.
+    bool resolved = false;
 };
 
 }  // namespace DxvUI
