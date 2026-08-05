@@ -1,7 +1,5 @@
 #include "DxvUI/Scene.h"
 
-#include <queue>
-
 #include "DxvUI/Log.h"
 #include "DxvUI/SceneNode.h"
 #include "DxvUI/containers/AbsoluteContainer.h"
@@ -128,33 +126,10 @@ void Scene::forceLayoutUpdate() {
     updateLayoutIfNeeded();
 }
 
-// TODO: Эта логика должна быть перенесена в Theme или Style
-void Scene::resolveDirtyStyles() {
-    if (!root) return;
-    // Use a queue for a breadth-first (top-down) traversal.
-    // This ensures parent styles are resolved before their children need to
-    // inherit from them.
-    std::queue<std::shared_ptr<SceneNode>> nodesToProcess;
-    nodesToProcess.push(root);
-
-    while (!nodesToProcess.empty()) {
-        auto node = nodesToProcess.front();
-        nodesToProcess.pop();
-
-        if (node->isStyleDirty_get()) {
-            node->recomputeStyles();
-        }
-
-        for (const auto& child : node->children) {
-            nodesToProcess.push(child);
-        }
-    }
-}
-
 void Scene::updateLayoutIfNeeded() {
     if (layoutIsDirty && root && renderer) {
         // First, resolve all dirty styles in the tree
-        resolveDirtyStyles();
+        styleManager.resolveDirtyStyles(root);
 
         // Now, perform layout calculations
         Size viewportSize = renderer->getViewportSize();

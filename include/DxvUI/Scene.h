@@ -3,7 +3,8 @@
 
 #include <memory>
 
-#include "DxvUI/style/Theme.h"  // Include the new Theme header
+#include "DxvUI/style/StyleManager.h"  // Include the new StyleManager header
+#include "DxvUI/style/Theme.h"         // Include the new Theme header
 #include "EventManager.h"
 
 namespace DxvUI {
@@ -41,12 +42,12 @@ class Scene : public std::enable_shared_from_this<Scene> {
    private:
     Scene();
     void init();
-    void resolveDirtyStyles();
     void updateLayoutIfNeeded();
 
     std::shared_ptr<SceneNode> root;
     std::unique_ptr<EventManager> eventManager;
     Theme theme;  // Add Theme object
+    StyleManager styleManager{theme};
     IRenderer* renderer = nullptr;
     bool layoutIsDirty = true;
     std::unordered_map<std::string, std::weak_ptr<SceneNode>> nodeById;

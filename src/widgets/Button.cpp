@@ -74,9 +74,9 @@ Size Button::measure(const Size& availableSize) {
 }
 
 void Button::arrange(const Rect& finalRect) {
-    auto& computedLayout = layoutCache[getCurrentState()];
-    computedLayout.computedBounds = finalRect;
+    style.setComputedBounds(getCurrentState(), finalRect);
 
+    const auto& computedLayout = getComputedLayout(getCurrentState());
     if (!children.empty()) {
         const auto& [top, right, bottom, left] = computedLayout.padding;
         const Rect contentRect = {.x = finalRect.x + static_cast<int>(left),
@@ -94,9 +94,10 @@ void Button::draw(IRenderer& renderer) {
     const auto& computedLayout = getComputedLayout(getCurrentState());
 
     // 1. Draw the button's background
-    renderer.fillRoundRect(computedLayout.computedBounds, computedAppearance.borderRadius,
-                           computedAppearance.backgroundColor,
-                           {.color = computedAppearance.borderColor, .thickness = computedAppearance.borderThickness});
+    renderer.fillRoundRect(
+        computedLayout.computedBounds, computedAppearance.borderRadius,
+        computedAppearance.backgroundColor,
+        {.color = computedAppearance.borderColor, .thickness = computedAppearance.borderThickness});
 
     // 2. Let the base class handle drawing children (the container will draw the label)
     SceneNode::draw(renderer);

@@ -38,8 +38,9 @@ Size CenterContainer::measure(const Size& availableSize) {
 
 void CenterContainer::arrange(const Rect& finalRect) {
     WidgetState currentState = getCurrentState();
-    auto& computedLayout = layoutCache[currentState];
-    computedLayout.computedBounds = finalRect;
+    style.setComputedBounds(currentState, finalRect);
+
+    const auto& computedLayout = getComputedLayout(currentState);
 
     const auto& padding = computedLayout.padding;
     Rect contentRect = {finalRect.x + static_cast<int>(padding.left),

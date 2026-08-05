@@ -7,7 +7,6 @@
 #include "DxvUI/Log.h"
 #include "DxvUI/Scene.h"
 #include "DxvUI/Utils.h"
-#include "DxvUI/style/StyleResolver.h"
 
 namespace DxvUI {
 
@@ -136,8 +135,8 @@ Style& SceneNode::editStyle() {
 const Style& SceneNode::getStyle() const { return style; }
 
 void SceneNode::markStyleDirty() {
-    if (isStyleDirty) return;
-    isStyleDirty = true;
+    if (style.isDirty()) return;
+    style.markDirty();
     markLayoutDirty();
     for (auto& child : children) {
         child->markStyleDirty();
@@ -158,8 +157,8 @@ Rect SceneNode::getGlobalBounds() const {
     if (isLayoutDirty) {
         if (auto s = scene.lock()) s->forceLayoutUpdate();
     }
-    auto it = layoutCache.find(getCurrentState());
-    return it != layoutCache.end() ? it->second.computedBounds : Rect{};
+    const auto* computedLayout = style.getComputedLayout(getCurrentState());
+    return computedLayout ? computedLayout->computedBounds : Rect{};
 }
 
 Size SceneNode::getDesiredSize() const { return desiredSize; }
@@ -246,42 +245,28 @@ void SceneNode::onUpdate(float deltaTime) {
     }
 }
 
-void SceneNode::recomputeStyles() {
-    appearanceCache.clear();
-    layoutCache.clear();
-
-    for (int i = 0; i < 4; ++i) {
-        WidgetState s = static_cast<WidgetState>(i);
-        appearanceCache[s] = StyleResolver::resolveAppearance(*this, s);
-        layoutCache[s] = StyleResolver::resolveLayout(*this, s);
-    }
-    isStyleDirty = false;
-}
-
 const ComputedAppearanceStyle& SceneNode::getComputedAppearance(WidgetState state) const {
-    const auto it = appearanceCache.find(state);
-    if (it == appearanceCache.end()) {
-        Log::error(
-            "FATAL: getComputedAppearance failed for node '{}' (state {}). Cache not populated "
-            "before use. This indicates a severe logic error in the layout/style update cycle.",
-            id, (int)state);
-        static const ComputedAppearanceStyle empty{};
-        return empty;
+    if (const auto* computed = style.getComputedAppearance(state)) {
+        return *computed;
     }
-    return it->second;
+    Log::error(
+        "FATAL: getComputedAppearance failed for node '{}' (state {}). Cache not populated "
+        "before use. This indicates a severe logic error in the layout/style update cycle.",
+        id, (int)state);
+    static const ComputedAppearanceStyle empty{};
+    return empty;
 }
 
 const ComputedLayoutStyle& SceneNode::getComputedLayout(WidgetState state) const {
-    const auto it = layoutCache.find(state);
-    if (it == layoutCache.end()) {
-        Log::error(
-            "FATAL: getComputedLayout failed for node '{}' (state {}). Cache not populated before "
-            "use. This indicates a severe logic error in the layout/style update cycle.",
-            id, (int)state);
-        static constexpr ComputedLayoutStyle empty{};
-        return empty;
+    if (const auto* computed = style.getComputedLayout(state)) {
+        return *computed;
     }
-    return it->second;
+    Log::error(
+        "FATAL: getComputedLayout failed for node '{}' (state {}). Cache not populated before "
+        "use. This indicates a severe logic error in the layout/style update cycle.",
+        id, (int)state);
+    static constexpr ComputedLayoutStyle empty{};
+    return empty;
 }
 
 void SceneNode::sortChildrenIfDirty() {
@@ -309,12 +294,10 @@ Size SceneNode::measure(const Size& availableSize) {
 }
 
 void SceneNode::arrange(const Rect& finalRect) {
-    auto& computedLayout = layoutCache[getCurrentState()];
-    computedLayout.computedBounds = finalRect;
-
     if (!visible) {
-        computedLayout.computedBounds.width = 0;
-        computedLayout.computedBounds.height = 0;
+        style.setComputedBounds(getCurrentState(), {finalRect.x, finalRect.y, 0, 0});
+    } else {
+        style.setComputedBounds(getCurrentState(), finalRect);
     }
 
     isLayoutDirty = false;

@@ -124,7 +124,45 @@ struct StyleRule {
     }
 };
 
-// The Style class manages a collection of StyleRules for different states.
+// Fully-resolved appearance properties after applying the style cascade.
+struct ComputedAppearanceStyle {
+    Color backgroundColor;
+    Color textColor;
+    Color borderColor;
+    int borderThickness;
+    int borderRadius;
+    CursorType cursor;
+    int fontSize;
+    std::string fontPath;
+
+    bool operator==(const ComputedAppearanceStyle& other) const {
+        return backgroundColor == other.backgroundColor && textColor == other.textColor &&
+               borderColor == other.borderColor && borderThickness == other.borderThickness &&
+               borderRadius == other.borderRadius && cursor == other.cursor &&
+               fontSize == other.fontSize && fontPath == other.fontPath;
+    }
+};
+
+// Fully-resolved layout properties after applying the style cascade.
+struct ComputedLayoutStyle {
+    float left, top, width, height;
+    Thickness padding;
+    Thickness margin;
+    Alignment horizontalAlignment;
+    Alignment verticalAlignment;
+    Rect computedBounds;
+};
+
+/**
+ * @class Style
+ * @brief Owns the local style rules of a node plus its computed style cache.
+ *
+ * The node's author-provided rules are stored per WidgetState. The StyleManager
+ * resolves them (together with theme defaults and inherited text properties)
+ * into the computed cache, which is later consumed during layout and drawing.
+ * The cache for a state is populated lazily: consumers must call
+ * StyleManager::resolveDirtyStyles() before reading computed styles.
+ */
 class Style {
    public:
     /**
@@ -176,35 +214,86 @@ class Style {
         return nullptr;
     }
 
+    // --- Computed Style Cache ---
+
+    /**
+     * @brief Checks whether the computed cache must be re-resolved.
+     * @return True if the style was modified since the last resolution.
+     */
+    [[nodiscard]] bool isDirty() const noexcept { return dirty; }
+
+    /**
+     * @brief Marks the style as requiring re-resolution.
+     */
+    void markDirty() noexcept { dirty = true; }
+
+    /**
+     * @brief Marks the computed cache as up-to-date.
+     */
+    void markClean() noexcept { dirty = false; }
+
+    /**
+     * @brief Stores the resolved appearance for a given state.
+     * @param state The widget state.
+     * @param computed The resolved appearance style.
+     */
+    void setComputedAppearance(WidgetState state, const ComputedAppearanceStyle& computed) {
+        appearanceCache[state] = computed;
+    }
+
+    /**
+     * @brief Stores the resolved layout properties for a given state.
+     * @param state The widget state.
+     * @param computed The resolved layout style.
+     */
+    void setComputedLayout(WidgetState state, const ComputedLayoutStyle& computed) {
+        layoutCache[state] = computed;
+    }
+
+    /**
+     * @brief Writes the final bounds produced by the arrange (layout) pass.
+     *
+     * Bounds are layout output, not a style change, so this does not mark the
+     * style dirty.
+     * @param state The widget state the bounds were computed for.
+     * @param bounds The final rectangle of the node.
+     */
+    void setComputedBounds(WidgetState state, const Rect& bounds) {
+        layoutCache[state].computedBounds = bounds;
+    }
+
+    /**
+     * @brief Gets the resolved appearance for a given state.
+     * @param state The widget state.
+     * @return A const pointer to the computed appearance, or nullptr if the
+     * cache has not been populated for this state.
+     */
+    [[nodiscard]] const ComputedAppearanceStyle* getComputedAppearance(
+        WidgetState state) const noexcept {
+        if (auto it = appearanceCache.find(state); it != appearanceCache.end()) {
+            return &it->second;
+        }
+        return nullptr;
+    }
+
+    /**
+     * @brief Gets the resolved layout properties for a given state.
+     * @param state The widget state.
+     * @return A const pointer to the computed layout, or nullptr if the cache
+     * has not been populated for this state.
+     */
+    [[nodiscard]] const ComputedLayoutStyle* getComputedLayout(WidgetState state) const noexcept {
+        if (auto it = layoutCache.find(state); it != layoutCache.end()) {
+            return &it->second;
+        }
+        return nullptr;
+    }
+
    private:
     std::map<WidgetState, StyleRule> stateStyles;
-};
-
-struct ComputedAppearanceStyle {
-    Color backgroundColor;
-    Color textColor;
-    Color borderColor;
-    int borderThickness;
-    int borderRadius;
-    CursorType cursor;
-    int fontSize;
-    std::string fontPath;
-
-    bool operator==(const ComputedAppearanceStyle& other) const {
-        return backgroundColor == other.backgroundColor && textColor == other.textColor &&
-               borderColor == other.borderColor && borderThickness == other.borderThickness &&
-               borderRadius == other.borderRadius && cursor == other.cursor &&
-               fontSize == other.fontSize && fontPath == other.fontPath;
-    }
-};
-
-struct ComputedLayoutStyle {
-    float left, top, width, height;
-    Thickness padding;
-    Thickness margin;
-    Alignment horizontalAlignment;
-    Alignment verticalAlignment;
-    Rect computedBounds;
+    std::map<WidgetState, ComputedAppearanceStyle> appearanceCache;
+    std::map<WidgetState, ComputedLayoutStyle> layoutCache;
+    bool dirty = true;
 };
 
 }  // namespace DxvUI

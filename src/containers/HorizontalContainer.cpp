@@ -52,8 +52,9 @@ Size HorizontalContainer::measure(const Size& availableSize) {
 }
 
 void HorizontalContainer::arrange(const Rect& finalRect) {
-    auto& computedLayout = layoutCache[getCurrentState()];
-    computedLayout.computedBounds = finalRect;
+    style.setComputedBounds(getCurrentState(), finalRect);
+
+    const auto& computedLayout = getComputedLayout(getCurrentState());
 
     const auto& padding = computedLayout.padding;
     const Rect contentRect = {finalRect.x + static_cast<int>(padding.left),

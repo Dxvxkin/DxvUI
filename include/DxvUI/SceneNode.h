@@ -16,6 +16,7 @@ namespace DxvUI {
 
 class Scene;
 class EventManager;
+class StyleManager;
 
 /**
  * @class SceneNode
@@ -340,20 +341,6 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     // @name Framework Internals & Public Members
     //----------------------------------------------------------------
     ///@{
-
-    /**
-     * @brief Forces a recomputation of styles for this node and its children.
-     * @note For internal framework use.
-     */
-    void recomputeStyles();
-
-    /**
-     * @brief Checks if the style cache is dirty.
-     * @note For internal framework use by StyleResolver.
-     * @return True if styles need recomputation.
-     */
-    bool isStyleDirty_get() const { return isStyleDirty; }
-
     /**
      * @brief Gets the total number of SceneNode instances currently allocated.
      * @return The total node count.
@@ -382,17 +369,14 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     virtual void onChange(const UIBinding& binding);
     void onBindingChange(const UIBinding& binding);
 
-    friend class StyleResolver;
+    friend class StyleManager;
 
     std::string id;
     Style style;
 
-    mutable std::map<WidgetState, ComputedAppearanceStyle> appearanceCache;
-    mutable std::map<WidgetState, ComputedLayoutStyle> layoutCache;
     Size desiredSize;
 
     mutable bool isLayoutDirty = true;
-    mutable bool isStyleDirty = true;
 
     std::shared_ptr<UIBinding> binding_;
     std::unique_ptr<UIBinding::Connection> connection_;

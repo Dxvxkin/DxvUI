@@ -1,15 +1,16 @@
-#include <gtest/gtest.h>
 #include <DxvUI/UIBinding.h>
+#include <gtest/gtest.h>
+
+#include <atomic>
+#include <chrono>
 #include <thread>
 #include <vector>
-#include <chrono>
 
 using namespace DxvUI;
 
-
 // --- Test Fixture for UIBinding ---
 class UIBindingTest : public ::testing::Test {
-protected:
+   protected:
     void SetUp() override {
         // Setup can be used for common test resources
     }
@@ -80,10 +81,12 @@ TEST_F(UIBindingTest, SubscriberIsNotified) {
     int received_value = 0;
     int call_count = 0;
 
-    auto connection = binding->subscribe([&](const UIBinding::value_t& val) {
-        received_value = std::get<int>(val);
-        call_count++;
-    });
+    auto connection = binding->subscribe(
+        [&](const UIBinding& bind) {
+            received_value = bind.getInt().value();
+            call_count++;
+        },
+        false);
 
     binding->set(20);
     EXPECT_EQ(call_count, 1);
@@ -98,11 +101,9 @@ TEST_F(UIBindingTest, NoNotificationIfValueIsUnchanged) {
     auto binding = UIBinding::create(10);
     int call_count = 0;
 
-    auto connection = binding->subscribe([&](const UIBinding::value_t& val) {
-        call_count++;
-    });
+    auto connection = binding->subscribe([&](const UIBinding&) { call_count++; }, false);
 
-    binding->set(10); // Set the same value
+    binding->set(10);  // Set the same value
     EXPECT_EQ(call_count, 0);
 }
 
@@ -111,15 +112,13 @@ TEST_F(UIBindingTest, UnsubscribeViaConnectionDestruction) {
     int call_count = 0;
 
     {
-        auto connection = binding->subscribe([&](const UIBinding::value_t& val) {
-            call_count++;
-        });
+        auto connection = binding->subscribe([&](const UIBinding&) { call_count++; }, false);
         binding->set(20);
         EXPECT_EQ(call_count, 1);
-    } // `connection` is destroyed here, unsubscribing
+    }  // `connection` is destroyed here, unsubscribing
 
     binding->set(30);
-    EXPECT_EQ(call_count, 1); // Should not have increased
+    EXPECT_EQ(call_count, 1);  // Should not have increased
 }
 
 // --- Thread Safety Stress Test ---

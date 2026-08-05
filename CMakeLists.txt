@@ -4,6 +4,8 @@ project(DxvUI)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # --- Find Dependencies via vcpkg ---
 #find_package(nlohmann_json CONFIG REQUIRED)
 find_package(SDL2 REQUIRED)
@@ -32,7 +34,7 @@ target_sources(DxvUI PRIVATE
         src/renderers/SDLRenderer.cpp
         src/sources/SDLEventSource.cpp
         src/style/Color.cpp
-        src/style/StyleResolver.cpp
+        src/style/StyleManager.cpp
         src/style/Theme.cpp
 
 )
@@ -50,7 +52,6 @@ target_link_libraries(DxvUI PUBLIC
         spdlog::spdlog
 )
 
-
 # --- Example ---
 add_executable(DxvUIExample examples/main.cpp)
 target_link_libraries(DxvUIExample PRIVATE
@@ -62,8 +63,9 @@ target_link_libraries(DxvUIExample PRIVATE
 # --- Tests ---
 enable_testing()
 add_executable(DxvUITests
-        tests/UIBindingTests.cpp
         tests/ColorTests.cpp
+        tests/UIBindingTests.cpp
+        tests/StyleManagerTests.cpp
 
 )
 target_link_libraries(DxvUITests PRIVATE

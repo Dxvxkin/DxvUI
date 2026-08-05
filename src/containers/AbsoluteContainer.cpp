@@ -40,8 +40,9 @@ Size AbsoluteContainer::measure(const Size& availableSize) {
 }
 
 void AbsoluteContainer::arrange(const Rect& finalRect) {
-    auto& computedLayout = layoutCache[getCurrentState()];
-    computedLayout.computedBounds = finalRect;
+    style.setComputedBounds(getCurrentState(), finalRect);
+
+    const auto& computedLayout = getComputedLayout(getCurrentState());
 
     const auto& padding = computedLayout.padding;
     Rect contentRect = {finalRect.x + static_cast<int>(padding.left),
