@@ -31,11 +31,6 @@ class LayoutManager;
  */
 class SceneNode : public std::enable_shared_from_this<SceneNode> {
    public:
-    // --- Type Aliases for Smart Pointers ---
-    using SharedPtr = std::shared_ptr<SceneNode>;
-    using ConstSharedPtr = std::shared_ptr<const SceneNode>;
-    using WeakPtr = std::weak_ptr<SceneNode>;
-    using UniquePtr = std::unique_ptr<SceneNode>;
     /**
      * @brief Constructs a SceneNode with a unique identifier.
      * @param id A string identifier for the node. Must be unique within the scene.
@@ -56,7 +51,7 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
      * @brief Adds a child node to this node.
      * @param child A shared pointer to the child node to add.
      */
-    void addChild(const SharedPtr& child);
+    void addChild(const std::shared_ptr<SceneNode>& child);
 
     /**
      * @brief Removes a specific child node from this node.

@@ -17,8 +17,6 @@ class Button : public SceneNode {
     void setText(const std::string& text);
     const std::string getText() const;
 
-    std::shared_ptr<Label> getLabel() const;
-
     // --- Overrides ---
     const char* getNodeType() const override;
     void onAttach() override;

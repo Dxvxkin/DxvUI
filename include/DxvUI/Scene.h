@@ -24,7 +24,6 @@ class Scene : public std::enable_shared_from_this<Scene> {
     void setRenderer(IRenderer* renderer);
     IRenderer* getRenderer();
 
-    EventManager& getEventManager();
     Theme& getTheme();  // Getter for the theme
 
     bool unregisterNode(std::weak_ptr<SceneNode>);
@@ -33,7 +32,7 @@ class Scene : public std::enable_shared_from_this<Scene> {
 
     void processEvent(const DxvEvent& event);
     void update(float deltaTime);
-    void forceLayoutUpdate();
+    void updateLayout();
     void draw();
 
     void shutdown();
@@ -41,7 +40,6 @@ class Scene : public std::enable_shared_from_this<Scene> {
    private:
     Scene();
     void init();
-    void updateLayoutIfNeeded();
 
     std::shared_ptr<SceneNode> root;
     std::unique_ptr<EventManager> eventManager;

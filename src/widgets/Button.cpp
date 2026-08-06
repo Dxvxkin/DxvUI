@@ -107,6 +107,4 @@ void Button::setText(const std::string& text) {
 
 const std::string Button::getText() const { return getBinding()->getString().value_or(""); }
 
-std::shared_ptr<Label> Button::getLabel() const { return label; }
-
 }  // namespace DxvUI

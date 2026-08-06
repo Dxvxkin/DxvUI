@@ -22,7 +22,7 @@ SceneNode::~SceneNode() {
 
 int SceneNode::getNodeCount() { return nodeCount; }
 
-void SceneNode::addChild(const SharedPtr& child) {
+void SceneNode::addChild(const std::shared_ptr<SceneNode>& child) {
     if (!child) return;
     child->detach();
     children.push_back(child);
@@ -201,12 +201,7 @@ void SceneNode::markLayoutDirtyRecursive() {
     }
 }
 
-Rect SceneNode::getGlobalBounds() const {
-    if (layoutData.isDirty) {
-        if (auto s = scene.lock()) s->forceLayoutUpdate();
-    }
-    return layoutData.bounds;
-}
+Rect SceneNode::getGlobalBounds() const { return layoutData.bounds; }
 
 Size SceneNode::getDesiredSize() const { return layoutData.desiredSize; }
 

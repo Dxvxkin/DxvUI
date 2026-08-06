@@ -37,8 +37,6 @@ enum class EventType {
 
 enum class MouseButton { None, Left, Middle, Right };
 
-enum class PositionType { Relative, Absolute };
-
 enum class Alignment { Start, Center, End, Stretch };
 
 // System cursor types
@@ -136,7 +134,6 @@ struct Point {
 };
 
 using PointI = Point<int>;
-using PointF = Point<float>;
 
 inline const char* getDefaultFontPath() {
 #if defined(_WIN32) || defined(_WIN64)

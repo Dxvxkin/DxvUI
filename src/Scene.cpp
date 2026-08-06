@@ -53,7 +53,6 @@ IRenderer* Scene::getRenderer() { return renderer; }
 
 std::shared_ptr<SceneNode> Scene::getRoot() const { return root; }
 
-EventManager& Scene::getEventManager() { return *eventManager; }
 Theme& Scene::getTheme() { return theme; }
 
 bool Scene::unregisterNode(std::weak_ptr<SceneNode> node) {
@@ -115,14 +114,12 @@ void Scene::update(float deltaTime) {
         // 1. Perform logical updates (e.g., animations, state changes)
         root->onUpdate(deltaTime);
 
-        // 2. Automatically update layout if needed
-        updateLayoutIfNeeded();
+        // 2. Resolve dirty styles and re-lay-out the tree if needed.
+        updateLayout();
     }
 }
 
-void Scene::forceLayoutUpdate() { updateLayoutIfNeeded(); }
-
-void Scene::updateLayoutIfNeeded() {
+void Scene::updateLayout() {
     if (!root || !renderer) return;
 
     // Resolve dirty styles first; this is O(1) when the tree is clean, and the

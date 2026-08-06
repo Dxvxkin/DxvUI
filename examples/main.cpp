@@ -181,7 +181,7 @@ extern "C" int SDL_main(int /*argc*/, char* /*argv*/[]) {
     scene->setRenderer(&dxv_renderer);
 
     buildUI(scene);
-    scene->forceLayoutUpdate();
+    scene->updateLayout();
 
     DxvUI::Log::info("Initial node count: {}", DxvUI::SceneNode::getNodeCount());
 
