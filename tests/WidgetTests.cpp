@@ -72,6 +72,25 @@ TEST(ButtonTest, InvisibleButtonHasNoBounds) {
     EXPECT_EQ(bounds.height, 0);
 }
 
+// A Button subclass that counts onMeasure invocations, so tests can observe
+// whether a binding-driven text change forced a re-measure.
+class CountingButton : public Button {
+   public:
+    explicit CountingButton(std::string id, std::string text)
+        : Button(std::move(id), std::move(text)) {}
+
+    static std::shared_ptr<CountingButton> create(std::string id, std::string text) {
+        return std::shared_ptr<CountingButton>(new CountingButton(std::move(id), std::move(text)));
+    }
+    int measureCalls = 0;
+
+   protected:
+    Size onMeasure(const Size& availableSize) override {
+        ++measureCalls;
+        return Button::onMeasure(availableSize);
+    }
+};
+
 // A Label subclass that counts onMeasure invocations, so tests can observe
 // whether a binding-driven text change forced a re-measure.
 class CountingLabel : public Label {
@@ -85,6 +104,27 @@ class CountingLabel : public Label {
         return Label::onMeasure(availableSize);
     }
 };
+
+TEST(ButtonTest, SetTextRelayoutsViaBoundLabel) {
+    auto scene = Scene::create();
+    auto root = scene->getRoot();
+    auto button = CountingButton::create("btn", "short");
+    root->addChild(button);
+
+    Theme theme;
+    StyleManager manager{theme};
+    manager.resolveDirtyStyles(root);
+    root->measure({800, 600});
+    root->arrange({0, 0, 800, 600});
+
+    const int callsAfterInitialMeasure = button->measureCalls;
+    ASSERT_GT(callsAfterInitialMeasure, 0);
+
+    button->setText("a much longer text that needs a wider button");
+    root->measure({800, 600});
+
+    EXPECT_GT(button->measureCalls, callsAfterInitialMeasure);
+}
 
 TEST(LabelTest, BindingUpdateMarksLayoutDirty) {
     auto scene = Scene::create();

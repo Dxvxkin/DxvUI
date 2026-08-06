@@ -86,10 +86,7 @@ std::shared_ptr<SceneNode> Button::findNodeAt(int x, int y) {
     return shared_from_this();
 }
 
-void Button::setText(const std::string& text) {
-    getBinding()->set(std::move(text));
-    markLayoutDirty();
-}
+void Button::setText(const std::string& text) { getBinding()->set(std::move(text)); }
 
 const std::string Button::getText() const { return getBinding()->getString().value_or(""); }
 
