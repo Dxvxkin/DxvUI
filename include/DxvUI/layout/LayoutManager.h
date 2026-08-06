@@ -53,6 +53,30 @@ class LayoutManager {
     static Rect contentRect(const SceneNode& node, const Rect& outerRect);
 
     /**
+     * @brief Adds the node's padding to a size.
+     * @param size The inner size (e.g. the sum of children's desired sizes).
+     * @param padding The padding to expand by.
+     * @return The size inflated by @p padding on all four sides.
+     */
+    static Size addPadding(const Size& size, const Thickness& padding);
+
+    /**
+     * @brief Subtracts the node's padding from an available size.
+     * @param size The outer available size.
+     * @param padding The padding to shrink by.
+     * @return The inner size left for children (may go negative).
+     */
+    static Size subtractPadding(const Size& size, const Thickness& padding);
+
+    /**
+     * @brief Shrinks a rect by padding on all four sides.
+     * @param rect The outer rect.
+     * @param padding The padding to shrink by.
+     * @return The inner rect available to children.
+     */
+    static Rect shrinkRect(const Rect& rect, const Thickness& padding);
+
+    /**
      * @brief Arranges a hidden child into a zero-sized rect.
      *
      * Containers use this for invisible children so that their dirty flags get

@@ -6,6 +6,7 @@
 #include "DxvUI/Scene.h"
 #include "DxvUI/UIBinding.h"
 #include "DxvUI/interfaces/IRenderer.h"
+#include "DxvUI/layout/LayoutManager.h"
 #include "DxvUI/style/Colors.h"
 #include "DxvUI/style/Theme.h"
 
@@ -59,8 +60,8 @@ Size Label::onMeasure(const Size& availableSize) {
         auto text = getText();
         Rect measured = scene->getRenderer()->measureText(text, computedAppearance.fontPath,
                                                           computedAppearance.fontSize);
-        return {static_cast<float>(measured.width + padding.left + padding.right),
-                static_cast<float>(measured.height + padding.top + padding.bottom)};
+        return LayoutManager::addPadding(
+            {static_cast<float>(measured.width), static_cast<float>(measured.height)}, padding);
     }
     return {0, 0};
 }

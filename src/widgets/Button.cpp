@@ -3,6 +3,7 @@
 #include <utility>
 
 #include "DxvUI/containers/CenterContainer.h"
+#include "DxvUI/layout/LayoutManager.h"
 #include "DxvUI/style/Colors.h"
 #include "DxvUI/style/Theme.h"
 #include "DxvUI/widgets/Label.h"
@@ -65,18 +66,12 @@ Size Button::onMeasure(const Size& availableSize) {
     const auto& computedLayout = getComputedLayout(getCurrentState());
     const auto& padding = computedLayout.padding;
 
-    return {childDesiredSize.width + padding.left + padding.right,
-            childDesiredSize.height + padding.top + padding.bottom};
+    return LayoutManager::addPadding(childDesiredSize, padding);
 }
 
 void Button::onArrange(const Rect& finalRect) {
-    const auto& computedLayout = getComputedLayout(getCurrentState());
     if (!children.empty()) {
-        const auto& [top, right, bottom, left] = computedLayout.padding;
-        const Rect content = {.x = finalRect.x + static_cast<int>(left),
-                              .y = finalRect.y + static_cast<int>(top),
-                              .width = finalRect.width - static_cast<int>(left + right),
-                              .height = finalRect.height - static_cast<int>(top + bottom)};
+        const Rect content = LayoutManager::contentRect(*this, finalRect);
         children.front()->arrange(content);
     }
 }

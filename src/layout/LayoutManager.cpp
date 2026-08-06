@@ -72,10 +72,22 @@ void LayoutManager::arrangeNode(SceneNode& node, const Rect& finalRect) {
 
 Rect LayoutManager::contentRect(const SceneNode& node, const Rect& outerRect) {
     const auto& padding = node.getComputedLayout(node.getCurrentState()).padding;
-    return {outerRect.x + static_cast<int>(padding.left),
-            outerRect.y + static_cast<int>(padding.top),
-            outerRect.width - static_cast<int>(padding.left + padding.right),
-            outerRect.height - static_cast<int>(padding.top + padding.bottom)};
+    return shrinkRect(outerRect, padding);
+}
+
+Size LayoutManager::addPadding(const Size& size, const Thickness& padding) {
+    return {size.width + padding.left + padding.right, size.height + padding.top + padding.bottom};
+}
+
+Size LayoutManager::subtractPadding(const Size& size, const Thickness& padding) {
+    return {size.width - (padding.left + padding.right),
+            size.height - (padding.top + padding.bottom)};
+}
+
+Rect LayoutManager::shrinkRect(const Rect& rect, const Thickness& padding) {
+    return {rect.x + static_cast<int>(padding.left), rect.y + static_cast<int>(padding.top),
+            rect.width - static_cast<int>(padding.left + padding.right),
+            rect.height - static_cast<int>(padding.top + padding.bottom)};
 }
 
 void LayoutManager::arrangeInvisible(SceneNode& node, const Rect& parentRect) {

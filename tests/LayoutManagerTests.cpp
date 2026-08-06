@@ -159,3 +159,42 @@ TEST(LayoutManagerTest, ThemeLayoutChangeTriggersRelayout) {
 
     EXPECT_GT(f.child->measureCalls, measures);
 }
+
+TEST(LayoutManagerTest, PaddingHelpersAreMutuallyInverse) {
+    const Size size = {100, 50};
+    const Thickness padding = {.top = 2, .right = 3, .bottom = 4, .left = 5};
+
+    const Size grown = LayoutManager::addPadding(size, padding);
+    EXPECT_FLOAT_EQ(grown.width, 108);
+    EXPECT_FLOAT_EQ(grown.height, 56);
+
+    const Size back = LayoutManager::subtractPadding(grown, padding);
+    EXPECT_FLOAT_EQ(back.width, size.width);
+    EXPECT_FLOAT_EQ(back.height, size.height);
+}
+
+TEST(LayoutManagerTest, SubtractPaddingMayGoNegative) {
+    const Thickness padding = {.top = 10, .right = 10, .bottom = 10, .left = 10};
+
+    const Size size = LayoutManager::subtractPadding({5, 5}, padding);
+
+    EXPECT_FLOAT_EQ(size.width, -15);
+    EXPECT_FLOAT_EQ(size.height, -15);
+}
+
+TEST(LayoutManagerTest, ShrinkRectMatchesContentRect) {
+    LayoutFixture f;
+    const Thickness padding = {.top = 2, .right = 3, .bottom = 4, .left = 5};
+    f.root->setStyle({.padding = padding}, WidgetState::Normal);
+    f.styleManager.resolveDirtyStyles(f.root);
+
+    const Rect outer = {10, 20, 100, 60};
+    const Rect viaNode = LayoutManager::contentRect(*f.root, outer);
+    const Rect viaHelper = LayoutManager::shrinkRect(outer, padding);
+
+    EXPECT_EQ(viaHelper, viaNode);
+    EXPECT_EQ(viaHelper.x, 15);
+    EXPECT_EQ(viaHelper.y, 22);
+    EXPECT_EQ(viaHelper.width, 92);
+    EXPECT_EQ(viaHelper.height, 54);
+}

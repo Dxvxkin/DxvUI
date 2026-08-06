@@ -10,16 +10,14 @@ Size CenterContainer::onMeasure(const Size& availableSize) {
     const auto& computedLayout = getComputedLayout(currentState);
     const auto& padding = computedLayout.padding;
 
-    Size contentAvailableSize = {availableSize.width - (padding.left + padding.right),
-                                 availableSize.height - (padding.top + padding.bottom)};
+    Size contentAvailableSize = LayoutManager::subtractPadding(availableSize, padding);
 
     Size childDesiredSize = {0, 0};
     if (!children.empty() && children.front()) {
         childDesiredSize = children.front()->measure(contentAvailableSize);
     }
 
-    return {childDesiredSize.width + padding.left + padding.right,
-            childDesiredSize.height + padding.top + padding.bottom};
+    return LayoutManager::addPadding(childDesiredSize, padding);
 }
 
 void CenterContainer::onArrange(const Rect& finalRect) {

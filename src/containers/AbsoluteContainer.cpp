@@ -24,7 +24,7 @@ Size AbsoluteContainer::onMeasure(const Size& availableSize) {
 
         // If only 'right'/'bottom' are set, the child is anchored to the
         // opposite edge, so it contributes to the required size as if it were
-        // offset by its own size plus the margin.
+        // offset by its own size plus the 'right'/'bottom' value.
         float childLeft = childLayout.left.value_or(0.0f);
         if (!childLayout.left.has_value() && childLayout.right.has_value()) {
             childLeft = childWidth + childLayout.right.value();
@@ -38,8 +38,7 @@ Size AbsoluteContainer::onMeasure(const Size& availableSize) {
         requiredHeight = std::max(requiredHeight, childTop + childHeight);
     }
 
-    return {requiredWidth + padding.left + padding.right,
-            requiredHeight + padding.top + padding.bottom};
+    return LayoutManager::addPadding({requiredWidth, requiredHeight}, padding);
 }
 
 void AbsoluteContainer::onArrange(const Rect& finalRect) {
