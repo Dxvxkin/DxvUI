@@ -5,9 +5,11 @@
 #include "DxvUI/Log.h"
 #include "DxvUI/Scene.h"
 #include "DxvUI/SceneNode.h"
+#include "DxvUI/UIBinding.h"
 #include "DxvUI/style/StyleManager.h"
 #include "DxvUI/style/Theme.h"
 #include "DxvUI/widgets/Button.h"
+#include "DxvUI/widgets/Label.h"
 
 using namespace DxvUI;
 
@@ -68,4 +70,52 @@ TEST(ButtonTest, InvisibleButtonHasNoBounds) {
     const Rect bounds = f.button->getGlobalBounds();
     EXPECT_EQ(bounds.width, 0);
     EXPECT_EQ(bounds.height, 0);
+}
+
+// A Label subclass that counts onMeasure invocations, so tests can observe
+// whether a binding-driven text change forced a re-measure.
+class CountingLabel : public Label {
+   public:
+    using Label::Label;
+    int measureCalls = 0;
+
+   protected:
+    Size onMeasure(const Size& availableSize) override {
+        ++measureCalls;
+        return Label::onMeasure(availableSize);
+    }
+};
+
+TEST(LabelTest, BindingUpdateMarksLayoutDirty) {
+    auto scene = Scene::create();
+    auto root = scene->getRoot();
+    auto binding = UIBinding::create(std::string("short"));
+    auto label = std::make_shared<CountingLabel>("lbl", "short");
+    label->bind(binding);
+    root->addChild(label);
+
+    Theme theme;
+    StyleManager manager{theme};
+    manager.resolveDirtyStyles(root);
+    root->measure({800, 600});
+    root->arrange({0, 0, 800, 600});
+
+    const int callsAfterInitialMeasure = label->measureCalls;
+    ASSERT_GT(callsAfterInitialMeasure, 0);
+
+    binding->set(std::string("a much longer text that needs a wider label"));
+    root->measure({800, 600});
+
+    EXPECT_GT(label->measureCalls, callsAfterInitialMeasure);
+}
+
+TEST(LabelTest, SetTextUpdatesValue) {
+    auto label = Label::create("lbl", "old");
+    EXPECT_EQ(label->getText(), "old");
+
+    label->setText("new");
+    EXPECT_EQ(label->getText(), "new");
+
+    label->setText("new");
+    EXPECT_EQ(label->getText(), "new");
 }

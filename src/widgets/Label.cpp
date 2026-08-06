@@ -1,5 +1,6 @@
 #include "DxvUI/widgets/Label.h"
 
+#include <algorithm>
 #include <utility>
 
 #include "DxvUI/Log.h"
@@ -43,13 +44,17 @@ void Label::setText(std::string newText) {
     if (current_text != newText) {
         // Сравнение до перемещения
         binding_->set(std::move(newText));
-        markLayoutDirty();
     }
 }
 
 const std::string Label::getText() const { return getBinding()->getString().value_or(""); }
 
-void Label::onChange(const UIBinding& val) {}
+void Label::onChange(const UIBinding& /*val*/) {
+    // Binding-driven text changes must re-measure the label: otherwise the
+    // bounds stay stale and the new text gets clipped. setText() goes through
+    // binding_->set() -> onChange(), so it is covered here too.
+    markLayoutDirty();
+}
 
 Size Label::onMeasure(const Size& availableSize) {
     const auto& computedAppearance = getComputedAppearance(getCurrentState());
@@ -68,16 +73,17 @@ Size Label::onMeasure(const Size& availableSize) {
 
 void Label::drawContent(IRenderer& renderer) {
     const auto& computedAppearance = getComputedAppearance(getCurrentState());
-    const auto& computedLayout = getComputedLayout(getCurrentState());
 
     // Определяем, нужно ли пересоздавать текстуру.
     // Это нужно, только если изменился текст или параметры, влияющие на
     // отрисовку текста (шрифт, размер, цвет). SDLRenderer "запекает" цвет в
-    // текстуру, поэтому сравнение идёт по всему computed appearance: если оно
-    // изменилось, текстура пересоздаётся.
+    // текстуру, поэтому сравнение идёт по влияющим на текст полям: если
+    // textColor/fontSize/fontPath или текст изменились, текстура пересоздаётся.
     auto text = getText();
-    const bool needsTextureUpdate =
-        !textTexture || cachedText != text || cachedAppearance != computedAppearance;
+    const bool needsTextureUpdate = !textTexture || cachedText != text ||
+                                    cachedAppearance.textColor != computedAppearance.textColor ||
+                                    cachedAppearance.fontSize != computedAppearance.fontSize ||
+                                    cachedAppearance.fontPath != computedAppearance.fontPath;
 
     if (needsTextureUpdate) {
         cachedText = text;
@@ -90,12 +96,15 @@ void Label::drawContent(IRenderer& renderer) {
     }
 
     if (textTexture) {
-        // Временное решение для учета отступов
-        auto dstRect = getGlobalBounds();
-        dstRect.x += computedLayout.padding.left;
-        dstRect.y += computedLayout.padding.top;
-        dstRect.width -= computedLayout.padding.right + computedLayout.padding.left;
-        dstRect.height -= computedLayout.padding.bottom + computedLayout.padding.top;
+        const Rect contentRect = LayoutManager::contentRect(*this, getGlobalBounds());
+
+        // Рисуем текстуру в натуральном размере, центрируя в контент-боксе.
+        // Увеличение не применяется (иначе текст размывается); если бокс меньше
+        // текстуры, она уменьшается, чтобы влезть.
+        const int drawW = std::min(textTexture->getWidth(), contentRect.width);
+        const int drawH = std::min(textTexture->getHeight(), contentRect.height);
+        const Rect dstRect = {contentRect.x + (contentRect.width - drawW) / 2,
+                              contentRect.y + (contentRect.height - drawH) / 2, drawW, drawH};
         renderer.drawTexture(textTexture, dstRect);
         // Эта функция не принимает цвет, т.к. он уже в текстуре
     }
