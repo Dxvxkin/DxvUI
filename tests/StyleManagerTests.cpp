@@ -447,6 +447,25 @@ TEST(StyleManagerTest, AddChildAfterResolveIsPickedUp) {
     EXPECT_FLOAT_EQ(child->getComputedLayout(WidgetState::Normal).width, 0.0f);
 }
 
+TEST(StyleManagerTest, StyledChildAddedToResolvedTreeIsResolved) {
+    auto parent = std::make_shared<SceneNode>("parent");
+    Theme theme;
+    StyleManager manager(theme);
+    manager.resolveDirtyStyles(parent);
+
+    // The child is styled *before* being attached, while it is still parentless.
+    // Attaching it to an already resolved tree must propagate its dirty state up
+    // to the root, or the prune traversal would fast-path and never resolve it.
+    auto child = std::make_shared<SceneNode>("child");
+    child->editStyle().set({.backgroundColor = Colors::Red}, WidgetState::Normal);
+    parent->addChild(child);
+
+    manager.resolveDirtyStyles(parent);
+
+    EXPECT_EQ(child->getComputedAppearance(WidgetState::Normal).backgroundColor, Colors::Red);
+    EXPECT_FLOAT_EQ(child->getComputedLayout(WidgetState::Normal).width, 0.0f);
+}
+
 TEST(StyleManagerTest, DeepChildEditOnlyResolvesTheBranch) {
     auto root = std::make_shared<SceneNode>("root");
     auto middle = std::make_shared<SceneNode>("middle");

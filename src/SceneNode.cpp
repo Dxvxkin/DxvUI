@@ -147,8 +147,15 @@ void SceneNode::markStyleDirty() {
 }
 
 void SceneNode::markStyleSubtreeDirty() {
+    // Always walk all the way up to the root. An early stop on an already-marked
+    // node is only valid while every ancestor of a marked node is marked too,
+    // but that invariant is broken whenever the parent chain changes: a node can
+    // be styled while it has no parent yet (editStyle() on a freshly constructed
+    // node) or a dirty subtree can be detached and re-attached elsewhere. In both
+    // cases the node's flag is already set while its new ancestors are clean, so
+    // an early stop would leave the root unflagged and the StyleManager's prune
+    // pass would skip the subtree entirely.
     for (SceneNode* n = this; n != nullptr; n = n->parent.lock().get()) {
-        if (n->style.isSubtreeDirty()) break;
         n->style.markSubtreeDirty();
     }
 }
