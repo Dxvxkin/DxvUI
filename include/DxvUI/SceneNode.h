@@ -473,12 +473,6 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     std::unique_ptr<UIBinding::Connection> connection_;
 
    private:
-    /**
-     * @brief Applies the resolved explicit size and min/max constraints to a size.
-     * @param size The size to clamp in place.
-     */
-    void applySizeConstraints(Size& size) const;
-
     // Sets the style subtree-dirty flag on this node and every ancestor up to
     // the root. Used by markStyleDirty() so the StyleManager can prune its
     // resolution traversal.

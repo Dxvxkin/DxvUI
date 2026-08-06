@@ -140,9 +140,18 @@ void SceneNode::setStyle(const StyleRule& rule, WidgetState state) {
     if (old && *old == rule) return;  // No-op write: nothing to invalidate.
     const bool layoutChanged =
         old ? detail::layoutPropsDiffer(*old, rule) : detail::hasLayoutProps(rule);
+    const bool textMetricsChanged =
+        old ? detail::textMetricsPropsDiffer(*old, rule) : detail::hasTextMetricsProps(rule);
     style.set(rule, state);
     markStyleDirty();
-    if (layoutChanged) markLayoutDirty();
+    if (textMetricsChanged) {
+        // fontSize/fontPath are inherited, so a change re-measures this node and
+        // every text-bearing descendant; a plain markLayoutDirty() would leave
+        // clean child subtrees pruned out of the layout pass.
+        markLayoutDirtyRecursive();
+    } else if (layoutChanged) {
+        markLayoutDirty();
+    }
 }
 
 void SceneNode::updateStyle(const StyleRule& updates, WidgetState state) {
@@ -156,9 +165,14 @@ void SceneNode::updateStyle(const StyleRule& updates, WidgetState state) {
     merged.merge(updates);
     if (merged == *old) return;  // No-op merge.
     const bool layoutChanged = detail::layoutPropsDiffer(*old, merged);
+    const bool textMetricsChanged = detail::textMetricsPropsDiffer(*old, merged);
     style.update(updates, state);
     markStyleDirty();
-    if (layoutChanged) markLayoutDirty();
+    if (textMetricsChanged) {
+        markLayoutDirtyRecursive();
+    } else if (layoutChanged) {
+        markLayoutDirty();
+    }
 }
 
 const Style& SceneNode::getStyle() const { return style; }
@@ -324,34 +338,6 @@ Size SceneNode::measure(const Size& availableSize) {
 }
 
 Size SceneNode::onMeasure(const Size& /*availableSize*/) { return {0, 0}; }
-
-void SceneNode::applySizeConstraints(Size& size) const {
-    const auto& computedLayout = getComputedLayout(getCurrentState());
-
-    // An explicit size from the style wins over both the measured size and the
-    // min/max constraints.
-    if (computedLayout.width > 0) {
-        size.width = computedLayout.width;
-    } else {
-        if (computedLayout.minWidth.has_value()) {
-            size.width = std::max(size.width, computedLayout.minWidth.value());
-        }
-        if (computedLayout.maxWidth.has_value()) {
-            size.width = std::min(size.width, computedLayout.maxWidth.value());
-        }
-    }
-
-    if (computedLayout.height > 0) {
-        size.height = computedLayout.height;
-    } else {
-        if (computedLayout.minHeight.has_value()) {
-            size.height = std::max(size.height, computedLayout.minHeight.value());
-        }
-        if (computedLayout.maxHeight.has_value()) {
-            size.height = std::min(size.height, computedLayout.maxHeight.value());
-        }
-    }
-}
 
 void SceneNode::arrange(const Rect& finalRect) { LayoutManager::arrangeNode(*this, finalRect); }
 

@@ -157,6 +157,10 @@ struct AppearanceProp {
     Src StyleRule::* src;
     Dst ComputedAppearanceStyle::* dst;
     bool inheritable = false;
+    // True for text-metric properties (fontSize/fontPath): they are resolved by
+    // the style system but change the measured size of text widgets, so a change
+    // must invalidate the layout as well.
+    bool affectsLayout = false;
 };
 
 /**
@@ -224,7 +228,9 @@ constexpr bool equalLayoutProp(const StyleRule& a, const StyleRule& b,
 
 // The complete appearance property list. Each entry wires one StyleRule member
 // to its ComputedAppearanceStyle counterpart; 'inheritable' marks text
-// properties that are inherited from the parent's Normal state.
+// properties that are inherited from the parent's Normal state, and
+// 'affectsLayout' marks text-metric properties (fontSize/fontPath) that change
+// the measured size and therefore must also invalidate the layout.
 inline constexpr auto appearanceProps = std::tuple{
     AppearanceProp<std::optional<Color>, Color>{&StyleRule::backgroundColor,
                                                 &ComputedAppearanceStyle::backgroundColor},
@@ -239,9 +245,9 @@ inline constexpr auto appearanceProps = std::tuple{
     AppearanceProp<std::optional<CursorType>, CursorType>{&StyleRule::cursor,
                                                           &ComputedAppearanceStyle::cursor},
     AppearanceProp<std::optional<int>, int>{&StyleRule::fontSize,
-                                            &ComputedAppearanceStyle::fontSize, true},
+                                            &ComputedAppearanceStyle::fontSize, true, true},
     AppearanceProp<std::optional<std::string>, std::string>{
-        &StyleRule::fontPath, &ComputedAppearanceStyle::fontPath, true},
+        &StyleRule::fontPath, &ComputedAppearanceStyle::fontPath, true, true},
 };
 
 // The complete layout property list. left/top/right/bottom and min/max sizes
@@ -300,6 +306,36 @@ inline bool hasLayoutProps(const StyleRule& rule) {
     return std::apply(
         [&](const auto&... prop) { return (false || ... || layoutPropIsSet(rule, prop)); },
         layoutProps);
+}
+
+template <typename Src, typename Dst>
+constexpr bool appearancePropIsSet(const StyleRule& rule, const AppearanceProp<Src, Dst>& prop) {
+    return (rule.*prop.src).has_value();
+}
+
+/**
+ * @brief Checks whether two rules differ in any text-metric property.
+ *
+ * fontSize/fontPath change the measured size of text widgets even though they
+ * are appearance properties, so they must also invalidate the layout.
+ */
+inline bool textMetricsPropsDiffer(const StyleRule& a, const StyleRule& b) {
+    return !std::apply(
+        [&](const auto&... prop) {
+            return (true && ... && (!prop.affectsLayout || equalAppearanceProp(a, b, prop)));
+        },
+        appearanceProps);
+}
+
+/**
+ * @brief Checks whether a rule sets at least one text-metric property.
+ */
+inline bool hasTextMetricsProps(const StyleRule& rule) {
+    return std::apply(
+        [&](const auto&... prop) {
+            return (false || ... || (prop.affectsLayout && appearancePropIsSet(rule, prop)));
+        },
+        appearanceProps);
 }
 
 }  // namespace detail

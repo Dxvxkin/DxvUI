@@ -6,6 +6,7 @@
 #include "DxvUI/Scene.h"
 #include "DxvUI/SceneNode.h"
 #include "DxvUI/UIBinding.h"
+#include "DxvUI/containers/AbsoluteContainer.h"
 #include "DxvUI/style/StyleManager.h"
 #include "DxvUI/style/Theme.h"
 #include "DxvUI/widgets/Button.h"
@@ -158,4 +159,67 @@ TEST(LabelTest, SetTextUpdatesValue) {
 
     label->setText("new");
     EXPECT_EQ(label->getText(), "new");
+}
+
+TEST(LabelTest, FontSizeChangeRelayouts) {
+    auto root = std::make_shared<AbsoluteContainer>("root");
+    auto label = std::make_shared<CountingLabel>("lbl", "hello");
+    root->addChild(label);
+
+    Theme theme;
+    StyleManager manager{theme};
+    manager.resolveDirtyStyles(root);
+    root->measure({800, 600});
+    root->arrange({0, 0, 800, 600});
+
+    const int callsAfterInitialMeasure = label->measureCalls;
+    ASSERT_GT(callsAfterInitialMeasure, 0);
+
+    label->setStyle({.fontSize = 24}, WidgetState::Normal);
+    manager.resolveDirtyStyles(root);
+    root->measure({800, 600});
+
+    EXPECT_GT(label->measureCalls, callsAfterInitialMeasure);
+}
+
+TEST(LabelTest, InheritedFontSizeChangeRelayouts) {
+    auto root = std::make_shared<AbsoluteContainer>("root");
+    auto label = std::make_shared<CountingLabel>("lbl", "hello");
+    root->addChild(label);
+
+    Theme theme;
+    StyleManager manager{theme};
+    manager.resolveDirtyStyles(root);
+    root->measure({800, 600});
+    root->arrange({0, 0, 800, 600});
+
+    const int callsAfterInitialMeasure = label->measureCalls;
+    ASSERT_GT(callsAfterInitialMeasure, 0);
+
+    root->setStyle({.fontSize = 24}, WidgetState::Normal);
+    manager.resolveDirtyStyles(root);
+    root->measure({800, 600});
+
+    EXPECT_GT(label->measureCalls, callsAfterInitialMeasure);
+}
+
+TEST(LabelTest, ThemeFontSizeChangeRelayouts) {
+    auto root = std::make_shared<AbsoluteContainer>("root");
+    auto label = std::make_shared<CountingLabel>("lbl", "hello");
+    root->addChild(label);
+
+    Theme theme;
+    StyleManager manager{theme};
+    manager.resolveDirtyStyles(root);
+    root->measure({800, 600});
+    root->arrange({0, 0, 800, 600});
+
+    const int callsAfterInitialMeasure = label->measureCalls;
+    ASSERT_GT(callsAfterInitialMeasure, 0);
+
+    theme.setDefaultStyle("Label", {{WidgetState::Normal, {.fontSize = 30}}});
+    manager.resolveDirtyStyles(root);
+    root->measure({800, 600});
+
+    EXPECT_GT(label->measureCalls, callsAfterInitialMeasure);
 }

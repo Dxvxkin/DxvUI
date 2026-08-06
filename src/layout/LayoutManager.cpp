@@ -1,8 +1,43 @@
 #include "DxvUI/layout/LayoutManager.h"
 
+#include <algorithm>
+
 #include "DxvUI/SceneNode.h"
 
 namespace DxvUI {
+
+namespace {
+
+// Applies the resolved explicit size and min/max constraints to a size. This is
+// the sizing step of the measure pass: an explicit width/height from the style
+// wins over the measured size and the min/max clamping.
+void applySizeConstraints(const SceneNode& node, Size& size) {
+    const auto& computedLayout = node.getComputedLayout(node.getCurrentState());
+
+    if (computedLayout.width > 0) {
+        size.width = computedLayout.width;
+    } else {
+        if (computedLayout.minWidth.has_value()) {
+            size.width = std::max(size.width, computedLayout.minWidth.value());
+        }
+        if (computedLayout.maxWidth.has_value()) {
+            size.width = std::min(size.width, computedLayout.maxWidth.value());
+        }
+    }
+
+    if (computedLayout.height > 0) {
+        size.height = computedLayout.height;
+    } else {
+        if (computedLayout.minHeight.has_value()) {
+            size.height = std::max(size.height, computedLayout.minHeight.value());
+        }
+        if (computedLayout.maxHeight.has_value()) {
+            size.height = std::min(size.height, computedLayout.maxHeight.value());
+        }
+    }
+}
+
+}  // namespace
 
 void LayoutManager::layout(const std::shared_ptr<SceneNode>& root, const Size& viewportSize) {
     if (!root) return;
@@ -24,8 +59,10 @@ Size LayoutManager::measureNode(SceneNode& node, const Size& availableSize) {
     auto& data = node.layoutData;
 
     if (!node.visible) {
-        // An invisible node has no footprint; arrangeNode() later arranges its
-        // descendants into zero-sized rects so their dirty flags get cleared.
+        // An invisible node has no footprint. Parents skip invisible children
+        // in measureChild(), so this branch only guards direct measure() calls;
+        // isSubtreeDirty is deliberately kept set here and cleared later by
+        // arrangeNode()'s invisible branch, which also zeroes the descendants.
         data.desiredSize = {0, 0};
         data.isDirty = false;
         return data.desiredSize;
@@ -39,7 +76,7 @@ Size LayoutManager::measureNode(SceneNode& node, const Size& availableSize) {
     data.lastMeasureConstraints = availableSize;
 
     Size size = node.onMeasure(availableSize);
-    node.applySizeConstraints(size);
+    applySizeConstraints(node, size);
     data.desiredSize = size;
     data.isDirty = false;
     return data.desiredSize;

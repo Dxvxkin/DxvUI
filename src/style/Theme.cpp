@@ -9,17 +9,20 @@ namespace DxvUI {
 
 namespace {
 
-// Whether any rule in the map sets a layout property.
-bool stateMapHasLayoutProps(const Theme::StateStyleMap& styles) {
+// Whether any rule in the map sets a layout-affecting property (a layout
+// property or a text metric such as fontSize/fontPath, which change the
+// measured size of text widgets).
+bool stateMapHasLayoutAffectingProps(const Theme::StateStyleMap& styles) {
     for (const auto& [state, rule] : styles) {
-        if (detail::hasLayoutProps(rule)) return true;
+        if (detail::hasLayoutProps(rule) || detail::hasTextMetricsProps(rule)) return true;
     }
     return false;
 }
 
-// Whether the two maps differ in any layout property (a missing rule counts as
-// empty, so a layout prop appearing/disappearing is a difference).
-bool stateMapLayoutPropsDiffer(const Theme::StateStyleMap& a, const Theme::StateStyleMap& b) {
+// Whether the two maps differ in any layout-affecting property (a missing rule
+// counts as empty, so a prop appearing/disappearing is a difference).
+bool stateMapLayoutAffectingPropsDiffer(const Theme::StateStyleMap& a,
+                                        const Theme::StateStyleMap& b) {
     std::vector<WidgetState> states;
     for (const auto& [s, r] : a) states.push_back(s);
     for (const auto& [s, r] : b) {
@@ -32,11 +35,13 @@ bool stateMapLayoutPropsDiffer(const Theme::StateStyleMap& a, const Theme::State
         if (auto it = a.find(s); it != a.end()) ra = &it->second;
         if (auto it = b.find(s); it != b.end()) rb = &it->second;
         if (ra && rb) {
-            if (detail::layoutPropsDiffer(*ra, *rb)) return true;
+            if (detail::layoutPropsDiffer(*ra, *rb) || detail::textMetricsPropsDiffer(*ra, *rb)) {
+                return true;
+            }
         } else if (ra) {
-            if (detail::hasLayoutProps(*ra)) return true;
+            if (detail::hasLayoutProps(*ra) || detail::hasTextMetricsProps(*ra)) return true;
         } else if (rb) {
-            if (detail::hasLayoutProps(*rb)) return true;
+            if (detail::hasLayoutProps(*rb) || detail::hasTextMetricsProps(*rb)) return true;
         }
     }
     return false;
@@ -83,12 +88,12 @@ void Theme::setDefaultStyle(const std::string& widgetType, const StateStyleMap& 
     }
 
     version_++;
-    if (stateMapLayoutPropsDiffer(before, merged)) layoutVersion_++;
+    if (stateMapLayoutAffectingPropsDiffer(before, merged)) layoutVersion_++;
 }
 
 void Theme::clearDefaultStyle(const std::string& widgetType) {
     if (auto it = overrides_.find(widgetType); it != overrides_.end()) {
-        if (stateMapHasLayoutProps(it->second)) layoutVersion_++;
+        if (stateMapHasLayoutAffectingProps(it->second)) layoutVersion_++;
         overrides_.erase(it);
         version_++;
     }
@@ -97,7 +102,7 @@ void Theme::clearDefaultStyle(const std::string& widgetType) {
 void Theme::clear() {
     if (overrides_.empty()) return;
     for (const auto& [type, styles] : overrides_) {
-        if (stateMapHasLayoutProps(styles)) {
+        if (stateMapHasLayoutAffectingProps(styles)) {
             layoutVersion_++;
             break;
         }
