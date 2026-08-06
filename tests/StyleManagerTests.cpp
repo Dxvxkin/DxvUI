@@ -405,20 +405,20 @@ TEST(ThemeTest, VersionIncrementsOnMutation) {
 
 TEST(StyleTest, VersionBumpsOnChangeNotOnNoop) {
     auto node = std::make_shared<SceneNode>("node");
-    const std::uint64_t initial = node->getStyleVersion();
+    const std::uint64_t initial = node->getStyle().getVersion();
 
     node->editStyle().set({.backgroundColor = Colors::Red}, WidgetState::Normal);
-    EXPECT_GT(node->getStyleVersion(), initial);
+    EXPECT_GT(node->getStyle().getVersion(), initial);
 
-    const std::uint64_t afterSet = node->getStyleVersion();
+    const std::uint64_t afterSet = node->getStyle().getVersion();
     node->editStyle().set({.backgroundColor = Colors::Red}, WidgetState::Normal);  // same value
-    EXPECT_EQ(node->getStyleVersion(), afterSet);
+    EXPECT_EQ(node->getStyle().getVersion(), afterSet);
 
     node->editStyle().update({.backgroundColor = Colors::Red});  // no-op merge
-    EXPECT_EQ(node->getStyleVersion(), afterSet);
+    EXPECT_EQ(node->getStyle().getVersion(), afterSet);
 
     node->editStyle().update({.backgroundColor = Colors::Blue});
-    EXPECT_GT(node->getStyleVersion(), afterSet);
+    EXPECT_GT(node->getStyle().getVersion(), afterSet);
 }
 
 TEST(StyleRuleTest, EqualityFollowsPropertyList) {

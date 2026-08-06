@@ -138,8 +138,6 @@ Style& SceneNode::editStyle() {
 
 const Style& SceneNode::getStyle() const { return style; }
 
-std::uint64_t SceneNode::getStyleVersion() const noexcept { return style.getVersion(); }
-
 void SceneNode::markStyleDirty() {
     style.markDirty();
     markStyleSubtreeDirty();
