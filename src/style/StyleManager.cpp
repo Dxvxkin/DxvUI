@@ -18,6 +18,7 @@ const ComputedAppearanceStyle FRAMEWORK_DEFAULT_APPEARANCE = {
     .borderThickness = 0,
     .borderRadius = 0,
     .cursor = CursorType::Arrow,
+    .clipContent = false,
     .fontSize = 14,
     .fontPath = ""  // Let renderer decide
 };

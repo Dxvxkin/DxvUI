@@ -60,6 +60,8 @@ struct StyleRule {
     std::optional<int> borderThickness;
     std::optional<int> borderRadius;
     std::optional<CursorType> cursor;
+    // When true, the node's content and children are clipped to its own bounds.
+    std::optional<bool> clipContent;
 
     // Text Properties
     std::optional<int> fontSize;
@@ -111,6 +113,7 @@ struct ComputedAppearanceStyle {
     int borderThickness;
     int borderRadius;
     CursorType cursor;
+    bool clipContent = false;
     int fontSize;
     std::string fontPath;
 
@@ -118,7 +121,8 @@ struct ComputedAppearanceStyle {
         return backgroundColor == other.backgroundColor && textColor == other.textColor &&
                borderColor == other.borderColor && borderThickness == other.borderThickness &&
                borderRadius == other.borderRadius && cursor == other.cursor &&
-               fontSize == other.fontSize && fontPath == other.fontPath;
+               clipContent == other.clipContent && fontSize == other.fontSize &&
+               fontPath == other.fontPath;
     }
 };
 
@@ -244,6 +248,8 @@ inline constexpr auto appearanceProps = std::tuple{
                                             &ComputedAppearanceStyle::borderRadius},
     AppearanceProp<std::optional<CursorType>, CursorType>{&StyleRule::cursor,
                                                           &ComputedAppearanceStyle::cursor},
+    AppearanceProp<std::optional<bool>, bool>{&StyleRule::clipContent,
+                                              &ComputedAppearanceStyle::clipContent},
     AppearanceProp<std::optional<int>, int>{&StyleRule::fontSize,
                                             &ComputedAppearanceStyle::fontSize, true, true},
     AppearanceProp<std::optional<std::string>, std::string>{

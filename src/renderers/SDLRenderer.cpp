@@ -116,6 +116,32 @@ void SDLRenderer::setCursor(CursorType type) {
 
 CursorType SDLRenderer::getCursor() const { return currentCursorType; }
 
+void SDLRenderer::pushClipRect(const Rect& rect) {
+    SDL_Rect currentClip;
+    SDL_RenderGetClipRect(renderer, &currentClip);
+    clipStack.emplace_back(SDL_RenderIsClipEnabled(renderer) == SDL_TRUE,
+                           Rect{currentClip.x, currentClip.y, currentClip.w, currentClip.h});
+
+    SDL_Rect r = {rect.x, rect.y, rect.width, rect.height};
+    SDL_RenderSetClipRect(renderer, &r);
+}
+
+void SDLRenderer::popClipRect() {
+    if (clipStack.empty()) {
+        Log::error("SDLRenderer::popClipRect called with an empty clip stack");
+        return;
+    }
+
+    const auto& [enabled, rect] = clipStack.back();
+    if (enabled) {
+        SDL_Rect r = {rect.x, rect.y, rect.width, rect.height};
+        SDL_RenderSetClipRect(renderer, &r);
+    } else {
+        SDL_RenderSetClipRect(renderer, nullptr);
+    }
+    clipStack.pop_back();
+}
+
 SDL_Cursor* SDLRenderer::getSystemCursor(CursorType type) {
     auto it = cursorCache.find(type);
     if (it != cursorCache.end()) {

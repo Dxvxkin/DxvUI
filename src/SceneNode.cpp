@@ -349,11 +349,21 @@ void SceneNode::draw(IRenderer& renderer) {
     }
 
     drawBackground(renderer);
+
+    const bool clip = getComputedAppearance(getCurrentState()).clipContent;
+    if (clip) {
+        renderer.pushClipRect(getGlobalBounds());
+    }
+
     drawContent(renderer);
 
     sortChildrenIfDirty();
     for (const auto& child : children) {
         child->draw(renderer);
+    }
+
+    if (clip) {
+        renderer.popClipRect();
     }
 }
 

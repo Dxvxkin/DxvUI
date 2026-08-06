@@ -1,13 +1,14 @@
 #ifndef DXVUI_SDLRENDERER_H
 #define DXVUI_SDLRENDERER_H
 
-#include <vector>
-#include <map>
-#include <string>
-#include <mutex>
-#include <SDL_ttf.h>
-#include <SDL.h> // For SDL_Cursor
 #include <DxvUI/interfaces/IRenderer.h>
+#include <SDL.h>  // For SDL_Cursor
+#include <SDL_ttf.h>
+
+#include <map>
+#include <mutex>
+#include <string>
+#include <vector>
 
 struct SDL_Window;
 struct SDL_Renderer;
@@ -15,7 +16,7 @@ struct SDL_Renderer;
 namespace DxvUI {
 
 class SDLRenderer : public IRenderer {
-public:
+   public:
     SDLRenderer(const char* title, int width, int height);
     explicit SDLRenderer(SDL_Renderer* externalRenderer);
     ~SDLRenderer() override;
@@ -28,6 +29,10 @@ public:
     // Cursor
     void setCursor(CursorType type) override;
     CursorType getCursor() const override;
+
+    // Clipping
+    void pushClipRect(const Rect& rect) override;
+    void popClipRect() override;
 
     // Text Rendering
     std::shared_ptr<ITexture> createTextTexture(const std::string& text) override;
@@ -76,7 +81,7 @@ public:
                      const Border& border) override;
     void drawText(const std::string& text, int x, int y) override;
 
-private:
+   private:
     TTF_Font* getFont(const std::string& fontPath, int fontSize);
     SDL_Cursor* getSystemCursor(CursorType type);
 
@@ -89,6 +94,11 @@ private:
     int currentFontSize = 0;
     CursorType currentCursorType = CursorType::Arrow;
 
+    // Saved clip rectangles for pushClipRect()/popClipRect() nesting. The bool
+    // records whether the saved clip was enabled at push time, so popClipRect()
+    // can restore the exact previous state (SDL treats a disabled clip as null).
+    std::vector<std::pair<bool, Rect>> clipStack;
+
     std::map<std::string, TTF_Font*> fontCache;
     std::map<CursorType, SDL_Cursor*> cursorCache;
 
@@ -98,6 +108,6 @@ private:
     static void quitTTF();
 };
 
-}
+}  // namespace DxvUI
 
-#endif //DXVUI_SDLRENDERER_H
+#endif  // DXVUI_SDLRENDERER_H

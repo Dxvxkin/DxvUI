@@ -1,12 +1,15 @@
 #include <gtest/gtest.h>
 
 #include <memory>
+#include <string>
+#include <vector>
 
 #include "DxvUI/Log.h"
 #include "DxvUI/Scene.h"
 #include "DxvUI/SceneNode.h"
 #include "DxvUI/UIBinding.h"
 #include "DxvUI/containers/AbsoluteContainer.h"
+#include "DxvUI/interfaces/IRenderer.h"
 #include "DxvUI/style/StyleManager.h"
 #include "DxvUI/style/Theme.h"
 #include "DxvUI/widgets/Button.h"
@@ -104,6 +107,69 @@ class CountingLabel : public Label {
         ++measureCalls;
         return Label::onMeasure(availableSize);
     }
+};
+
+// A renderer stub that records clip operations instead of drawing, so the
+// SceneNode draw template can be exercised without a real SDL backend.
+class FakeRenderer : public IRenderer {
+   public:
+    std::vector<Rect> clipPushes;
+    int clipPops = 0;
+
+    void clear(const Color&) override {}
+    void present() override {}
+    Size getViewportSize() const override { return {0, 0}; }
+
+    void setCursor(CursorType) override {}
+    CursorType getCursor() const override { return CursorType::Arrow; }
+
+    void pushClipRect(const Rect& rect) override { clipPushes.push_back(rect); }
+    void popClipRect() override { clipPops++; }
+
+    std::shared_ptr<ITexture> createTextTexture(const std::string&) override { return nullptr; }
+    Rect measureText(const std::string&, const std::string&, int) override { return {}; }
+    void drawTexture(std::shared_ptr<ITexture>&, const Rect&) override {}
+
+    void setDrawColor(const Color&) override {}
+    Color getDrawColor() const override { return {}; }
+    void setFont(const std::string&, int) override {}
+
+    void drawRect(const Rect&) override {}
+    void fillRect(const Rect&) override {}
+    void drawRect(const Rect&, const Color&) override {}
+    void fillRect(const Rect&, const Color&) override {}
+    void drawRect(const Rect&, const Border&) override {}
+    void fillRect(const Rect&, const Color&, const Border&) override {}
+
+    void drawLine(int, int, int, int) override {}
+    void drawLine(int, int, int, int, const Color&) override {}
+
+    void drawCircle(int, int, int) override {}
+    void fillCircle(int, int, int) override {}
+    void drawCircle(int, int, int, const Color&) override {}
+    void fillCircle(int, int, int, const Color&) override {}
+    void drawCircle(int, int, int, const Border&) override {}
+    void fillCircle(int, int, int, const Color&, const Border&) override {}
+
+    void drawArc(int, int, int, float, float) override {}
+    void drawArc(int, int, int, float, float, const Color&) override {}
+    void drawArc(int, int, int, float, float, const Border&) override {}
+
+    void drawRoundRect(const Rect&, int) override {}
+    void fillRoundRect(const Rect&, int) override {}
+    void drawRoundRect(const Rect&, int, const Color&) override {}
+    void fillRoundRect(const Rect&, int, const Color&) override {}
+    void drawRoundRect(const Rect&, int, const Border&) override {}
+    void fillRoundRect(const Rect&, int, const Color&, const Border&) override {}
+
+    void drawPolygon(const std::vector<PointI>&) override {}
+    void fillPolygon(const std::vector<PointI>&) override {}
+    void drawPolygon(const std::vector<PointI>&, const Color&) override {}
+    void fillPolygon(const std::vector<PointI>&, const Color&) override {}
+    void drawPolygon(const std::vector<PointI>&, const Border&) override {}
+    void fillPolygon(const std::vector<PointI>&, const Color&, const Border&) override {}
+
+    void drawText(const std::string&, int, int) override {}
 };
 
 TEST(ButtonTest, SetTextRelayoutsViaBoundLabel) {
@@ -222,4 +288,84 @@ TEST(LabelTest, ThemeFontSizeChangeRelayouts) {
     root->measure({800, 600});
 
     EXPECT_GT(label->measureCalls, callsAfterInitialMeasure);
+}
+
+TEST(ClippingTest, DrawClipsContentAndChildrenToOwnBounds) {
+    auto scene = Scene::create();
+    auto root = scene->getRoot();
+    auto parent = std::make_shared<AbsoluteContainer>("parent");
+    auto child = std::make_shared<SceneNode>("child");
+    child->setStyle({.left = 0, .top = 0, .width = 200, .height = 200}, WidgetState::Normal);
+    parent->setStyle({.clipContent = true, .left = 10, .top = 20, .width = 100, .height = 50},
+                     WidgetState::Normal);
+    root->addChild(parent);
+    parent->addChild(child);
+
+    Theme theme;
+    StyleManager manager{theme};
+    manager.resolveDirtyStyles(root);
+    root->measure({800, 600});
+    root->arrange({0, 0, 800, 600});
+
+    // The child overflows the parent's 100x50 box, but the clip push must match
+    // the parent's own bounds so the overflow is hidden.
+    ASSERT_EQ(child->getGlobalBounds(), (Rect{10, 20, 200, 200}));
+
+    FakeRenderer renderer;
+    root->draw(renderer);
+
+    ASSERT_EQ(renderer.clipPushes.size(), 1);
+    EXPECT_EQ(renderer.clipPushes[0], parent->getGlobalBounds());
+    EXPECT_EQ(renderer.clipPushes[0], (Rect{10, 20, 100, 50}));
+    EXPECT_EQ(renderer.clipPops, 1);
+}
+
+TEST(ClippingTest, DrawWithoutClipContentEmitsNoClip) {
+    auto scene = Scene::create();
+    auto root = scene->getRoot();
+    auto parent = std::make_shared<AbsoluteContainer>("parent");
+    auto child = std::make_shared<SceneNode>("child");
+    child->setStyle({.left = 0, .top = 0, .width = 200, .height = 200}, WidgetState::Normal);
+    parent->setStyle({.left = 10, .top = 20, .width = 100, .height = 50}, WidgetState::Normal);
+    root->addChild(parent);
+    parent->addChild(child);
+
+    Theme theme;
+    StyleManager manager{theme};
+    manager.resolveDirtyStyles(root);
+    root->measure({800, 600});
+    root->arrange({0, 0, 800, 600});
+
+    FakeRenderer renderer;
+    root->draw(renderer);
+
+    EXPECT_TRUE(renderer.clipPushes.empty());
+    EXPECT_EQ(renderer.clipPops, 0);
+}
+
+TEST(ClippingTest, NestedClipsPushAndPopInOrder) {
+    auto scene = Scene::create();
+    auto root = scene->getRoot();
+    auto parent = std::make_shared<AbsoluteContainer>("parent");
+    auto child = std::make_shared<SceneNode>("child");
+    child->setStyle({.clipContent = true, .left = 5, .top = 5, .width = 40, .height = 30},
+                    WidgetState::Normal);
+    parent->setStyle({.clipContent = true, .left = 10, .top = 20, .width = 100, .height = 50},
+                     WidgetState::Normal);
+    root->addChild(parent);
+    parent->addChild(child);
+
+    Theme theme;
+    StyleManager manager{theme};
+    manager.resolveDirtyStyles(root);
+    root->measure({800, 600});
+    root->arrange({0, 0, 800, 600});
+
+    FakeRenderer renderer;
+    root->draw(renderer);
+
+    ASSERT_EQ(renderer.clipPushes.size(), 2);
+    EXPECT_EQ(renderer.clipPushes[0], parent->getGlobalBounds());
+    EXPECT_EQ(renderer.clipPushes[1], child->getGlobalBounds());
+    EXPECT_EQ(renderer.clipPops, 2);
 }

@@ -37,6 +37,20 @@ class FixedSizeWidget : public SceneNode {
     Size size_;
 };
 
+// A node that counts how many times the layout pass actually re-measured it,
+// so tests can assert that a style change did (or did not) invalidate layout.
+class MeasureCountingWidget : public SceneNode {
+   public:
+    explicit MeasureCountingWidget(std::string id) : SceneNode(std::move(id)) {}
+
+    int measureCalls = 0;
+
+    Size onMeasure(const Size& /*availableSize*/) override {
+        measureCalls++;
+        return {0, 0};
+    }
+};
+
 // SceneNode's destructor logs via DxvUI::Log, which requires an initialized
 // logger. Install a global test environment so the logger exists for the whole
 // test binary.
@@ -66,6 +80,7 @@ TEST(StyleManagerTest, FrameworkDefaultsWithoutThemeRegistration) {
     EXPECT_EQ(appearance.borderThickness, 0);
     EXPECT_EQ(appearance.borderRadius, 0);
     EXPECT_EQ(appearance.fontSize, 14);
+    EXPECT_FALSE(appearance.clipContent);
 
     const auto& layout = node->getComputedLayout(WidgetState::Normal);
     EXPECT_FLOAT_EQ(layout.width, 0.0f);
@@ -86,6 +101,51 @@ TEST(StyleManagerTest, OwnStyleOverridesFrameworkDefaults) {
     EXPECT_EQ(appearance.textColor, Colors::White);
     // Properties not overridden fall back to the framework defaults.
     EXPECT_EQ(appearance.borderThickness, 0);
+}
+
+TEST(StyleManagerTest, ClipContentResolvesFromOwnStyle) {
+    auto node = std::make_shared<SceneNode>("node");
+    node->setStyle({.clipContent = true}, WidgetState::Normal);
+    Theme theme;
+    StyleManager manager(theme);
+
+    manager.resolveDirtyStyles(node);
+
+    EXPECT_TRUE(node->getComputedAppearance(WidgetState::Normal).clipContent);
+}
+
+TEST(StyleManagerTest, ClipContentIsNotInherited) {
+    auto parent = std::make_shared<SceneNode>("parent");
+    auto child = std::make_shared<SceneNode>("child");
+    parent->addChild(child);
+
+    parent->setStyle({.clipContent = true}, WidgetState::Normal);
+    Theme theme;
+    StyleManager manager(theme);
+
+    manager.resolveDirtyStyles(parent);
+
+    EXPECT_TRUE(parent->getComputedAppearance(WidgetState::Normal).clipContent);
+    EXPECT_FALSE(child->getComputedAppearance(WidgetState::Normal).clipContent);
+}
+
+TEST(StyleManagerTest, ClipContentChangeDoesNotInvalidateLayout) {
+    auto node = std::make_shared<MeasureCountingWidget>("node");
+    Theme theme;
+    StyleManager manager(theme);
+    manager.resolveDirtyStyles(node);
+
+    node->measure({0, 0});
+    node->arrange({0, 0, 0, 0});
+    const int measuresAfterInitial = node->measureCalls;
+
+    // clipContent is a draw-time property: turning it on must not force a
+    // remeasure of the node.
+    node->setStyle({.clipContent = true}, WidgetState::Normal);
+    manager.resolveDirtyStyles(node);
+    node->measure({0, 0});
+
+    EXPECT_EQ(node->measureCalls, measuresAfterInitial);
 }
 
 TEST(StyleManagerTest, ThemeDefaultsAppliedForRegisteredWidgetType) {
