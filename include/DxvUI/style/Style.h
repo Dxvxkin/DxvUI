@@ -76,6 +76,8 @@ struct StyleRule {
     // Layout Properties (Alignment & Spacing)
     std::optional<Thickness> padding;
     std::optional<Thickness> margin;
+    // How the parent aligns this node within the space it gives it
+    // (Start/Center/End; Stretch is reserved and not implemented).
     std::optional<Alignment> horizontalAlignment;
     std::optional<Alignment> verticalAlignment;
 
@@ -131,6 +133,11 @@ struct ComputedLayoutStyle {
     std::optional<float> minWidth, minHeight, maxWidth, maxHeight;
     Thickness padding;
     Thickness margin;
+    // How the parent positions this node inside the space it gives it:
+    // Start = top-left, Center = centered, End = bottom-right (per axis).
+    // Only applied on the axes the parent does not manage itself (e.g. the
+    // cross axis of a horizontal container, or unanchored axes of an absolute
+    // container). Stretch is reserved and not implemented.
     Alignment horizontalAlignment;
     Alignment verticalAlignment;
 };

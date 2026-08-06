@@ -68,11 +68,12 @@ void HorizontalContainer::onArrange(const Rect& finalRect) {
         float finalHeight =
             (childComputedLayout.height > 0) ? childComputedLayout.height : childDesiredSize.height;
 
-        const Rect childFinalRect = {
-            .x = static_cast<int>(currentX + margin.left),
-            .y = content.y + static_cast<int>(margin.top),
-            .width = static_cast<int>(finalWidth),
-            .height = static_cast<int>(finalHeight)};  // Use finalHeight here
+        // The main axis is managed by the flow (currentX + spacing); only the
+        // cross axis (vertical) is aligned by the child's verticalAlignment.
+        const Rect childSlot = {static_cast<int>(currentX + margin.left), content.y,
+                                static_cast<int>(finalWidth), content.height};
+        const Rect childFinalRect = LayoutManager::alignChild(
+            *child, {finalWidth, finalHeight}, childSlot, {.horizontal = false, .vertical = true});
 
         child->arrange(childFinalRect);
 

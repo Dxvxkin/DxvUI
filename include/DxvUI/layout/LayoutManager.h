@@ -10,6 +10,17 @@ namespace DxvUI {
 class SceneNode;
 
 /**
+ * @brief Which axes of a child's slot a parent lets the alignment apply on.
+ *
+ * A container manages one axis itself (e.g. the flow axis of a row) and
+ * disables alignment on it; the other axis is handed to alignChild().
+ */
+struct AlignAxes {
+    bool horizontal = false;
+    bool vertical = false;
+};
+
+/**
  * @class LayoutManager
  * @brief Drives the two-pass measure/arrange layout cycle for a scene tree.
  *
@@ -97,6 +108,24 @@ class LayoutManager {
      * @param parentRect The parent's content rect (origin is reused).
      */
     static void arrangeInvisible(SceneNode& node, const Rect& parentRect);
+
+    /**
+     * @brief Positions a child inside a slot according to its alignment and margin.
+     *
+     * On a disabled axis the child is placed at the slot's origin as-is (the
+     * caller owns that axis and bakes any margin offset into the slot). On an
+     * enabled axis the child's margin-box is aligned inside the slot by the
+     * child's computed horizontal/vertical alignment (Start keeps the position,
+     * Center/End shift it), then the child itself is offset by its margin. The
+     * child's size is never changed (Stretch is not implemented).
+     * @param child The child to position (reads its computed margin and alignment).
+     * @param childSize The child's final size (explicit width/height or measured).
+     * @param containerRect The slot the parent gives to the child.
+     * @param axes The axes to apply alignment on.
+     * @return The child's own rect, ready to pass to arrange().
+     */
+    static Rect alignChild(SceneNode& child, const Size& childSize, const Rect& containerRect,
+                           const AlignAxes& axes);
 };
 
 }  // namespace DxvUI

@@ -60,30 +60,34 @@ void AbsoluteContainer::onArrange(const Rect& finalRect) {
         int childH =
             static_cast<int>(childLayout.height > 0 ? childLayout.height : childDesiredSize.height);
 
-        // Position: explicit 'left'/'top' win; otherwise anchor to the
-        // 'right'/'bottom' edge; otherwise stick to the top-left corner. The
-        // child's margin offsets it from the anchored edge.
-        int childX;
+        // Position: explicit 'left'/'top' win, otherwise anchor to the
+        // 'right'/'bottom' edge; the anchored axis keeps its position (the
+        // margin is baked into the slot origin). Axes without anchors are free
+        // and get aligned by the child's horizontal/vertical alignment instead
+        // of sticking to the top-left corner.
+        int slotX = content.x;
         if (childLayout.left.has_value()) {
-            childX = content.x + static_cast<int>(childLayout.left.value() + margin.left);
+            slotX = content.x + static_cast<int>(childLayout.left.value() + margin.left);
         } else if (childLayout.right.has_value()) {
-            childX = content.x + content.width - childW -
-                     static_cast<int>(childLayout.right.value() + margin.right);
-        } else {
-            childX = content.x + static_cast<int>(margin.left);
+            slotX = content.x + content.width - childW -
+                    static_cast<int>(childLayout.right.value() + margin.right);
         }
 
-        int childY;
+        int slotY = content.y;
         if (childLayout.top.has_value()) {
-            childY = content.y + static_cast<int>(childLayout.top.value() + margin.top);
+            slotY = content.y + static_cast<int>(childLayout.top.value() + margin.top);
         } else if (childLayout.bottom.has_value()) {
-            childY = content.y + content.height - childH -
-                     static_cast<int>(childLayout.bottom.value() + margin.bottom);
-        } else {
-            childY = content.y + static_cast<int>(margin.top);
+            slotY = content.y + content.height - childH -
+                    static_cast<int>(childLayout.bottom.value() + margin.bottom);
         }
 
-        Rect childFinalRect = {childX, childY, childW, childH};
+        const AlignAxes axes = {
+            .horizontal = !childLayout.left.has_value() && !childLayout.right.has_value(),
+            .vertical = !childLayout.top.has_value() && !childLayout.bottom.has_value()};
+        const Rect childFinalRect = LayoutManager::alignChild(
+            *child, {static_cast<float>(childW), static_cast<float>(childH)},
+            {slotX, slotY, content.width, content.height}, axes);
+
         child->arrange(childFinalRect);
     }
 }

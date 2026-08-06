@@ -408,3 +408,177 @@ TEST(LayoutManagerTest, ButtonHonorsChildMargin) {
     EXPECT_EQ(childBounds.width, 100 - static_cast<int>(margin.left + margin.right));
     EXPECT_EQ(childBounds.height, 50 - static_cast<int>(margin.top + margin.bottom));
 }
+
+namespace {
+
+// A widget with a fixed measured size, so tests can build rows with children of
+// different heights.
+class FixedSizeWidget : public SceneNode {
+   public:
+    FixedSizeWidget(std::string id, Size size) : SceneNode(std::move(id)), size_(size) {}
+
+    const char* getNodeType() const override { return "FixedSizeWidget"; }
+
+   protected:
+    Size onMeasure(const Size& /*availableSize*/) override { return size_; }
+
+   private:
+    Size size_;
+};
+
+// Attaches a child with a style to a throwaway root and resolves the styles, so
+// a test can call LayoutManager::alignChild directly.
+std::shared_ptr<SceneNode> makeResolvedChild(std::string id, const StyleRule& style) {
+    auto root = std::make_shared<AbsoluteContainer>("root");
+    auto child = std::make_shared<SizeRecordingWidget>(std::move(id));
+    child->setStyle(style, WidgetState::Normal);
+    root->addChild(child);
+
+    Theme theme;
+    StyleManager styleManager{theme};
+    styleManager.resolveDirtyStyles(root);
+    return child;
+}
+
+}  // namespace
+
+TEST(LayoutManagerTest, AlignChildStartKeepsTopLeft) {
+    auto child = makeResolvedChild("child", StyleRule{});
+    const Rect slot = {10, 20, 100, 60};
+
+    const Rect result = LayoutManager::alignChild(*child, {10, 20}, slot, {true, true});
+
+    EXPECT_EQ(result, (Rect{10, 20, 10, 20}));
+}
+
+TEST(LayoutManagerTest, AlignChildCentersInSlot) {
+    auto child = makeResolvedChild("child", {.horizontalAlignment = Alignment::Center,
+                                             .verticalAlignment = Alignment::Center});
+    const Rect slot = {10, 20, 100, 60};
+
+    const Rect result = LayoutManager::alignChild(*child, {10, 20}, slot, {true, true});
+
+    EXPECT_EQ(result, (Rect{10 + (100 - 10) / 2, 20 + (60 - 20) / 2, 10, 20}));
+}
+
+TEST(LayoutManagerTest, AlignChildEndMovesToBottomRight) {
+    auto child = makeResolvedChild(
+        "child", {.horizontalAlignment = Alignment::End, .verticalAlignment = Alignment::End});
+    const Rect slot = {10, 20, 100, 60};
+
+    const Rect result = LayoutManager::alignChild(*child, {10, 20}, slot, {true, true});
+
+    EXPECT_EQ(result, (Rect{10 + 100 - 10, 20 + 60 - 20, 10, 20}));
+}
+
+TEST(LayoutManagerTest, AlignChildDisabledAxisUsesSlotOrigin) {
+    auto child = makeResolvedChild(
+        "child", {.horizontalAlignment = Alignment::End, .verticalAlignment = Alignment::Center});
+    const Rect slot = {30, 20, 50, 60};
+
+    // The horizontal axis is disabled, so End must be ignored and the slot
+    // origin (which the caller already offset by margin) is kept.
+    const Rect result =
+        LayoutManager::alignChild(*child, {10, 20}, slot, {.horizontal = false, .vertical = true});
+
+    EXPECT_EQ(result, (Rect{30, 20 + (60 - 20) / 2, 10, 20}));
+}
+
+TEST(LayoutManagerTest, AlignChildCenterRespectsMargin) {
+    const Thickness margin = {.top = 2, .right = 3, .bottom = 4, .left = 5};
+    auto child = makeResolvedChild("child", {.margin = margin,
+                                             .horizontalAlignment = Alignment::Center,
+                                             .verticalAlignment = Alignment::Center});
+    const Rect slot = {0, 0, 100, 60};
+
+    const Rect result = LayoutManager::alignChild(*child, {10, 20}, slot, {true, true});
+
+    // The margin-box (10 + 8 by 20 + 6) is centered in the slot, then the child
+    // itself is offset by its margin.
+    EXPECT_EQ(result, (Rect{5 + (100 - 8 - 10) / 2, 2 + (60 - 6 - 20) / 2, 10, 20}));
+}
+
+TEST(LayoutManagerTest, HorizontalContainerAlignsChildrenVertically) {
+    auto root = std::make_shared<AbsoluteContainer>("root");
+    auto row = std::make_shared<HorizontalContainer>("row");
+    auto tall = std::make_shared<SizeRecordingWidget>("tall");
+    auto centered = std::make_shared<FixedSizeWidget>("centered", Size{10, 10});
+    auto bottomed = std::make_shared<FixedSizeWidget>("bottomed", Size{10, 10});
+    centered->setStyle({.verticalAlignment = Alignment::Center}, WidgetState::Normal);
+    bottomed->setStyle({.verticalAlignment = Alignment::End}, WidgetState::Normal);
+    row->addChild(tall);
+    row->addChild(centered);
+    row->addChild(bottomed);
+    root->addChild(row);
+
+    Theme theme;
+    StyleManager styleManager{theme};
+    LayoutManager layout;
+    styleManager.resolveDirtyStyles(root);
+    layout.layout(root, {800, 600});
+
+    // The row's content height is 20 (the tallest child); the smaller children
+    // are aligned by their verticalAlignment within it.
+    EXPECT_EQ(tall->getGlobalBounds().y, 0);
+    EXPECT_EQ(centered->getGlobalBounds().y, (20 - 10) / 2);
+    EXPECT_EQ(bottomed->getGlobalBounds().y, 20 - 10);
+}
+
+TEST(LayoutManagerTest, AbsoluteContainerUnanchoredAlignmentPositionsChild) {
+    auto root = std::make_shared<AbsoluteContainer>("root");
+    auto container = std::make_shared<AbsoluteContainer>("container");
+    auto child = std::make_shared<SizeRecordingWidget>("child");
+    child->setStyle({.horizontalAlignment = Alignment::End, .verticalAlignment = Alignment::Center},
+                    WidgetState::Normal);
+    container->setStyle({.width = 200, .height = 100}, WidgetState::Normal);
+    container->addChild(child);
+    root->addChild(container);
+
+    Theme theme;
+    StyleManager styleManager{theme};
+    LayoutManager layout;
+    styleManager.resolveDirtyStyles(root);
+    layout.layout(root, {800, 600});
+
+    const Rect bounds = child->getGlobalBounds();
+    EXPECT_EQ(bounds.x, 200 - 10);
+    EXPECT_EQ(bounds.y, (100 - 20) / 2);
+    EXPECT_EQ(bounds.width, 10);
+}
+
+TEST(LayoutManagerTest, AbsoluteContainerAnchorBeatsAlignment) {
+    auto root = std::make_shared<AbsoluteContainer>("root");
+    auto container = std::make_shared<AbsoluteContainer>("container");
+    auto child = std::make_shared<SizeRecordingWidget>("child");
+    child->setStyle({.left = 10,
+                     .width = 50,
+                     .height = 30,
+                     .horizontalAlignment = Alignment::End,
+                     .verticalAlignment = Alignment::Center},
+                    WidgetState::Normal);
+    container->setStyle({.width = 200, .height = 100}, WidgetState::Normal);
+    container->addChild(child);
+    root->addChild(container);
+
+    Theme theme;
+    StyleManager styleManager{theme};
+    LayoutManager layout;
+    styleManager.resolveDirtyStyles(root);
+    layout.layout(root, {800, 600});
+
+    const Rect bounds = child->getGlobalBounds();
+    EXPECT_EQ(bounds.x, 10);
+    EXPECT_EQ(bounds.y, (100 - 30) / 2);
+    EXPECT_EQ(bounds.width, 50);
+}
+
+TEST(LayoutManagerTest, AlignmentStyleChangeTriggersRelayout) {
+    LayoutFixture f;
+    f.run();
+    const int measures = f.child->measureCalls;
+
+    f.child->setStyle({.horizontalAlignment = Alignment::Center}, WidgetState::Normal);
+    f.run();
+
+    EXPECT_GT(f.child->measureCalls, measures);
+}
