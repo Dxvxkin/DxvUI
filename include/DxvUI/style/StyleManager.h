@@ -77,6 +77,9 @@ class StyleManager {
     // Theme version at the time of the last resolution. When the theme is
     // mutated, the whole tree must be re-resolved in the next pass.
     std::uint64_t lastResolvedThemeVersion_ = 0;
+    // Theme version of layout-affecting mutations at the last resolution. A
+    // change here forces a relayout without re-resolving styles.
+    std::uint64_t lastResolvedLayoutThemeVersion_ = 0;
 };
 
 }  // namespace DxvUI

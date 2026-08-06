@@ -154,10 +154,24 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     ///@{
 
     /**
-     * @brief Gets a mutable reference to the node's local style rules.
-     * @return A reference to the Style object.
+     * @brief Sets or overwrites the node's local style rule for a given state.
+     *
+     * Invalidates the style (and, when any layout property changed, the layout)
+     * only when the new rule actually differs from the current one.
+     * @param rule The style rule to set.
+     * @param state The widget state to target.
      */
-    Style& editStyle();
+    void setStyle(const StyleRule& rule, WidgetState state = WidgetState::Normal);
+
+    /**
+     * @brief Merges style updates into the node's existing rule for a given state.
+     *
+     * Same invalidation semantics as setStyle(): a merge that touches only
+     * appearance properties does not force a relayout.
+     * @param updates A StyleRule containing only the properties to change.
+     * @param state The widget state to target.
+     */
+    void updateStyle(const StyleRule& updates, WidgetState state = WidgetState::Normal);
 
     /**
      * @brief Gets a read-only reference to the node's local style rules.
@@ -178,6 +192,15 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
      * re-lays-out the affected branch instead of the whole scene.
      */
     void markLayoutDirty();
+
+    /**
+     * @brief Marks the layout of this node and every descendant as dirty.
+     *
+     * A single ancestor-level markLayoutDirty() only re-lays-out that branch:
+     * clean subtrees are pruned by the LayoutManager. This is used when a theme
+     * mutation changes layout properties, which can affect any node in the tree.
+     */
+    void markLayoutDirtyRecursive();
 
     /**
      * @brief Gets the computed appearance properties for a given state.

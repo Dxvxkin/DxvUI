@@ -40,10 +40,8 @@ struct EventFixture {
     StyleManager manager{theme};
 
     EventFixture() {
-        buttonA->editStyle().set({.left = 0, .top = 0, .width = 100, .height = 50},
-                                 WidgetState::Normal);
-        buttonB->editStyle().set({.left = 200, .top = 0, .width = 100, .height = 50},
-                                 WidgetState::Normal);
+        buttonA->setStyle({.left = 0, .top = 0, .width = 100, .height = 50}, WidgetState::Normal);
+        buttonB->setStyle({.left = 200, .top = 0, .width = 100, .height = 50}, WidgetState::Normal);
         root->addChild(buttonA);
         root->addChild(buttonB);
         manager.resolveDirtyStyles(root);

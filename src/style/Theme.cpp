@@ -1,10 +1,48 @@
 #include "DxvUI/style/Theme.h"
 
 #include <utility>
+#include <vector>
 
 #include "DxvUI/Log.h"
 
 namespace DxvUI {
+
+namespace {
+
+// Whether any rule in the map sets a layout property.
+bool stateMapHasLayoutProps(const Theme::StateStyleMap& styles) {
+    for (const auto& [state, rule] : styles) {
+        if (detail::hasLayoutProps(rule)) return true;
+    }
+    return false;
+}
+
+// Whether the two maps differ in any layout property (a missing rule counts as
+// empty, so a layout prop appearing/disappearing is a difference).
+bool stateMapLayoutPropsDiffer(const Theme::StateStyleMap& a, const Theme::StateStyleMap& b) {
+    std::vector<WidgetState> states;
+    for (const auto& [s, r] : a) states.push_back(s);
+    for (const auto& [s, r] : b) {
+        if (!a.contains(s)) states.push_back(s);
+    }
+
+    for (const auto s : states) {
+        const StyleRule* ra = nullptr;
+        const StyleRule* rb = nullptr;
+        if (auto it = a.find(s); it != a.end()) ra = &it->second;
+        if (auto it = b.find(s); it != b.end()) rb = &it->second;
+        if (ra && rb) {
+            if (detail::layoutPropsDiffer(*ra, *rb)) return true;
+        } else if (ra) {
+            if (detail::hasLayoutProps(*ra)) return true;
+        } else if (rb) {
+            if (detail::hasLayoutProps(*rb)) return true;
+        }
+    }
+    return false;
+}
+
+}  // namespace
 
 // Use the "Construct on First Use" idiom to avoid the static initialization order fiasco.
 // This function's local static variable is guaranteed to be initialized only once,
@@ -32,6 +70,7 @@ void Theme::setDefaultStyle(const std::string& widgetType, const StateStyleMap& 
     // Start from the framework defaults for the widget type, then merge the
     // instance rules on top so an override can tweak a single property.
     auto& merged = overrides_[widgetType];
+    const StateStyleMap before = merged;
     const auto& defaults = getFrameworkDefaults();
     if (auto it = defaults.find(widgetType); it != defaults.end()) {
         merged = it->second;
@@ -44,16 +83,25 @@ void Theme::setDefaultStyle(const std::string& widgetType, const StateStyleMap& 
     }
 
     version_++;
+    if (stateMapLayoutPropsDiffer(before, merged)) layoutVersion_++;
 }
 
 void Theme::clearDefaultStyle(const std::string& widgetType) {
-    if (overrides_.erase(widgetType) > 0) {
+    if (auto it = overrides_.find(widgetType); it != overrides_.end()) {
+        if (stateMapHasLayoutProps(it->second)) layoutVersion_++;
+        overrides_.erase(it);
         version_++;
     }
 }
 
 void Theme::clear() {
     if (overrides_.empty()) return;
+    for (const auto& [type, styles] : overrides_) {
+        if (stateMapHasLayoutProps(styles)) {
+            layoutVersion_++;
+            break;
+        }
+    }
     overrides_.clear();
     version_++;
 }

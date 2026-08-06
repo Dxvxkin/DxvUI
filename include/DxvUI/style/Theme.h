@@ -67,6 +67,16 @@ class Theme {
      */
     [[nodiscard]] std::uint64_t getVersion() const noexcept { return version_; }
 
+    /**
+     * @brief Gets the version of theme mutations that affect layout properties.
+     *
+     * Incremented only when a mutation actually changes a layout property
+     * (width/height/min/max/left/top/right/bottom/padding/margin/alignment), so
+     * a color-only theme tweak does not force a full relayout.
+     * @return The current layout version.
+     */
+    [[nodiscard]] std::uint64_t getLayoutVersion() const noexcept { return layoutVersion_; }
+
     // --- Instance API for Style Resolution ---
 
     // Retrieves the resolved default style rule for a widget type and state:
@@ -78,6 +88,7 @@ class Theme {
     // setDefaultStyle time.
     std::map<std::string, StateStyleMap> overrides_;
     std::uint64_t version_ = 0;
+    std::uint64_t layoutVersion_ = 0;
 };
 
 }  // namespace DxvUI

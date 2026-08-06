@@ -39,8 +39,7 @@ struct ButtonFixture {
     StyleManager manager{theme};
 
     ButtonFixture() {
-        button->editStyle().set({.left = 0, .top = 0, .width = 100, .height = 50},
-                                WidgetState::Normal);
+        button->setStyle({.left = 0, .top = 0, .width = 100, .height = 50}, WidgetState::Normal);
         root->addChild(button);
         manager.resolveDirtyStyles(root);
         root->measure({800, 600});

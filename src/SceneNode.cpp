@@ -88,6 +88,7 @@ void SceneNode::setScene(const std::shared_ptr<Scene>& newScene) {
     }
 
     markStyleDirty();  // When scene changes, styles need re-evaluation
+    markLayoutDirty();
     for (const auto& child : children) {
         child->setScene(newScene);
     }
@@ -132,9 +133,30 @@ std::shared_ptr<SceneNode> SceneNode::findNodeAt(int x, int y) {
     return shared_from_this();
 }
 
-Style& SceneNode::editStyle() {
+void SceneNode::setStyle(const StyleRule& rule, WidgetState state) {
+    const StyleRule* old = style.get(state);
+    if (old && *old == rule) return;  // No-op write: nothing to invalidate.
+    const bool layoutChanged =
+        old ? detail::layoutPropsDiffer(*old, rule) : detail::hasLayoutProps(rule);
+    style.set(rule, state);
     markStyleDirty();
-    return style;
+    if (layoutChanged) markLayoutDirty();
+}
+
+void SceneNode::updateStyle(const StyleRule& updates, WidgetState state) {
+    const StyleRule* old = style.get(state);
+    if (!old) {
+        // No existing rule for the state: creating one is equivalent to a set.
+        setStyle(updates, state);
+        return;
+    }
+    StyleRule merged = *old;
+    merged.merge(updates);
+    if (merged == *old) return;  // No-op merge.
+    const bool layoutChanged = detail::layoutPropsDiffer(*old, merged);
+    style.update(updates, state);
+    markStyleDirty();
+    if (layoutChanged) markLayoutDirty();
 }
 
 const Style& SceneNode::getStyle() const { return style; }
@@ -142,14 +164,13 @@ const Style& SceneNode::getStyle() const { return style; }
 void SceneNode::markStyleDirty() {
     style.markDirty();
     markStyleSubtreeDirty();
-    markLayoutDirty();
 }
 
 void SceneNode::markStyleSubtreeDirty() {
     // Always walk all the way up to the root. An early stop on an already-marked
     // node is only valid while every ancestor of a marked node is marked too,
     // but that invariant is broken whenever the parent chain changes: a node can
-    // be styled while it has no parent yet (editStyle() on a freshly constructed
+    // be styled while it has no parent yet (setStyle() on a freshly constructed
     // node) or a dirty subtree can be detached and re-attached elsewhere. In both
     // cases the node's flag is already set while its new ancestors are clean, so
     // an early stop would leave the root unflagged and the StyleManager's prune
@@ -169,6 +190,13 @@ void SceneNode::markLayoutDirty() {
         n->layoutData.isSubtreeDirty = true;
     }
     layoutData.isDirty = true;
+}
+
+void SceneNode::markLayoutDirtyRecursive() {
+    markLayoutDirty();
+    for (const auto& child : children) {
+        child->markLayoutDirtyRecursive();
+    }
 }
 
 Rect SceneNode::getGlobalBounds() const {

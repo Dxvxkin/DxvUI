@@ -66,6 +66,7 @@ enable_testing()
 add_executable(DxvUITests
         tests/ColorTests.cpp
         tests/EventManagerTests.cpp
+        tests/LayoutManagerTests.cpp
         tests/LogTests.cpp
         tests/StyleManagerTests.cpp
         tests/WidgetTests.cpp

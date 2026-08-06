@@ -115,14 +115,22 @@ void StyleManager::resolveDirtyStyles(const std::shared_ptr<SceneNode>& root) {
     if (!root) return;
 
     // If the theme changed since the last pass, the whole tree is stale. Mark
-    // the root dirty: the cascade below re-resolves every descendant. A theme
-    // mutation can also change layout properties, so schedule a relayout here —
-    // this replaces the Scene's theme-change callback.
+    // the root dirty: the cascade below re-resolves every descendant.
     if (theme_.getVersion() != lastResolvedThemeVersion_) {
         lastResolvedThemeVersion_ = theme_.getVersion();
         root->style.markDirty();
         root->style.markSubtreeDirty();
-        root->markLayoutDirty();
+    }
+
+    // A theme mutation can also change layout properties; those are tracked by
+    // a separate version so a color-only theme tweak re-resolves styles but
+    // does not force a relayout. A layout-version change can affect any node in
+    // the tree, so the whole tree is marked (a plain root markLayoutDirty()
+    // would leave clean subtrees pruned out of the pass). This replaces the
+    // Scene's theme-change callback.
+    if (theme_.getLayoutVersion() != lastResolvedLayoutThemeVersion_) {
+        lastResolvedLayoutThemeVersion_ = theme_.getLayoutVersion();
+        root->markLayoutDirtyRecursive();
     }
 
     // Fast path: nothing in the tree needs a style pass, so we never touch the

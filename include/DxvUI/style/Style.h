@@ -268,6 +268,33 @@ inline constexpr auto layoutProps = std::tuple{
                                                     &ComputedLayoutStyle::verticalAlignment},
 };
 
+/**
+ * @brief Checks whether two rules differ in any layout property.
+ *
+ * Used to decide whether a style change invalidates the layout: only width,
+ * height, min/max, left/top/right/bottom, padding, margin and alignment affect
+ * the measure/arrange cycle.
+ */
+inline bool layoutPropsDiffer(const StyleRule& a, const StyleRule& b) {
+    return !std::apply(
+        [&](const auto&... prop) { return (true && ... && equalLayoutProp(a, b, prop)); },
+        layoutProps);
+}
+
+template <typename Src, typename Dst>
+constexpr bool layoutPropIsSet(const StyleRule& rule, const LayoutProp<Src, Dst>& prop) {
+    return (rule.*prop.src).has_value();
+}
+
+/**
+ * @brief Checks whether a rule sets at least one layout property.
+ */
+inline bool hasLayoutProps(const StyleRule& rule) {
+    return std::apply(
+        [&](const auto&... prop) { return (false || ... || layoutPropIsSet(rule, prop)); },
+        layoutProps);
+}
+
 }  // namespace detail
 
 inline void StyleRule::merge(const StyleRule& other) {
@@ -307,54 +334,6 @@ inline bool StyleRule::operator==(const StyleRule& other) const {
  */
 class Style {
    public:
-    /**
-     * @brief Sets or overwrites the style rule for a given state.
-     *
-     * If the new rule equals the current one, nothing changes and the version
-     * is not bumped.
-     * @param rule The style rule to set.
-     * @param state The widget state to target.
-     * @exceptionGuarantee Strong exception guarantee.
-     */
-    void set(const StyleRule& rule, WidgetState state = WidgetState::Normal) {
-        auto& slot = stateStyles[state_index(state)];
-        if (slot.has_value() && *slot == rule) return;
-        slot = rule;
-        version_++;
-    }
-
-    /**
-     * @brief Sets or overwrites the style rule for a given state (move version).
-     * @param rule The style rule to move.
-     * @param state The widget state to target.
-     * @exceptionGuarantee Strong exception guarantee.
-     */
-    void set(StyleRule&& rule, WidgetState state = WidgetState::Normal) {
-        auto& slot = stateStyles[state_index(state)];
-        if (slot.has_value() && *slot == rule) return;
-        slot = std::move(rule);
-        version_++;
-    }
-
-    /**
-     * @brief Merges new style properties into the existing rule for a given state.
-     * If no rule exists for the state, a new one is created.
-     * @param updates A StyleRule containing only the properties to change.
-     * @param state The widget state to target.
-     * @exceptionGuarantee Strong exception guarantee.
-     */
-    void update(const StyleRule& updates, WidgetState state = WidgetState::Normal) {
-        auto& slot = stateStyles[state_index(state)];
-        if (slot.has_value()) {
-            const StyleRule before = *slot;
-            slot->merge(updates);
-            if (!(before == *slot)) version_++;
-        } else {
-            slot = updates;
-            version_++;
-        }
-    }
-
     /**
      * @brief Gets the style rule for a given state.
      * @param state The widget state to query.
@@ -465,6 +444,44 @@ class Style {
     }
 
    private:
+    friend class SceneNode;
+
+    /**
+     * @brief Sets or overwrites the style rule for a given state.
+     *
+     * Mutators are private: SceneNode routes them through setStyle()/updateStyle(),
+     * which decide whether the change also invalidates the layout. If the new
+     * rule equals the current one, nothing changes and the version is not bumped.
+     * @param rule The style rule to set.
+     * @param state The widget state to target.
+     * @exceptionGuarantee Strong exception guarantee.
+     */
+    void set(const StyleRule& rule, WidgetState state = WidgetState::Normal) {
+        auto& slot = stateStyles[state_index(state)];
+        if (slot.has_value() && *slot == rule) return;
+        slot = rule;
+        version_++;
+    }
+
+    /**
+     * @brief Merges new style properties into the existing rule for a given state.
+     * If no rule exists for the state, a new one is created.
+     * @param updates A StyleRule containing only the properties to change.
+     * @param state The widget state to target.
+     * @exceptionGuarantee Strong exception guarantee.
+     */
+    void update(const StyleRule& updates, WidgetState state = WidgetState::Normal) {
+        auto& slot = stateStyles[state_index(state)];
+        if (slot.has_value()) {
+            const StyleRule before = *slot;
+            slot->merge(updates);
+            if (!(before == *slot)) version_++;
+        } else {
+            slot = updates;
+            version_++;
+        }
+    }
+
     // The node's own rules per state; an empty optional means the state has no
     // local rule.
     std::array<std::optional<StyleRule>, kWidgetStateCount> stateStyles;

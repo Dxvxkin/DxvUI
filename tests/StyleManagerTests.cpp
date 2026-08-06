@@ -74,8 +74,8 @@ TEST(StyleManagerTest, FrameworkDefaultsWithoutThemeRegistration) {
 
 TEST(StyleManagerTest, OwnStyleOverridesFrameworkDefaults) {
     auto node = std::make_shared<SceneNode>("node");
-    node->editStyle().set({.backgroundColor = Colors::Red, .textColor = Colors::White},
-                          WidgetState::Normal);
+    node->setStyle({.backgroundColor = Colors::Red, .textColor = Colors::White},
+                   WidgetState::Normal);
     Theme theme;
     StyleManager manager(theme);
 
@@ -104,8 +104,8 @@ TEST(StyleManagerTest, ThemeDefaultsAppliedForRegisteredWidgetType) {
 
 TEST(StyleManagerTest, StateStyleIsLayeredOnNormal) {
     auto node = std::make_shared<SceneNode>("node");
-    node->editStyle().set({.backgroundColor = Colors::Red}, WidgetState::Normal);
-    node->editStyle().set({.textColor = Colors::Blue}, WidgetState::Hovered);
+    node->setStyle({.backgroundColor = Colors::Red}, WidgetState::Normal);
+    node->setStyle({.textColor = Colors::Blue}, WidgetState::Hovered);
     Theme theme;
     StyleManager manager(theme);
 
@@ -125,7 +125,7 @@ TEST(StyleManagerTest, TextPropertiesInheritedFromParentNormal) {
     auto child = std::make_shared<SceneNode>("child");
     parent->addChild(child);
 
-    parent->editStyle().set({.textColor = Colors::Red, .fontSize = 24}, WidgetState::Normal);
+    parent->setStyle({.textColor = Colors::Red, .fontSize = 24}, WidgetState::Normal);
     Theme theme;
     StyleManager manager(theme);
 
@@ -141,8 +141,8 @@ TEST(StyleManagerTest, ChildOwnStyleOverridesInheritedTextProperties) {
     auto child = std::make_shared<SceneNode>("child");
     parent->addChild(child);
 
-    parent->editStyle().set({.textColor = Colors::Red}, WidgetState::Normal);
-    child->editStyle().set({.textColor = Colors::Green}, WidgetState::Normal);
+    parent->setStyle({.textColor = Colors::Red}, WidgetState::Normal);
+    child->setStyle({.textColor = Colors::Green}, WidgetState::Normal);
     Theme theme;
     StyleManager manager(theme);
 
@@ -156,7 +156,7 @@ TEST(StyleManagerTest, LayoutPropertiesAreNotInherited) {
     auto child = std::make_shared<SceneNode>("child");
     parent->addChild(child);
 
-    parent->editStyle().set(
+    parent->setStyle(
         {.width = 100, .padding = Thickness{1, 2, 3, 4}, .horizontalAlignment = Alignment::Center},
         WidgetState::Normal);
     Theme theme;
@@ -178,13 +178,13 @@ TEST(StyleManagerTest, DirtyPropagationRecomputesInheritedValues) {
     Theme theme;
     StyleManager manager(theme);
 
-    parent->editStyle().set({.fontSize = 16}, WidgetState::Normal);
+    parent->setStyle({.fontSize = 16}, WidgetState::Normal);
     manager.resolveDirtyStyles(parent);
     EXPECT_EQ(child->getComputedAppearance(WidgetState::Normal).fontSize, 16);
 
     // Changing the parent style cascades the dirty flag down to the child, so
     // the child picks up the new inherited value on the next resolution.
-    parent->editStyle().set({.fontSize = 30}, WidgetState::Normal);
+    parent->setStyle({.fontSize = 30}, WidgetState::Normal);
     manager.resolveDirtyStyles(parent);
     EXPECT_EQ(child->getComputedAppearance(WidgetState::Normal).fontSize, 30);
 }
@@ -207,7 +207,7 @@ TEST(StyleManagerTest, AllStatesAreResolved) {
 
 TEST(StyleManagerTest, StateChangeSelectsCachedEntryWithoutReResolve) {
     auto node = std::make_shared<SceneNode>("node");
-    node->editStyle().set({.textColor = Colors::Blue}, WidgetState::Hovered);
+    node->setStyle({.textColor = Colors::Blue}, WidgetState::Hovered);
     Theme theme;
     StyleManager manager(theme);
 
@@ -226,8 +226,8 @@ TEST(StyleManagerTest, StateChangeSelectsCachedEntryWithoutReResolve) {
 
 TEST(StyleManagerTest, MinMaxSizeConstraintsAreResolved) {
     auto node = std::make_shared<SceneNode>("node");
-    node->editStyle().set({.minWidth = 50, .minHeight = 30, .maxWidth = 200, .maxHeight = 100},
-                          WidgetState::Normal);
+    node->setStyle({.minWidth = 50, .minHeight = 30, .maxWidth = 200, .maxHeight = 100},
+                   WidgetState::Normal);
     Theme theme;
     StyleManager manager(theme);
 
@@ -246,10 +246,10 @@ TEST(StyleManagerTest, MinMaxSizeConstraintsAreResolved) {
 
 TEST(StyleManagerTest, MeasureClampsToMinMax) {
     auto minNode = std::make_shared<FixedSizeWidget>("min", Size{20, 10});
-    minNode->editStyle().set({.minWidth = 50, .minHeight = 30}, WidgetState::Normal);
+    minNode->setStyle({.minWidth = 50, .minHeight = 30}, WidgetState::Normal);
 
     auto maxNode = std::make_shared<FixedSizeWidget>("max", Size{500, 400});
-    maxNode->editStyle().set({.maxWidth = 200, .maxHeight = 100}, WidgetState::Normal);
+    maxNode->setStyle({.maxWidth = 200, .maxHeight = 100}, WidgetState::Normal);
 
     Theme theme;
     StyleManager manager(theme);
@@ -267,8 +267,8 @@ TEST(StyleManagerTest, MeasureClampsToMinMax) {
 
 TEST(StyleManagerTest, ExplicitSizeWinsOverMinMax) {
     auto node = std::make_shared<FixedSizeWidget>("node", Size{500, 400});
-    node->editStyle().set({.width = 100, .height = 50, .minWidth = 80, .maxWidth = 60},
-                          WidgetState::Normal);
+    node->setStyle({.width = 100, .height = 50, .minWidth = 80, .maxWidth = 60},
+                   WidgetState::Normal);
     Theme theme;
     StyleManager manager(theme);
 
@@ -281,7 +281,7 @@ TEST(StyleManagerTest, ExplicitSizeWinsOverMinMax) {
 
 TEST(StyleManagerTest, RightBottomAreResolved) {
     auto node = std::make_shared<SceneNode>("node");
-    node->editStyle().set({.left = 1, .top = 2, .right = 3, .bottom = 4}, WidgetState::Normal);
+    node->setStyle({.left = 1, .top = 2, .right = 3, .bottom = 4}, WidgetState::Normal);
     Theme theme;
     StyleManager manager(theme);
 
@@ -301,8 +301,7 @@ TEST(StyleManagerTest, RightBottomAreResolved) {
 TEST(StyleManagerTest, AbsoluteContainerRightBottomPositioning) {
     auto container = std::make_shared<AbsoluteContainer>("cont");
     auto child = std::make_shared<SceneNode>("child");
-    child->editStyle().set({.right = 10, .bottom = 5, .width = 100, .height = 40},
-                           WidgetState::Normal);
+    child->setStyle({.right = 10, .bottom = 5, .width = 100, .height = 40}, WidgetState::Normal);
     container->addChild(child);
 
     Theme theme;
@@ -324,8 +323,7 @@ TEST(StyleManagerTest, AbsoluteContainerRightBottomPositioning) {
 TEST(StyleManagerTest, AbsoluteContainerLeftWinsOverRight) {
     auto container = std::make_shared<AbsoluteContainer>("cont");
     auto child = std::make_shared<SceneNode>("child");
-    child->editStyle().set({.left = 20, .right = 10, .width = 100, .height = 40},
-                           WidgetState::Normal);
+    child->setStyle({.left = 20, .right = 10, .width = 100, .height = 40}, WidgetState::Normal);
     container->addChild(child);
 
     Theme theme;
@@ -406,17 +404,17 @@ TEST(StyleTest, VersionBumpsOnChangeNotOnNoop) {
     auto node = std::make_shared<SceneNode>("node");
     const std::uint64_t initial = node->getStyle().getVersion();
 
-    node->editStyle().set({.backgroundColor = Colors::Red}, WidgetState::Normal);
+    node->setStyle({.backgroundColor = Colors::Red}, WidgetState::Normal);
     EXPECT_GT(node->getStyle().getVersion(), initial);
 
     const std::uint64_t afterSet = node->getStyle().getVersion();
-    node->editStyle().set({.backgroundColor = Colors::Red}, WidgetState::Normal);  // same value
+    node->setStyle({.backgroundColor = Colors::Red}, WidgetState::Normal);  // same value
     EXPECT_EQ(node->getStyle().getVersion(), afterSet);
 
-    node->editStyle().update({.backgroundColor = Colors::Red});  // no-op merge
+    node->updateStyle({.backgroundColor = Colors::Red});  // no-op merge
     EXPECT_EQ(node->getStyle().getVersion(), afterSet);
 
-    node->editStyle().update({.backgroundColor = Colors::Blue});
+    node->updateStyle({.backgroundColor = Colors::Blue});
     EXPECT_GT(node->getStyle().getVersion(), afterSet);
 }
 
@@ -456,7 +454,7 @@ TEST(StyleManagerTest, StyledChildAddedToResolvedTreeIsResolved) {
     // Attaching it to an already resolved tree must propagate its dirty state up
     // to the root, or the prune traversal would fast-path and never resolve it.
     auto child = std::make_shared<SceneNode>("child");
-    child->editStyle().set({.backgroundColor = Colors::Red}, WidgetState::Normal);
+    child->setStyle({.backgroundColor = Colors::Red}, WidgetState::Normal);
     parent->addChild(child);
 
     manager.resolveDirtyStyles(parent);
@@ -478,7 +476,7 @@ TEST(StyleManagerTest, DeepChildEditOnlyResolvesTheBranch) {
 
     // Editing only a deep node must re-resolve it (and any ancestors needed for
     // inheritance) without disturbing the already-resolved root.
-    leaf->editStyle().set({.fontSize = 30}, WidgetState::Normal);
+    leaf->setStyle({.fontSize = 30}, WidgetState::Normal);
     manager.resolveDirtyStyles(root);
 
     EXPECT_EQ(leaf->getComputedAppearance(WidgetState::Normal).fontSize, 30);
