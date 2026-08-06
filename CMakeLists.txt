@@ -60,6 +60,13 @@ target_link_libraries(DxvUIExample PRIVATE
         SDL2::SDL2main
 )
 
+# --- Alignment example ---
+add_executable(DxvUIAlignmentExample examples/alignment.cpp)
+target_link_libraries(DxvUIAlignmentExample PRIVATE
+        DxvUI
+        SDL2::SDL2main
+)
+
 
 # --- Tests ---
 enable_testing()
