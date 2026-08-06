@@ -90,6 +90,15 @@ Rect LayoutManager::shrinkRect(const Rect& rect, const Thickness& padding) {
             rect.height - static_cast<int>(padding.top + padding.bottom)};
 }
 
+Size LayoutManager::measureChild(SceneNode& child, const Size& availableSize) {
+    if (!child.visible) {
+        return {0, 0};
+    }
+    const auto& margin = child.getComputedLayout(child.getCurrentState()).margin;
+    const Size innerAvailableSize = subtractPadding(availableSize, margin);
+    return addPadding(child.measure(innerAvailableSize), margin);
+}
+
 void LayoutManager::arrangeInvisible(SceneNode& node, const Rect& parentRect) {
     node.arrange({parentRect.x, parentRect.y, 0, 0});
 }

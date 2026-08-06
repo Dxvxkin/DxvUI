@@ -34,9 +34,9 @@ Size HorizontalContainer::onMeasure(const Size& availableSize) {
             totalWidth += spacing_;
         }
 
-        const Size childDesiredSize = child->measure(contentAvailableSize);
-        totalWidth += childDesiredSize.width;
-        maxHeight = std::max(maxHeight, childDesiredSize.height);
+        const Size childOuterSize = LayoutManager::measureChild(*child, contentAvailableSize);
+        totalWidth += childOuterSize.width;
+        maxHeight = std::max(maxHeight, childOuterSize.height);
 
         firstVisibleChild = false;
     }
@@ -59,6 +59,7 @@ void HorizontalContainer::onArrange(const Rect& finalRect) {
         }
 
         const auto& childComputedLayout = child->getComputedLayout(child->getCurrentState());
+        const auto& margin = childComputedLayout.margin;
         Size childDesiredSize = child->getDesiredSize();
 
         // Use the width from the style if it's specified, otherwise use the measured width.
@@ -68,14 +69,14 @@ void HorizontalContainer::onArrange(const Rect& finalRect) {
             (childComputedLayout.height > 0) ? childComputedLayout.height : childDesiredSize.height;
 
         const Rect childFinalRect = {
-            .x = static_cast<int>(currentX),
-            .y = content.y,
+            .x = static_cast<int>(currentX + margin.left),
+            .y = content.y + static_cast<int>(margin.top),
             .width = static_cast<int>(finalWidth),
             .height = static_cast<int>(finalHeight)};  // Use finalHeight here
 
         child->arrange(childFinalRect);
 
-        currentX += finalWidth + spacing_;  // Use finalWidth here
+        currentX += margin.left + finalWidth + margin.right + spacing_;  // Use finalWidth here
     }
 }
 void HorizontalContainer::draw(IRenderer& renderer) {

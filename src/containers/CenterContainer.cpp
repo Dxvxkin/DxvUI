@@ -12,12 +12,12 @@ Size CenterContainer::onMeasure(const Size& availableSize) {
 
     Size contentAvailableSize = LayoutManager::subtractPadding(availableSize, padding);
 
-    Size childDesiredSize = {0, 0};
+    Size childOuterSize = {0, 0};
     if (!children.empty() && children.front()) {
-        childDesiredSize = children.front()->measure(contentAvailableSize);
+        childOuterSize = LayoutManager::measureChild(*children.front(), contentAvailableSize);
     }
 
-    return LayoutManager::addPadding(childDesiredSize, padding);
+    return LayoutManager::addPadding(childOuterSize, padding);
 }
 
 void CenterContainer::onArrange(const Rect& finalRect) {
@@ -28,10 +28,15 @@ void CenterContainer::onArrange(const Rect& finalRect) {
 
     if (!children.empty() && children.front()) {
         auto& child = children.front();
+        const auto& margin = child->getComputedLayout(child->getCurrentState()).margin;
         Size childDesiredSize = child->getDesiredSize();
 
-        int childX = content.x + (content.width - static_cast<int>(childDesiredSize.width)) / 2;
-        int childY = content.y + (content.height - static_cast<int>(childDesiredSize.height)) / 2;
+        // Center the child's margin-box in the content area, then offset the
+        // child itself by its margin.
+        int marginBoxW = static_cast<int>(childDesiredSize.width + margin.left + margin.right);
+        int marginBoxH = static_cast<int>(childDesiredSize.height + margin.top + margin.bottom);
+        int childX = content.x + (content.width - marginBoxW) / 2 + static_cast<int>(margin.left);
+        int childY = content.y + (content.height - marginBoxH) / 2 + static_cast<int>(margin.top);
 
         Rect childFinalRect = {childX, childY, static_cast<int>(childDesiredSize.width),
                                static_cast<int>(childDesiredSize.height)};

@@ -77,6 +77,18 @@ class LayoutManager {
     static Rect shrinkRect(const Rect& rect, const Thickness& padding);
 
     /**
+     * @brief Measures a child the way its parent would, accounting for its margin.
+     *
+     * The child's own margin reduces the size available to it, and the returned
+     * size is the child's outer box (measured size inflated by the margin).
+     * Invisible children contribute nothing.
+     * @param child The child to measure.
+     * @param availableSize The size available to the parent.
+     * @return The child's outer size, including its margin.
+     */
+    static Size measureChild(SceneNode& child, const Size& availableSize);
+
+    /**
      * @brief Arranges a hidden child into a zero-sized rect.
      *
      * Containers use this for invisible children so that their dirty flags get

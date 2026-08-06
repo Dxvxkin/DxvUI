@@ -60,7 +60,7 @@ void Button::onAttach() {
 Size Button::onMeasure(const Size& availableSize) {
     Size childDesiredSize = {0, 0};
     if (!children.empty()) {
-        childDesiredSize = children.front()->measure(availableSize);
+        childDesiredSize = LayoutManager::measureChild(*children.front(), availableSize);
     }
 
     const auto& computedLayout = getComputedLayout(getCurrentState());
@@ -72,7 +72,10 @@ Size Button::onMeasure(const Size& availableSize) {
 void Button::onArrange(const Rect& finalRect) {
     if (!children.empty()) {
         const Rect content = LayoutManager::contentRect(*this, finalRect);
-        children.front()->arrange(content);
+        const auto& margin =
+            children.front()->getComputedLayout(children.front()->getCurrentState()).margin;
+        const Rect childRect = LayoutManager::shrinkRect(content, margin);
+        children.front()->arrange(childRect);
     }
 }
 

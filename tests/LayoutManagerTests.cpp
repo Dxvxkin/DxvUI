@@ -7,11 +7,13 @@
 #include "DxvUI/Log.h"
 #include "DxvUI/SceneNode.h"
 #include "DxvUI/containers/AbsoluteContainer.h"
+#include "DxvUI/containers/CenterContainer.h"
 #include "DxvUI/containers/HorizontalContainer.h"
 #include "DxvUI/layout/LayoutManager.h"
 #include "DxvUI/style/Colors.h"
 #include "DxvUI/style/StyleManager.h"
 #include "DxvUI/style/Theme.h"
+#include "DxvUI/widgets/Button.h"
 
 using namespace DxvUI;
 
@@ -239,4 +241,170 @@ TEST(LayoutManagerTest, HorizontalContainerSubtractsPaddingBeforeMeasuringChildr
     const Rect rowBounds = row->getGlobalBounds();
     EXPECT_EQ(rowBounds.width, static_cast<int>(10 + padding.left + padding.right));
     EXPECT_EQ(rowBounds.height, static_cast<int>(20 + padding.top + padding.bottom));
+}
+
+TEST(LayoutManagerTest, MeasureChildSubtractsMarginAndReturnsOuterSize) {
+    const Thickness margin = {.top = 2, .right = 3, .bottom = 4, .left = 5};
+
+    auto root = std::make_shared<AbsoluteContainer>("root");
+    auto child = std::make_shared<SizeRecordingWidget>("child");
+    root->addChild(child);
+    child->setStyle({.margin = margin}, WidgetState::Normal);
+
+    Theme theme;
+    StyleManager styleManager{theme};
+    styleManager.resolveDirtyStyles(root);
+
+    const Size outer = LayoutManager::measureChild(*child, {100, 60});
+
+    EXPECT_FLOAT_EQ(child->lastAvailableSize.width, 100 - (margin.left + margin.right));
+    EXPECT_FLOAT_EQ(child->lastAvailableSize.height, 60 - (margin.top + margin.bottom));
+    EXPECT_FLOAT_EQ(outer.width, 10 + margin.left + margin.right);
+    EXPECT_FLOAT_EQ(outer.height, 20 + margin.top + margin.bottom);
+
+    child->setVisible(false);
+    const Size hidden = LayoutManager::measureChild(*child, {100, 60});
+    EXPECT_FLOAT_EQ(hidden.width, 0);
+    EXPECT_FLOAT_EQ(hidden.height, 0);
+}
+
+TEST(LayoutManagerTest, MarginExpandsAndOffsetsHorizontalContainer) {
+    const Thickness marginA = {.top = 1, .right = 2, .bottom = 3, .left = 4};
+
+    auto root = std::make_shared<AbsoluteContainer>("root");
+    auto row = std::make_shared<HorizontalContainer>("row");
+    auto childA = std::make_shared<SizeRecordingWidget>("childA");
+    auto childB = std::make_shared<SizeRecordingWidget>("childB");
+    childA->setStyle({.margin = marginA}, WidgetState::Normal);
+    row->setSpacing(3);
+    row->addChild(childA);
+    row->addChild(childB);
+    root->addChild(row);
+
+    Theme theme;
+    StyleManager styleManager{theme};
+    LayoutManager layout;
+    styleManager.resolveDirtyStyles(root);
+    layout.layout(root, {800, 600});
+
+    const int outerWidthA = 10 + static_cast<int>(marginA.left + marginA.right);
+    const Rect rowBounds = row->getGlobalBounds();
+    EXPECT_EQ(rowBounds.width, outerWidthA + 3 + 10);
+    EXPECT_EQ(rowBounds.height, 20 + static_cast<int>(marginA.top + marginA.bottom));
+
+    const Rect boundsA = childA->getGlobalBounds();
+    EXPECT_EQ(boundsA.x, static_cast<int>(marginA.left));
+    EXPECT_EQ(boundsA.y, static_cast<int>(marginA.top));
+    EXPECT_EQ(boundsA.width, 10);
+
+    const Rect boundsB = childB->getGlobalBounds();
+    EXPECT_EQ(boundsB.x, outerWidthA + 3);
+    EXPECT_EQ(boundsB.y, 0);
+    EXPECT_EQ(boundsB.width, 10);
+}
+
+TEST(LayoutManagerTest, MarginCentersCenterContainerChild) {
+    auto root = std::make_shared<AbsoluteContainer>("root");
+    auto center = std::make_shared<CenterContainer>("center");
+    auto child = std::make_shared<SizeRecordingWidget>("child");
+    child->setStyle({.margin = Thickness{2, 2, 2, 2}}, WidgetState::Normal);
+    center->setStyle({.width = 50, .height = 50}, WidgetState::Normal);
+    center->addChild(child);
+    root->addChild(center);
+
+    Theme theme;
+    StyleManager styleManager{theme};
+    LayoutManager layout;
+    styleManager.resolveDirtyStyles(root);
+    layout.layout(root, {800, 600});
+
+    const Rect centerBounds = center->getGlobalBounds();
+    EXPECT_EQ(centerBounds.width, 50);
+    EXPECT_EQ(centerBounds.height, 50);
+
+    const Rect childBounds = child->getGlobalBounds();
+    EXPECT_EQ(childBounds.x, 0 + (50 - (10 + 4)) / 2 + 2);
+    EXPECT_EQ(childBounds.y, 0 + (50 - (20 + 4)) / 2 + 2);
+    EXPECT_EQ(childBounds.width, 10);
+    EXPECT_EQ(childBounds.height, 20);
+}
+
+TEST(LayoutManagerTest, MarginOffsetsAbsoluteContainerChild) {
+    const Thickness marginA = {.top = 5, .right = 0, .bottom = 0, .left = 5};
+    const Thickness marginB = {.top = 0, .right = 3, .bottom = 2, .left = 0};
+
+    auto root = std::make_shared<AbsoluteContainer>("root");
+    auto childA = std::make_shared<SizeRecordingWidget>("childA");
+    auto childB = std::make_shared<SizeRecordingWidget>("childB");
+    childA->setStyle({.left = 10, .top = 10, .width = 100, .height = 40, .margin = marginA},
+                     WidgetState::Normal);
+    childB->setStyle({.right = 10, .bottom = 5, .width = 100, .height = 40, .margin = marginB},
+                     WidgetState::Normal);
+    root->addChild(childA);
+    root->addChild(childB);
+
+    Theme theme;
+    StyleManager styleManager{theme};
+    LayoutManager layout;
+    styleManager.resolveDirtyStyles(root);
+    layout.layout(root, {500, 300});
+
+    const Rect boundsA = childA->getGlobalBounds();
+    EXPECT_EQ(boundsA.x, 10 + static_cast<int>(marginA.left));
+    EXPECT_EQ(boundsA.y, 10 + static_cast<int>(marginA.top));
+    EXPECT_EQ(boundsA.width, 100);
+
+    const Rect boundsB = childB->getGlobalBounds();
+    EXPECT_EQ(boundsB.x, 500 - 100 - 10 - static_cast<int>(marginB.right));
+    EXPECT_EQ(boundsB.y, 300 - 40 - 5 - static_cast<int>(marginB.bottom));
+    EXPECT_EQ(boundsB.width, 100);
+}
+
+TEST(LayoutManagerTest, AbsoluteContainerRightOnlyMeasureFixesDoubleWidth) {
+    auto outer = std::make_shared<AbsoluteContainer>("outer");
+    auto inner = std::make_shared<AbsoluteContainer>("inner");
+    auto child = std::make_shared<SizeRecordingWidget>("child");
+    child->setStyle({.right = 10, .width = 100, .height = 30}, WidgetState::Normal);
+    inner->addChild(child);
+    outer->addChild(inner);
+
+    Theme theme;
+    StyleManager styleManager{theme};
+    LayoutManager layout;
+    styleManager.resolveDirtyStyles(outer);
+    layout.layout(outer, {500, 300});
+
+    const Rect innerBounds = inner->getGlobalBounds();
+    // Contribution of a right-anchored child is right + outerWidth (110), not
+    // 2 * width + right (210).
+    EXPECT_EQ(innerBounds.width, 10 + 100);
+    EXPECT_EQ(innerBounds.height, 30);
+}
+
+TEST(LayoutManagerTest, ButtonHonorsChildMargin) {
+    const Thickness margin = {.top = 1, .right = 2, .bottom = 3, .left = 4};
+
+    auto root = std::make_shared<AbsoluteContainer>("root");
+    auto button = Button::create("button");
+    button->setStyle({.width = 100, .height = 50, .padding = Thickness{0, 0, 0, 0}},
+                     WidgetState::Normal);
+    root->addChild(button);
+    ASSERT_FALSE(button->getChildren().empty());
+    button->getChildren().front()->setStyle({.margin = margin}, WidgetState::Normal);
+
+    Theme theme;
+    StyleManager styleManager{theme};
+    LayoutManager layout;
+    styleManager.resolveDirtyStyles(root);
+    layout.layout(root, {800, 600});
+
+    const Rect buttonBounds = button->getGlobalBounds();
+    EXPECT_EQ(buttonBounds.width, 100);
+    EXPECT_EQ(buttonBounds.height, 50);
+
+    const Rect childBounds = button->getChildren().front()->getGlobalBounds();
+    EXPECT_EQ(childBounds.x, static_cast<int>(margin.left));
+    EXPECT_EQ(childBounds.y, static_cast<int>(margin.top));
+    EXPECT_EQ(childBounds.width, 100 - static_cast<int>(margin.left + margin.right));
+    EXPECT_EQ(childBounds.height, 50 - static_cast<int>(margin.top + margin.bottom));
 }
