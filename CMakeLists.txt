@@ -64,8 +64,11 @@ target_link_libraries(DxvUIExample PRIVATE
 enable_testing()
 add_executable(DxvUITests
         tests/ColorTests.cpp
-        tests/UIBindingTests.cpp
+        tests/EventManagerTests.cpp
+        tests/LogTests.cpp
         tests/StyleManagerTests.cpp
+        tests/WidgetTests.cpp
+        tests/UIBindingTests.cpp
 
 )
 target_link_libraries(DxvUITests PRIVATE

@@ -52,11 +52,16 @@ bool SDLEventSource::processEvent(const SDL_Event& sdlEvent, DxvEvent& dxvEvent)
         case SDL_MOUSEBUTTONDOWN:
             dxvEvent.type = EventType::MouseDown;
             translateMouseButtonEvent(dxvEvent, sdlEvent.button);
+            // Capture the mouse so the corresponding button-up is delivered even
+            // if the button is released outside the window; otherwise the pressed
+            // state would stick forever.
+            SDL_CaptureMouse(SDL_TRUE);
             return true;
 
         case SDL_MOUSEBUTTONUP:
             dxvEvent.type = EventType::MouseUp;
             translateMouseButtonEvent(dxvEvent, sdlEvent.button);
+            SDL_CaptureMouse(SDL_FALSE);
             return true;
 
         case SDL_MOUSEMOTION:

@@ -52,6 +52,17 @@ void EventManager::handleMouseMove(DxvEvent& event) {
     event.mouse.dy = event.mouse.y - lastMousePosition.y;
     lastMousePosition = {event.mouse.x, event.mouse.y};
 
+    // Defense-in-depth: a button-up can be missed entirely (e.g. released
+    // outside the window by a non-SDL event source). If the mouse moves with no
+    // button held, any tracked press must be cleared so widgets never stay
+    // stuck in the Pressed state.
+    if (event.mouse.button == MouseButton::None) {
+        if (auto pressed = pressedNode.lock()) {
+            pressed->setPressed(false);
+            pressedNode.reset();
+        }
+    }
+
     auto oldNode = nodeUnderMouse.lock();
     auto newNode = root->findNodeAt(event.mouse.x, event.mouse.y);
 
@@ -110,6 +121,14 @@ void EventManager::handleMouseDown(DxvEvent& event) {
             e.target = oldFocused;
             oldFocused->dispatchEvent(e);
         }
+        // Pressing a different node (or empty space) cancels a previous press whose
+        // button-up was missed, so no widget stays stuck in the Pressed state.
+        auto existingPressed = pressedNode.lock();
+        if (existingPressed && existingPressed != targetNode) {
+            existingPressed->setPressed(false);
+            pressedNode.reset();
+        }
+
         if (targetNode) {
             DxvEvent e;
             e.type = EventType::FocusGained;

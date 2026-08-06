@@ -70,6 +70,18 @@ Size Button::measureOverride(const Size& availableSize) {
 }
 
 void Button::arrange(const Rect& finalRect) {
+    if (!isVisible()) {
+        // Match the base class: an invisible node is arranged into a zero-sized
+        // rectangle (and its children along with it) so hit-testing and
+        // getGlobalBounds() report no footprint.
+        style.setComputedBounds(getCurrentState(), {finalRect.x, finalRect.y, 0, 0});
+        if (!children.empty()) {
+            children.front()->arrange({finalRect.x, finalRect.y, 0, 0});
+        }
+        isLayoutDirty = false;
+        return;
+    }
+
     style.setComputedBounds(getCurrentState(), finalRect);
 
     const auto& computedLayout = getComputedLayout(getCurrentState());
@@ -100,10 +112,10 @@ void Button::draw(IRenderer& renderer) {
 }
 
 std::shared_ptr<SceneNode> Button::findNodeAt(int x, int y) {
-    if (getGlobalBounds().contains(x, y)) {
-        return shared_from_this();
+    if (!isVisible() || !getGlobalBounds().contains(x, y)) {
+        return nullptr;
     }
-    return nullptr;
+    return shared_from_this();
 }
 
 void Button::setText(const std::string& text) {
