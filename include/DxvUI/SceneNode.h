@@ -86,6 +86,19 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
      */
     std::shared_ptr<Scene> getScene() const;
 
+    /**
+     * @brief Gets this node's parent, if any.
+     * @return A weak pointer to the parent, or an expired weak pointer if the
+     * node is a root. Lock it with `lock()` before use.
+     */
+    std::weak_ptr<SceneNode> getParent() const;
+
+    /**
+     * @brief Gets the direct children of this node.
+     * @return A const reference to the children vector.
+     */
+    const std::vector<std::shared_ptr<SceneNode>>& getChildren() const;
+
     ///@}
 
     //----------------------------------------------------------------
@@ -384,8 +397,6 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
      */
     static int getNodeCount();
 
-    std::weak_ptr<SceneNode> parent;
-    std::vector<std::shared_ptr<SceneNode>> children;
     std::weak_ptr<Scene> scene;
 
     ///@}
@@ -428,6 +439,9 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
 
     friend class StyleManager;
     friend class LayoutManager;
+
+    std::weak_ptr<SceneNode> parent;
+    std::vector<std::shared_ptr<SceneNode>> children;
 
     std::string id;
     Style style;

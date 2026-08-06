@@ -95,6 +95,8 @@ void SceneNode::setScene(const std::shared_ptr<Scene>& newScene) {
 }
 
 std::shared_ptr<Scene> SceneNode::getScene() const { return scene.lock(); }
+std::weak_ptr<SceneNode> SceneNode::getParent() const { return parent; }
+const std::vector<std::shared_ptr<SceneNode>>& SceneNode::getChildren() const { return children; }
 const std::string& SceneNode::getId() const { return id; }
 
 void SceneNode::setId(const std::string& newId) {

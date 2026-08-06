@@ -32,7 +32,7 @@ void ContanersBuildText(std::shared_ptr<DxvUI::SceneNode>& root) {
     h_container->addChild(btn);
     btn->on(DxvUI::EventType::Click, [](DxvUI::DxvEvent& event) {
         if (auto target = event.target.lock()) {
-            if (auto p = target->parent.lock()) {
+            if (auto p = target->getParent().lock()) {
                 p->updateStyle({.borderColor = DxvUI::Colors::Green});
             }
         }
