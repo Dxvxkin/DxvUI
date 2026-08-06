@@ -11,8 +11,6 @@ class HorizontalContainer : public Container {
    public:
     using Container::Container;  // Inherit constructors
 
-    void draw(IRenderer& renderer) override;
-
     /**
      * @brief Sets the spacing (in pixels) between each child element.
      * @param spacing The space between elements.

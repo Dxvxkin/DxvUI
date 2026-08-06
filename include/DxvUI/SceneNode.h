@@ -357,6 +357,11 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
 
     /**
      * @brief Draws the node and its children.
+     *
+     * Template method: it checks visibility, then calls the drawBackground()
+     * and drawContent() hooks, then draws the children. Subclasses that only
+     * need a styled background/border or simple content should override the
+     * protected hooks instead of this method.
      * @param renderer The renderer to use for drawing operations.
      */
     virtual void draw(IRenderer& renderer);
@@ -431,6 +436,27 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
      * @param finalRect The final rectangle allocated by the parent.
      */
     virtual void onArrange(const Rect& finalRect);
+
+    /**
+     * @brief Draws the node's background and border.
+     *
+     * Default implementation fills a rounded rect built from the node's
+     * computed appearance (borderRadius, backgroundColor, border). It is a
+     * no-op when the background is transparent and the border is zero-thick.
+     * Override for widgets with a fully custom background.
+     * @param renderer The renderer to use for drawing operations.
+     */
+    virtual void drawBackground(IRenderer& renderer);
+
+    /**
+     * @brief Draws the node's content, on top of the background and before
+     * the children.
+     *
+     * Default implementation is a no-op. Override to render widget-specific
+     * content (e.g. Label draws its text texture here).
+     * @param renderer The renderer to use for drawing operations.
+     */
+    virtual void drawContent(IRenderer& renderer);
 
     friend class StyleManager;
     friend class LayoutManager;

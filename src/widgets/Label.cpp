@@ -66,13 +66,9 @@ Size Label::onMeasure(const Size& availableSize) {
     return {0, 0};
 }
 
-void Label::draw(IRenderer& renderer) {
+void Label::drawContent(IRenderer& renderer) {
     const auto& computedAppearance = getComputedAppearance(getCurrentState());
     const auto& computedLayout = getComputedLayout(getCurrentState());
-
-    renderer.fillRoundRect(getGlobalBounds(), computedAppearance.borderRadius,
-                           computedAppearance.backgroundColor,
-                           {computedAppearance.borderColor, computedAppearance.borderThickness});
 
     // Определяем, нужно ли пересоздавать текстуру.
     // Это нужно, только если изменился текст или параметры, влияющие на
@@ -103,8 +99,6 @@ void Label::draw(IRenderer& renderer) {
         renderer.drawTexture(textTexture, dstRect);
         // Эта функция не принимает цвет, т.к. он уже в текстуре
     }
-
-    SceneNode::draw(renderer);
 }
 
 }  // namespace DxvUI

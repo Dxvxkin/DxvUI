@@ -79,18 +79,6 @@ void Button::onArrange(const Rect& finalRect) {
     }
 }
 
-void Button::draw(IRenderer& renderer) {
-    const auto& computedAppearance = getComputedAppearance(getCurrentState());
-
-    // 1. Draw the button's background
-    renderer.fillRoundRect(
-        getGlobalBounds(), computedAppearance.borderRadius, computedAppearance.backgroundColor,
-        {.color = computedAppearance.borderColor, .thickness = computedAppearance.borderThickness});
-
-    // 2. Let the base class handle drawing children (the container will draw the label)
-    SceneNode::draw(renderer);
-}
-
 std::shared_ptr<SceneNode> Button::findNodeAt(int x, int y) {
     if (!isVisible() || !getGlobalBounds().contains(x, y)) {
         return nullptr;

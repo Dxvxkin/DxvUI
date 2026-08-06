@@ -80,14 +80,5 @@ void HorizontalContainer::onArrange(const Rect& finalRect) {
         currentX += margin.left + finalWidth + margin.right + spacing_;  // Use finalWidth here
     }
 }
-void HorizontalContainer::draw(IRenderer& renderer) {
-    const auto& computedAppearance = getComputedAppearance(getCurrentState());
-
-    // 1. Draw the button's background
-    renderer.fillRoundRect(getGlobalBounds(), computedAppearance.borderRadius,
-                           computedAppearance.backgroundColor,
-                           {computedAppearance.borderColor, computedAppearance.borderThickness});
-    Container::draw(renderer);
-}
 
 }  // namespace DxvUI

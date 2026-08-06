@@ -20,7 +20,6 @@ class Button : public SceneNode {
     // --- Overrides ---
     const char* getNodeType() const override;
     void onAttach() override;
-    void draw(IRenderer& renderer) override;
     std::shared_ptr<SceneNode> findNodeAt(int x, int y) override;
     // ---------------------
 

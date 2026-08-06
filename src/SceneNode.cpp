@@ -362,11 +362,27 @@ void SceneNode::draw(IRenderer& renderer) {
         return;
     }
 
+    drawBackground(renderer);
+    drawContent(renderer);
+
     sortChildrenIfDirty();
     for (const auto& child : children) {
         child->draw(renderer);
     }
 }
+
+void SceneNode::drawBackground(IRenderer& renderer) {
+    const auto& computedAppearance = getComputedAppearance(getCurrentState());
+    if (computedAppearance.backgroundColor.a == 0 && computedAppearance.borderThickness <= 0) {
+        return;
+    }
+
+    renderer.fillRoundRect(
+        getGlobalBounds(), computedAppearance.borderRadius, computedAppearance.backgroundColor,
+        {.color = computedAppearance.borderColor, .thickness = computedAppearance.borderThickness});
+}
+
+void SceneNode::drawContent(IRenderer& /*renderer*/) {}
 
 void SceneNode::bind(const std::shared_ptr<UIBinding>& binding) {
     connection_.reset();
