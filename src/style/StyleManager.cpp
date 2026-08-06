@@ -116,21 +116,35 @@ void StyleManager::resolveDirtyStyles(const std::shared_ptr<SceneNode>& root) {
     if (!root) return;
 
     // If the theme changed since the last pass, the whole tree is stale. Mark
-    // the root dirty: the pass below cascades the dirty flag onto every child.
+    // the root dirty: the cascade below re-resolves every descendant. A theme
+    // mutation can also change layout properties, so schedule a relayout here —
+    // this replaces the Scene's theme-change callback.
     if (theme_.getVersion() != lastResolvedThemeVersion_) {
         lastResolvedThemeVersion_ = theme_.getVersion();
         root->style.markDirty();
+        root->style.markSubtreeDirty();
+        root->markLayoutDirty();
     }
 
-    // Use a queue for a breadth-first (top-down) traversal.
-    // This ensures parent styles are resolved before their children need to
-    // inherit from them.
+    // Fast path: nothing in the tree needs a style pass, so we never touch the
+    // scene graph at all on clean frames.
+    if (!root->style.isSubtreeDirty() && !root->style.isDirty()) return;
+
+    // Pruned top-down traversal. We only enter subtrees whose style-subtree
+    // flag is set (a rule somewhere below was modified), and resolve every node
+    // whose own cache is dirty. Resolving a node cascades the dirty flag onto
+    // its children because they inherit text properties; the parents are always
+    // resolved before their children since each node is enqueued by its parent.
+    // The subtree flags are consumed (cleared) right when a node is popped, so
+    // no post-pass cleanup is needed and the tree is clean for the next frame.
     std::queue<std::shared_ptr<SceneNode>> nodesToProcess;
     nodesToProcess.push(root);
 
     while (!nodesToProcess.empty()) {
         auto node = nodesToProcess.front();
         nodesToProcess.pop();
+
+        node->style.clearSubtreeDirty();
 
         if (node->style.isDirty()) {
             for (size_t i = 0; i < kWidgetStateCount; ++i) {
@@ -140,17 +154,15 @@ void StyleManager::resolveDirtyStyles(const std::shared_ptr<SceneNode>& root) {
             }
             node->style.markClean();
 
-            // Resolving a node can change the text properties its children
-            // inherit, so the whole subtree below a dirty node must be
-            // re-resolved as well. The children are already queued below and
-            // get processed in this same pass, parent before child.
             for (const auto& child : node->children) {
                 child->style.markDirty();
             }
         }
 
         for (const auto& child : node->children) {
-            nodesToProcess.push(child);
+            if (child->style.isSubtreeDirty() || child->style.isDirty()) {
+                nodesToProcess.push(child);
+            }
         }
     }
 }

@@ -34,8 +34,6 @@ void Scene::init() {
     eventManager = std::make_unique<EventManager>(*this);
     root = std::make_shared<AbsoluteContainer>("root");
     root->setScene(shared_from_this());
-    // Theme mutations invalidate cached styles, so schedule a layout/style refresh.
-    theme.setOnChanged([this] { requestLayoutUpdate(); });
 }
 
 void Scene::setRoot(const std::shared_ptr<SceneNode>& node) {
@@ -129,10 +127,14 @@ void Scene::forceLayoutUpdate() {
 }
 
 void Scene::updateLayoutIfNeeded() {
-    if (layoutIsDirty && root && renderer) {
-        // First, resolve all dirty styles in the tree
-        styleManager.resolveDirtyStyles(root);
+    if (!root || !renderer) return;
 
+    // Resolve dirty styles first; this is O(1) when the tree is clean, and the
+    // StyleManager detects theme mutations itself (marking the root dirty and
+    // scheduling a relayout), so no separate theme subscription is needed.
+    styleManager.resolveDirtyStyles(root);
+
+    if (layoutIsDirty) {
         // Now, perform layout calculations
         Size viewportSize = renderer->getViewportSize();
         Rect viewportRect = {0, 0, (int)viewportSize.width, (int)viewportSize.height};

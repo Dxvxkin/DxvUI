@@ -300,6 +300,11 @@ inline bool StyleRule::operator==(const StyleRule& other) const {
  * into the computed cache, which is later consumed during layout and drawing.
  * The cache for a state is populated lazily: consumers must call
  * StyleManager::resolveDirtyStyles() before reading computed styles.
+ *
+ * Besides the local rules and the computed cache, Style also carries the
+ * resolution bookkeeping used by the StyleManager traversal: the per-node
+ * dirty flag, the subtree flag (this node or a descendant needs resolution)
+ * and the modification version.
  */
 class Style {
    public:
@@ -398,6 +403,28 @@ class Style {
     }
 
     /**
+     * @brief Checks whether the node or one of its descendants needs style
+     * re-resolution.
+     *
+     * The flag is set when a rule anywhere in the subtree is marked dirty and
+     * is consumed (cleared) by StyleManager::resolveDirtyStyles() once the
+     * subtree has been re-resolved. It lets the traversal prune clean subtrees
+     * instead of walking the whole scene graph.
+     * @return True if style work is pending somewhere in this subtree.
+     */
+    [[nodiscard]] bool isSubtreeDirty() const noexcept { return subtreeDirty; }
+
+    /**
+     * @brief Marks the subtree as requiring a style resolution pass.
+     */
+    void markSubtreeDirty() noexcept { subtreeDirty = true; }
+
+    /**
+     * @brief Clears the subtree-dirty flag after the pending resolution.
+     */
+    void clearSubtreeDirty() noexcept { subtreeDirty = false; }
+
+    /**
      * @brief Stores the resolved appearance for a given state.
      * @param state The widget state.
      * @param computed The resolved appearance style.
@@ -460,6 +487,9 @@ class Style {
     bool dirty = true;
     // True once the computed caches have been populated at least once.
     bool resolved = false;
+    // True when this node or a descendant needs a style resolution pass.
+    // Consumed (cleared) by StyleManager::resolveDirtyStyles().
+    bool subtreeDirty = false;
     std::uint64_t version_ = 0;
 };
 

@@ -27,6 +27,10 @@ void SceneNode::addChild(const SharedPtr& child) {
     children.push_back(child);
     child->parent = shared_from_this();
     child->setScene(this->getScene());
+    // The child may be freshly constructed (its style is dirty from birth) or
+    // be added to a scene-less tree where setScene() early-returns. Either way
+    // its dirty flag must propagate up so the StyleManager finds it.
+    child->markStyleDirty();
     child->onAttach();
     DxvEvent event;
     event.type = EventType::Attach;
@@ -137,9 +141,16 @@ const Style& SceneNode::getStyle() const { return style; }
 std::uint64_t SceneNode::getStyleVersion() const noexcept { return style.getVersion(); }
 
 void SceneNode::markStyleDirty() {
-    if (style.isDirty()) return;
     style.markDirty();
+    markStyleSubtreeDirty();
     markLayoutDirty();
+}
+
+void SceneNode::markStyleSubtreeDirty() {
+    for (SceneNode* n = this; n != nullptr; n = n->parent.lock().get()) {
+        if (n->style.isSubtreeDirty()) break;
+        n->style.markSubtreeDirty();
+    }
 }
 
 void SceneNode::markLayoutDirty() {

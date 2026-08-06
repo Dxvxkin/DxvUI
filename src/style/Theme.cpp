@@ -44,13 +44,11 @@ void Theme::setDefaultStyle(const std::string& widgetType, const StateStyleMap& 
     }
 
     version_++;
-    notifyChanged();
 }
 
 void Theme::clearDefaultStyle(const std::string& widgetType) {
     if (overrides_.erase(widgetType) > 0) {
         version_++;
-        notifyChanged();
     }
 }
 
@@ -58,7 +56,6 @@ void Theme::clear() {
     if (overrides_.empty()) return;
     overrides_.clear();
     version_++;
-    notifyChanged();
 }
 
 const StyleRule* Theme::getDefaultRule(const std::string& widgetType, WidgetState state) const {
@@ -82,12 +79,6 @@ const StyleRule* Theme::getDefaultRule(const std::string& widgetType, WidgetStat
     }
 
     return &state_it->second;
-}
-
-void Theme::notifyChanged() {
-    if (onChanged_) {
-        onChanged_();
-    }
 }
 
 }  // namespace DxvUI

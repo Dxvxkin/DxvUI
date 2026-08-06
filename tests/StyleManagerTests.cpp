@@ -429,3 +429,52 @@ TEST(StyleRuleTest, EqualityFollowsPropertyList) {
     EXPECT_EQ(a, b);
     EXPECT_NE(a, c);
 }
+
+TEST(StyleManagerTest, AddChildAfterResolveIsPickedUp) {
+    auto parent = std::make_shared<SceneNode>("parent");
+    Theme theme;
+    StyleManager manager(theme);
+    manager.resolveDirtyStyles(parent);
+
+    // A freshly constructed child is dirty from birth; adding it to an already
+    // resolved tree must propagate its dirty flag up so the manager finds it.
+    auto child = std::make_shared<SceneNode>("child");
+    parent->addChild(child);
+
+    manager.resolveDirtyStyles(parent);
+
+    EXPECT_EQ(child->getComputedAppearance(WidgetState::Normal).fontSize, 14);
+    EXPECT_FLOAT_EQ(child->getComputedLayout(WidgetState::Normal).width, 0.0f);
+}
+
+TEST(StyleManagerTest, DeepChildEditOnlyResolvesTheBranch) {
+    auto root = std::make_shared<SceneNode>("root");
+    auto middle = std::make_shared<SceneNode>("middle");
+    auto leaf = std::make_shared<SceneNode>("leaf");
+    root->addChild(middle);
+    middle->addChild(leaf);
+
+    Theme theme;
+    StyleManager manager(theme);
+    manager.resolveDirtyStyles(root);
+
+    // Editing only a deep node must re-resolve it (and any ancestors needed for
+    // inheritance) without disturbing the already-resolved root.
+    leaf->editStyle().set({.fontSize = 30}, WidgetState::Normal);
+    manager.resolveDirtyStyles(root);
+
+    EXPECT_EQ(leaf->getComputedAppearance(WidgetState::Normal).fontSize, 30);
+    EXPECT_EQ(root->getComputedAppearance(WidgetState::Normal).fontSize, 14);
+}
+
+TEST(StyleManagerTest, IdempotentWhenNothingDirty) {
+    auto node = std::make_shared<SceneNode>("node");
+    Theme theme;
+    StyleManager manager(theme);
+
+    manager.resolveDirtyStyles(node);
+    manager.resolveDirtyStyles(node);  // clean pass must not corrupt the cache
+
+    EXPECT_EQ(node->getComputedAppearance(WidgetState::Normal).fontSize, 14);
+    EXPECT_FLOAT_EQ(node->getComputedLayout(WidgetState::Normal).width, 0.0f);
+}

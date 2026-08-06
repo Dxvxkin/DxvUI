@@ -411,6 +411,11 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
      */
     void applySizeConstraints(Size& size) const;
 
+    // Sets the style subtree-dirty flag on this node and every ancestor up to
+    // the root, stopping early at an already-flagged node. Used by
+    // markStyleDirty() so the StyleManager can prune its resolution traversal.
+    void markStyleSubtreeDirty();
+
     void sortChildrenIfDirty();
 
     bool isHovered = false;

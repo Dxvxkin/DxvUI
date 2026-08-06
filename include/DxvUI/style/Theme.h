@@ -2,7 +2,6 @@
 #define DXVUI_THEME_H
 
 #include <cstdint>
-#include <functional>
 #include <map>
 #include <string>
 #include <utility>
@@ -68,14 +67,6 @@ class Theme {
      */
     [[nodiscard]] std::uint64_t getVersion() const noexcept { return version_; }
 
-    /**
-     * @brief Sets a callback invoked whenever the theme is mutated.
-     *
-     * Scene uses this to schedule a layout/style refresh when the theme changes.
-     * @param callback The callback to invoke, may be empty to disable.
-     */
-    void setOnChanged(std::function<void()> callback) { onChanged_ = std::move(callback); }
-
     // --- Instance API for Style Resolution ---
 
     // Retrieves the resolved default style rule for a widget type and state:
@@ -83,12 +74,9 @@ class Theme {
     const StyleRule* getDefaultRule(const std::string& widgetType, WidgetState state) const;
 
    private:
-    void notifyChanged();
-
     // Instance-level overrides, already merged with the framework defaults at
     // setDefaultStyle time.
     std::map<std::string, StateStyleMap> overrides_;
-    std::function<void()> onChanged_;
     std::uint64_t version_ = 0;
 };
 

@@ -31,11 +31,13 @@ class StyleManager {
     /**
      * @brief Recomputes cached styles for every dirty node in the subtree.
      *
-     * Performs a breadth-first, top-down traversal so that a parent's computed
-     * Normal style (used for inheritance) is resolved before its children.
-     * Resolving a dirty node cascades the dirty flag onto its children, so a
-     * change in inherited text properties propagates through the subtree in
-     * this single pass.
+     * Performs a pruned, top-down traversal: only subtrees flagged as dirty
+     * (via the per-node style subtree flag) are entered, so a clean scene graph
+     * costs O(1) and a localized edit only visits the affected branch. A parent
+     * is always resolved before its children, and resolving a node cascades the
+     * dirty flag onto its children so changes to inherited text properties
+     * propagate through the subtree in this single pass. Theme mutations are
+     * detected by the theme version and re-resolve the whole tree.
      * @param root The root of the subtree to walk.
      */
     void resolveDirtyStyles(const std::shared_ptr<SceneNode>& root);
