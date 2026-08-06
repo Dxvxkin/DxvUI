@@ -17,6 +17,11 @@ void HorizontalContainer::setSpacing(float spacing) {
 float HorizontalContainer::getSpacing() const { return spacing_; }
 
 Size HorizontalContainer::onMeasure(const Size& availableSize) {
+    const auto& computedLayout = getComputedLayout(getCurrentState());
+    const auto& padding = computedLayout.padding;
+
+    const Size contentAvailableSize = LayoutManager::subtractPadding(availableSize, padding);
+
     float totalWidth = 0.0f;
     float maxHeight = 0.0f;
     bool firstVisibleChild = true;
@@ -29,17 +34,14 @@ Size HorizontalContainer::onMeasure(const Size& availableSize) {
             totalWidth += spacing_;
         }
 
-        const Size childDesiredSize = child->measure(availableSize);
+        const Size childDesiredSize = child->measure(contentAvailableSize);
         totalWidth += childDesiredSize.width;
         maxHeight = std::max(maxHeight, childDesiredSize.height);
 
         firstVisibleChild = false;
     }
 
-    const auto& computedLayout = getComputedLayout(getCurrentState());
-    const auto& padding = computedLayout.padding;
-
-    return {totalWidth + padding.left + padding.right, maxHeight + padding.top + padding.bottom};
+    return LayoutManager::addPadding({totalWidth, maxHeight}, padding);
 }
 
 void HorizontalContainer::onArrange(const Rect& finalRect) {

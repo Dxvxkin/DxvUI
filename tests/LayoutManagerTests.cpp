@@ -7,6 +7,7 @@
 #include "DxvUI/Log.h"
 #include "DxvUI/SceneNode.h"
 #include "DxvUI/containers/AbsoluteContainer.h"
+#include "DxvUI/containers/HorizontalContainer.h"
 #include "DxvUI/layout/LayoutManager.h"
 #include "DxvUI/style/Colors.h"
 #include "DxvUI/style/StyleManager.h"
@@ -44,6 +45,23 @@ class CountingWidget : public SceneNode {
         return {0, 0};
     }
     void onArrange(const Rect& /*finalRect*/) override { arrangeCalls++; }
+};
+
+// A widget that records the size its parent passed down during the last measure,
+// so tests can assert the padding was subtracted before measuring children.
+class SizeRecordingWidget : public SceneNode {
+   public:
+    explicit SizeRecordingWidget(std::string id) : SceneNode(std::move(id)) {}
+
+    Size lastAvailableSize{};
+
+    const char* getNodeType() const override { return "SizeRecordingWidget"; }
+
+   protected:
+    Size onMeasure(const Size& availableSize) override {
+        lastAvailableSize = availableSize;
+        return {10, 20};
+    }
 };
 
 struct LayoutFixture {
@@ -197,4 +215,28 @@ TEST(LayoutManagerTest, ShrinkRectMatchesContentRect) {
     EXPECT_EQ(viaHelper.y, 22);
     EXPECT_EQ(viaHelper.width, 92);
     EXPECT_EQ(viaHelper.height, 54);
+}
+
+TEST(LayoutManagerTest, HorizontalContainerSubtractsPaddingBeforeMeasuringChildren) {
+    const Thickness padding = {.top = 2, .right = 3, .bottom = 4, .left = 5};
+
+    auto root = std::make_shared<AbsoluteContainer>("root");
+    auto row = std::make_shared<HorizontalContainer>("row");
+    auto child = std::make_shared<SizeRecordingWidget>("child");
+    row->addChild(child);
+    row->setStyle({.padding = padding}, WidgetState::Normal);
+    root->addChild(row);
+
+    Theme theme;
+    StyleManager styleManager{theme};
+    LayoutManager layout;
+    styleManager.resolveDirtyStyles(root);
+    layout.layout(root, {800, 600});
+
+    EXPECT_FLOAT_EQ(child->lastAvailableSize.width, 800 - (padding.left + padding.right));
+    EXPECT_FLOAT_EQ(child->lastAvailableSize.height, 600 - (padding.top + padding.bottom));
+
+    const Rect rowBounds = row->getGlobalBounds();
+    EXPECT_EQ(rowBounds.width, static_cast<int>(10 + padding.left + padding.right));
+    EXPECT_EQ(rowBounds.height, static_cast<int>(20 + padding.top + padding.bottom));
 }
