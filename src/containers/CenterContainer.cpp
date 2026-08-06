@@ -1,12 +1,11 @@
 #include "DxvUI/containers/CenterContainer.h"
 
 #include "DxvUI/core.h"
+#include "DxvUI/layout/LayoutManager.h"
 
 namespace DxvUI {
 
-// Helper to get the current state of a node
-
-Size CenterContainer::measureOverride(const Size& availableSize) {
+Size CenterContainer::onMeasure(const Size& availableSize) {
     WidgetState currentState = getCurrentState();
     const auto& computedLayout = getComputedLayout(currentState);
     const auto& padding = computedLayout.padding;
@@ -23,34 +22,24 @@ Size CenterContainer::measureOverride(const Size& availableSize) {
             childDesiredSize.height + padding.top + padding.bottom};
 }
 
-void CenterContainer::arrange(const Rect& finalRect) {
-    WidgetState currentState = getCurrentState();
-    style.setComputedBounds(currentState, finalRect);
-
-    const auto& computedLayout = getComputedLayout(currentState);
+void CenterContainer::onArrange(const Rect& finalRect) {
+    const auto& computedLayout = getComputedLayout(getCurrentState());
 
     const auto& padding = computedLayout.padding;
-    Rect contentRect = {finalRect.x + static_cast<int>(padding.left),
-                        finalRect.y + static_cast<int>(padding.top),
-                        finalRect.width - static_cast<int>(padding.left + padding.right),
-                        finalRect.height - static_cast<int>(padding.top + padding.bottom)};
+    Rect content = LayoutManager::contentRect(*this, finalRect);
 
     if (!children.empty() && children.front()) {
         auto& child = children.front();
         Size childDesiredSize = child->getDesiredSize();
 
-        int childX =
-            contentRect.x + (contentRect.width - static_cast<int>(childDesiredSize.width)) / 2;
-        int childY =
-            contentRect.y + (contentRect.height - static_cast<int>(childDesiredSize.height)) / 2;
+        int childX = content.x + (content.width - static_cast<int>(childDesiredSize.width)) / 2;
+        int childY = content.y + (content.height - static_cast<int>(childDesiredSize.height)) / 2;
 
         Rect childFinalRect = {childX, childY, static_cast<int>(childDesiredSize.width),
                                static_cast<int>(childDesiredSize.height)};
 
         child->arrange(childFinalRect);
     }
-
-    isLayoutDirty = false;
 }
 
 }  // namespace DxvUI

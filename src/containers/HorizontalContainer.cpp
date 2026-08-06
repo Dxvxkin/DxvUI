@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <numeric>
 
+#include "DxvUI/layout/LayoutManager.h"
+
 namespace DxvUI {
 
 void HorizontalContainer::setSpacing(float spacing) {
@@ -14,7 +16,7 @@ void HorizontalContainer::setSpacing(float spacing) {
 
 float HorizontalContainer::getSpacing() const { return spacing_; }
 
-Size HorizontalContainer::measureOverride(const Size& availableSize) {
+Size HorizontalContainer::onMeasure(const Size& availableSize) {
     float totalWidth = 0.0f;
     float maxHeight = 0.0f;
     bool firstVisibleChild = true;
@@ -40,22 +42,17 @@ Size HorizontalContainer::measureOverride(const Size& availableSize) {
     return {totalWidth + padding.left + padding.right, maxHeight + padding.top + padding.bottom};
 }
 
-void HorizontalContainer::arrange(const Rect& finalRect) {
-    style.setComputedBounds(getCurrentState(), finalRect);
-
+void HorizontalContainer::onArrange(const Rect& finalRect) {
     const auto& computedLayout = getComputedLayout(getCurrentState());
 
     const auto& padding = computedLayout.padding;
-    const Rect contentRect = {finalRect.x + static_cast<int>(padding.left),
-                              finalRect.y + static_cast<int>(padding.top),
-                              finalRect.width - static_cast<int>(padding.left + padding.right),
-                              finalRect.height - static_cast<int>(padding.top + padding.bottom)};
+    const Rect content = LayoutManager::contentRect(*this, finalRect);
 
-    float currentX = static_cast<float>(contentRect.x);
+    float currentX = static_cast<float>(content.x);
 
     for (const auto& child : children) {
         if (!child->isVisible()) {
-            child->arrange({static_cast<int>(currentX), contentRect.y, 0, 0});
+            LayoutManager::arrangeInvisible(*child, content);
             continue;
         }
 
@@ -70,7 +67,7 @@ void HorizontalContainer::arrange(const Rect& finalRect) {
 
         const Rect childFinalRect = {
             .x = static_cast<int>(currentX),
-            .y = contentRect.y,
+            .y = content.y,
             .width = static_cast<int>(finalWidth),
             .height = static_cast<int>(finalHeight)};  // Use finalHeight here
 
@@ -78,15 +75,12 @@ void HorizontalContainer::arrange(const Rect& finalRect) {
 
         currentX += finalWidth + spacing_;  // Use finalWidth here
     }
-
-    isLayoutDirty = false;
 }
 void HorizontalContainer::draw(IRenderer& renderer) {
     const auto& computedAppearance = getComputedAppearance(getCurrentState());
-    const auto& computedLayout = getComputedLayout(getCurrentState());
 
     // 1. Draw the button's background
-    renderer.fillRoundRect(computedLayout.computedBounds, computedAppearance.borderRadius,
+    renderer.fillRoundRect(getGlobalBounds(), computedAppearance.borderRadius,
                            computedAppearance.backgroundColor,
                            {computedAppearance.borderColor, computedAppearance.borderThickness});
     Container::draw(renderer);

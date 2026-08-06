@@ -98,6 +98,10 @@ using ActionCallback = std::function<void(DxvEvent&)>;
 
 struct Size {
     float width = 0, height = 0;
+
+    bool operator==(const Size& other) const {
+        return width == other.width && height == other.height;
+    }
 };
 
 struct Rect {
@@ -105,6 +109,10 @@ struct Rect {
 
     bool contains(int pX, int pY) const {
         return (pX >= x && pX < (x + width) && pY >= y && pY < (y + height));
+    }
+
+    bool operator==(const Rect& other) const {
+        return x == other.x && y == other.y && width == other.width && height == other.height;
     }
 };
 

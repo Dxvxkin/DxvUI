@@ -11,9 +11,6 @@ class HorizontalContainer : public Container {
    public:
     using Container::Container;  // Inherit constructors
 
-    Size measureOverride(const Size& availableSize) override;
-    void arrange(const Rect& finalRect) override;
-
     void draw(IRenderer& renderer) override;
 
     /**
@@ -27,6 +24,10 @@ class HorizontalContainer : public Container {
      * @return The space between elements.
      */
     float getSpacing() const;
+
+   protected:
+    Size onMeasure(const Size& availableSize) override;
+    void onArrange(const Rect& finalRect) override;
 
    private:
     float spacing_ = 0.0f;

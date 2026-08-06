@@ -10,6 +10,7 @@
 #include "DxvUI/UIBinding.h"
 #include "DxvUI/core.h"
 #include "DxvUI/interfaces/IRenderer.h"
+#include "DxvUI/layout/LayoutData.h"
 #include "DxvUI/style/Style.h"
 
 namespace DxvUI {
@@ -17,6 +18,7 @@ namespace DxvUI {
 class Scene;
 class EventManager;
 class StyleManager;
+class LayoutManager;
 
 /**
  * @class SceneNode
@@ -170,6 +172,10 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
 
     /**
      * @brief Marks the node's layout as dirty, forcing a remeasure and rearrange.
+     *
+     * Sets this node's dirty flag and propagates the dirty-subtree flag to every
+     * ancestor. The LayoutManager prunes clean subtrees, so the next pass only
+     * re-lays-out the affected branch instead of the whole scene.
      */
     void markLayoutDirty();
 
@@ -300,29 +306,23 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     /**
      * @brief First pass of layout: calculates the desired size of the node.
      *
-     * Non-virtual entry point. Applies the resolved size constraints (explicit
-     * width/height from style, then min/max clamping) on top of the virtual
-     * measureOverride() result, so widget authors never have to handle them.
+     * Thin entry point that delegates to LayoutManager::measureNode(), which
+     * prunes clean nodes and applies the resolved size constraints (explicit
+     * width/height from style, then min/max clamping) on top of the onMeasure()
+     * result, so widget authors never have to handle them.
      * @param availableSize The size available from the parent.
      * @return The desired size required by this node.
      */
     Size measure(const Size& availableSize);
 
     /**
-     * @brief Computes the intrinsic desired size of the node.
-     *
-     * Override this in widgets and containers instead of measure(); the base
-     * class applies style size constraints afterwards.
-     * @param availableSize The size available from the parent.
-     * @return The desired size before any style constraints are applied.
-     */
-    virtual Size measureOverride(const Size& availableSize);
-
-    /**
      * @brief Second pass of layout: sets the final size and position of the node.
+     *
+     * Thin entry point that delegates to LayoutManager::arrangeNode(), which
+     * prunes unchanged subtrees before calling onArrange().
      * @param finalRect The final rectangle allocated by the parent.
      */
-    virtual void arrange(const Rect& finalRect);
+    void arrange(const Rect& finalRect);
 
     /**
      * @brief Draws the node and its children.
@@ -383,14 +383,33 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     virtual void onChange(const UIBinding& binding);
     void onBindingChange(const UIBinding& binding);
 
+    /**
+     * @brief Computes the intrinsic desired size of the node.
+     *
+     * Override this in widgets and containers instead of measure(); the base
+     * class applies style size constraints afterwards. Only invoked by
+     * LayoutManager when the node actually needs re-measuring.
+     * @param availableSize The size available from the parent.
+     * @return The desired size before any style constraints are applied.
+     */
+    virtual Size onMeasure(const Size& availableSize);
+
+    /**
+     * @brief Lays out the node's children within the allocated final rect.
+     *
+     * Override this in containers instead of arrange(); LayoutManager sets the
+     * node's own bounds and clears its dirty flags before calling this hook.
+     * @param finalRect The final rectangle allocated by the parent.
+     */
+    virtual void onArrange(const Rect& finalRect);
+
     friend class StyleManager;
+    friend class LayoutManager;
 
     std::string id;
     Style style;
 
-    Size desiredSize;
-
-    mutable bool isLayoutDirty = true;
+    LayoutData layoutData;
 
     std::shared_ptr<UIBinding> binding_;
     std::unique_ptr<UIBinding::Connection> connection_;

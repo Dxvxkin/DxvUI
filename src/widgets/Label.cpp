@@ -50,7 +50,7 @@ const std::string Label::getText() const { return getBinding()->getString().valu
 
 void Label::onChange(const UIBinding& val) {}
 
-Size Label::measureOverride(const Size& availableSize) {
+Size Label::onMeasure(const Size& availableSize) {
     const auto& computedAppearance = getComputedAppearance(getCurrentState());
     auto padding = getComputedLayout(getCurrentState()).padding;
 
@@ -69,7 +69,7 @@ void Label::draw(IRenderer& renderer) {
     const auto& computedAppearance = getComputedAppearance(getCurrentState());
     const auto& computedLayout = getComputedLayout(getCurrentState());
 
-    renderer.fillRoundRect(computedLayout.computedBounds, computedAppearance.borderRadius,
+    renderer.fillRoundRect(getGlobalBounds(), computedAppearance.borderRadius,
                            computedAppearance.backgroundColor,
                            {computedAppearance.borderColor, computedAppearance.borderThickness});
 
@@ -94,7 +94,7 @@ void Label::draw(IRenderer& renderer) {
 
     if (textTexture) {
         // Временное решение для учета отступов
-        auto dstRect = computedLayout.computedBounds;
+        auto dstRect = getGlobalBounds();
         dstRect.x += computedLayout.padding.left;
         dstRect.y += computedLayout.padding.top;
         dstRect.width -= computedLayout.padding.right + computedLayout.padding.left;

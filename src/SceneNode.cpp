@@ -7,6 +7,7 @@
 #include "DxvUI/Log.h"
 #include "DxvUI/Scene.h"
 #include "DxvUI/Utils.h"
+#include "DxvUI/layout/LayoutManager.h"
 
 namespace DxvUI {
 
@@ -159,24 +160,25 @@ void SceneNode::markStyleSubtreeDirty() {
 }
 
 void SceneNode::markLayoutDirty() {
-    if (isLayoutDirty) return;
-    isLayoutDirty = true;
-    if (auto p = parent.lock()) {
-        p->markLayoutDirty();
-    } else {
-        if (auto s = getScene()) s->requestLayoutUpdate();
+    // Like markStyleSubtreeDirty, always walk all the way up to the root. An
+    // early stop on an already-marked node is only valid while every ancestor
+    // of a marked node is marked too, but that invariant is broken whenever the
+    // parent chain changes: a dirty subtree can be detached and re-attached
+    // elsewhere, leaving its new ancestors unflagged.
+    for (SceneNode* n = this; n != nullptr; n = n->parent.lock().get()) {
+        n->layoutData.isSubtreeDirty = true;
     }
+    layoutData.isDirty = true;
 }
 
 Rect SceneNode::getGlobalBounds() const {
-    if (isLayoutDirty) {
+    if (layoutData.isDirty) {
         if (auto s = scene.lock()) s->forceLayoutUpdate();
     }
-    const auto* computedLayout = style.getComputedLayout(getCurrentState());
-    return computedLayout ? computedLayout->computedBounds : Rect{};
+    return layoutData.bounds;
 }
 
-Size SceneNode::getDesiredSize() const { return desiredSize; }
+Size SceneNode::getDesiredSize() const { return layoutData.desiredSize; }
 
 WidgetState SceneNode::getCurrentState() const {
     if (isPressed) return WidgetState::Pressed;
@@ -293,20 +295,10 @@ void SceneNode::sortChildrenIfDirty() {
 }
 
 Size SceneNode::measure(const Size& availableSize) {
-    if (!isLayoutDirty) return desiredSize;
-
-    if (!visible) {
-        desiredSize = {0, 0};
-        return desiredSize;
-    }
-
-    Size size = measureOverride(availableSize);
-    applySizeConstraints(size);
-    desiredSize = size;
-    return desiredSize;
+    return LayoutManager::measureNode(*this, availableSize);
 }
 
-Size SceneNode::measureOverride(const Size& /*availableSize*/) { return {0, 0}; }
+Size SceneNode::onMeasure(const Size& /*availableSize*/) { return {0, 0}; }
 
 void SceneNode::applySizeConstraints(Size& size) const {
     const auto& computedLayout = getComputedLayout(getCurrentState());
@@ -336,15 +328,9 @@ void SceneNode::applySizeConstraints(Size& size) const {
     }
 }
 
-void SceneNode::arrange(const Rect& finalRect) {
-    if (!visible) {
-        style.setComputedBounds(getCurrentState(), {finalRect.x, finalRect.y, 0, 0});
-    } else {
-        style.setComputedBounds(getCurrentState(), finalRect);
-    }
+void SceneNode::arrange(const Rect& finalRect) { LayoutManager::arrangeNode(*this, finalRect); }
 
-    isLayoutDirty = false;
-}
+void SceneNode::onArrange(const Rect& /*finalRect*/) {}
 
 void SceneNode::draw(IRenderer& renderer) {
     if (!visible) {

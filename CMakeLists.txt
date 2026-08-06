@@ -31,6 +31,7 @@ target_sources(DxvUI PRIVATE
         src/containers/CenterContainer.cpp
         src/containers/AbsoluteContainer.cpp
         src/containers/HorizontalContainer.cpp
+        src/layout/LayoutManager.cpp
         src/renderers/SDLRenderer.cpp
         src/sources/SDLEventSource.cpp
         src/style/Color.cpp

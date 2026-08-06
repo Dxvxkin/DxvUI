@@ -22,14 +22,15 @@ class Button : public SceneNode {
     // --- Overrides ---
     const char* getNodeType() const override;
     void onAttach() override;
-    Size measureOverride(const Size& availableSize) override;
-    void arrange(const Rect& finalRect) override;
     void draw(IRenderer& renderer) override;
     std::shared_ptr<SceneNode> findNodeAt(int x, int y) override;
     // ---------------------
 
    protected:
     explicit Button(std::string id, std::string text);
+
+    Size onMeasure(const Size& availableSize) override;
+    void onArrange(const Rect& finalRect) override;
 
    private:
     std::shared_ptr<Label> label;

@@ -133,7 +133,6 @@ struct ComputedLayoutStyle {
     Thickness margin;
     Alignment horizontalAlignment;
     Alignment verticalAlignment;
-    Rect computedBounds;
 };
 
 namespace detail {
@@ -440,18 +439,6 @@ class Style {
      */
     void setComputedLayout(WidgetState state, const ComputedLayoutStyle& computed) {
         layoutCache[state_index(state)] = computed;
-    }
-
-    /**
-     * @brief Writes the final bounds produced by the arrange (layout) pass.
-     *
-     * Bounds are layout output, not a style change, so this does not mark the
-     * style dirty.
-     * @param state The widget state the bounds were computed for.
-     * @param bounds The final rectangle of the node.
-     */
-    void setComputedBounds(WidgetState state, const Rect& bounds) {
-        layoutCache[state_index(state)].computedBounds = bounds;
     }
 
     /**

@@ -27,8 +27,7 @@ const ComputedLayoutStyle FRAMEWORK_DEFAULT_LAYOUT = {.width = 0,
                                                       .padding = {},
                                                       .margin = {},
                                                       .horizontalAlignment = Alignment::Start,
-                                                      .verticalAlignment = Alignment::Start,
-                                                      .computedBounds = {}};
+                                                      .verticalAlignment = Alignment::Start};
 
 }  // namespace
 

@@ -31,7 +31,7 @@ class FixedSizeWidget : public SceneNode {
    public:
     explicit FixedSizeWidget(std::string id, Size size) : SceneNode(std::move(id)), size_(size) {}
 
-    Size measureOverride(const Size& /*availableSize*/) override { return size_; }
+    Size onMeasure(const Size& /*availableSize*/) override { return size_; }
 
    private:
     Size size_;
@@ -312,13 +312,13 @@ TEST(StyleManagerTest, AbsoluteContainerRightBottomPositioning) {
     container->measure({500, 300});
     container->arrange({0, 0, 500, 300});
 
-    const auto& childLayout = child->getComputedLayout(WidgetState::Normal);
+    const Rect childBounds = child->getGlobalBounds();
     // right=10 anchors the child's right edge to 500-10=490.
-    EXPECT_EQ(childLayout.computedBounds.x, 390);
+    EXPECT_EQ(childBounds.x, 390);
     // bottom=5 anchors the child's bottom edge to 300-5=295.
-    EXPECT_EQ(childLayout.computedBounds.y, 255);
-    EXPECT_EQ(childLayout.computedBounds.width, 100);
-    EXPECT_EQ(childLayout.computedBounds.height, 40);
+    EXPECT_EQ(childBounds.y, 255);
+    EXPECT_EQ(childBounds.width, 100);
+    EXPECT_EQ(childBounds.height, 40);
 }
 
 TEST(StyleManagerTest, AbsoluteContainerLeftWinsOverRight) {
@@ -335,8 +335,7 @@ TEST(StyleManagerTest, AbsoluteContainerLeftWinsOverRight) {
     container->measure({500, 300});
     container->arrange({0, 0, 500, 300});
 
-    const auto& childLayout = child->getComputedLayout(WidgetState::Normal);
-    EXPECT_EQ(childLayout.computedBounds.x, 20);
+    EXPECT_EQ(child->getGlobalBounds().x, 20);
 }
 
 TEST(ThemeTest, InstanceOverrideMergesOnFrameworkDefault) {

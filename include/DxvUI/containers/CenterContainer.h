@@ -12,9 +12,9 @@ class CenterContainer : public Container {
    public:
     using Container::Container;  // Inherit constructors
 
-    // New two-pass layout methods
-    Size measureOverride(const Size& availableSize) override;
-    void arrange(const Rect& finalRect) override;
+   protected:
+    Size onMeasure(const Size& availableSize) override;
+    void onArrange(const Rect& finalRect) override;
 };
 
 }  // namespace DxvUI

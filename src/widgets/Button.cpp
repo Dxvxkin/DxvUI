@@ -56,7 +56,7 @@ void Button::onAttach() {
     }
 }
 
-Size Button::measureOverride(const Size& availableSize) {
+Size Button::onMeasure(const Size& availableSize) {
     Size childDesiredSize = {0, 0};
     if (!children.empty()) {
         childDesiredSize = children.front()->measure(availableSize);
@@ -69,42 +69,24 @@ Size Button::measureOverride(const Size& availableSize) {
             childDesiredSize.height + padding.top + padding.bottom};
 }
 
-void Button::arrange(const Rect& finalRect) {
-    if (!isVisible()) {
-        // Match the base class: an invisible node is arranged into a zero-sized
-        // rectangle (and its children along with it) so hit-testing and
-        // getGlobalBounds() report no footprint.
-        style.setComputedBounds(getCurrentState(), {finalRect.x, finalRect.y, 0, 0});
-        if (!children.empty()) {
-            children.front()->arrange({finalRect.x, finalRect.y, 0, 0});
-        }
-        isLayoutDirty = false;
-        return;
-    }
-
-    style.setComputedBounds(getCurrentState(), finalRect);
-
+void Button::onArrange(const Rect& finalRect) {
     const auto& computedLayout = getComputedLayout(getCurrentState());
     if (!children.empty()) {
         const auto& [top, right, bottom, left] = computedLayout.padding;
-        const Rect contentRect = {.x = finalRect.x + static_cast<int>(left),
-                                  .y = finalRect.y + static_cast<int>(top),
-                                  .width = finalRect.width - static_cast<int>(left + right),
-                                  .height = finalRect.height - static_cast<int>(top + bottom)};
-        children.front()->arrange(contentRect);
+        const Rect content = {.x = finalRect.x + static_cast<int>(left),
+                              .y = finalRect.y + static_cast<int>(top),
+                              .width = finalRect.width - static_cast<int>(left + right),
+                              .height = finalRect.height - static_cast<int>(top + bottom)};
+        children.front()->arrange(content);
     }
-
-    isLayoutDirty = false;
 }
 
 void Button::draw(IRenderer& renderer) {
     const auto& computedAppearance = getComputedAppearance(getCurrentState());
-    const auto& computedLayout = getComputedLayout(getCurrentState());
 
     // 1. Draw the button's background
     renderer.fillRoundRect(
-        computedLayout.computedBounds, computedAppearance.borderRadius,
-        computedAppearance.backgroundColor,
+        getGlobalBounds(), computedAppearance.borderRadius, computedAppearance.backgroundColor,
         {.color = computedAppearance.borderColor, .thickness = computedAppearance.borderThickness});
 
     // 2. Let the base class handle drawing children (the container will draw the label)

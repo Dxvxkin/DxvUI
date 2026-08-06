@@ -43,7 +43,8 @@ void Scene::setRoot(const std::shared_ptr<SceneNode>& node) {
     if (root) {
         root->setScene(shared_from_this());
     }
-    requestLayoutUpdate();
+    // The new root is freshly constructed (layout dirty from birth), so the next
+    // layout pass picks it up without an explicit request.
 }
 
 void Scene::setRenderer(IRenderer* newRenderer) { renderer = newRenderer; }
@@ -70,8 +71,6 @@ bool Scene::unregisterNode(std::weak_ptr<SceneNode> node) {
     Log::warn("Attempt to unregister an expired node");
     return false;
 }
-
-void Scene::requestLayoutUpdate() { layoutIsDirty = true; }
 
 bool Scene::registerNode(std::weak_ptr<SceneNode> node) {
     if (auto _node = node.lock()) {
@@ -121,10 +120,7 @@ void Scene::update(float deltaTime) {
     }
 }
 
-void Scene::forceLayoutUpdate() {
-    requestLayoutUpdate();
-    updateLayoutIfNeeded();
-}
+void Scene::forceLayoutUpdate() { updateLayoutIfNeeded(); }
 
 void Scene::updateLayoutIfNeeded() {
     if (!root || !renderer) return;
@@ -134,16 +130,10 @@ void Scene::updateLayoutIfNeeded() {
     // scheduling a relayout), so no separate theme subscription is needed.
     styleManager.resolveDirtyStyles(root);
 
-    if (layoutIsDirty) {
-        // Now, perform layout calculations
-        Size viewportSize = renderer->getViewportSize();
-        Rect viewportRect = {0, 0, (int)viewportSize.width, (int)viewportSize.height};
-
-        root->measure(viewportSize);
-        root->arrange(viewportRect);
-
-        layoutIsDirty = false;
-    }
+    // The layout pass prunes clean subtrees, so it is O(1) on clean frames and
+    // only walks the affected branch otherwise.
+    Size viewportSize = renderer->getViewportSize();
+    layoutManager.layout(root, viewportSize);
 }
 
 void Scene::draw() {

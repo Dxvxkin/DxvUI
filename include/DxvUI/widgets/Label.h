@@ -22,9 +22,11 @@ class Label : public SceneNode {
     void onChange(const UIBinding& val) override;
 
     const char* getNodeType() const noexcept override;
-    Size measureOverride(const Size& availableSize) override;
     void draw(IRenderer& renderer) override;
     // ---------------------
+
+   protected:
+    Size onMeasure(const Size& availableSize) override;
 
    private:
     std::shared_ptr<ITexture> textTexture;

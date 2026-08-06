@@ -2,9 +2,11 @@
 
 #include <algorithm>
 
+#include "DxvUI/layout/LayoutManager.h"
+
 namespace DxvUI {
 
-Size AbsoluteContainer::measureOverride(const Size& availableSize) {
+Size AbsoluteContainer::onMeasure(const Size& availableSize) {
     const auto& computedLayout = getComputedLayout(getCurrentState());
     const auto& padding = computedLayout.padding;
 
@@ -40,22 +42,15 @@ Size AbsoluteContainer::measureOverride(const Size& availableSize) {
             requiredHeight + padding.top + padding.bottom};
 }
 
-void AbsoluteContainer::arrange(const Rect& finalRect) {
-    style.setComputedBounds(getCurrentState(), finalRect);
-
+void AbsoluteContainer::onArrange(const Rect& finalRect) {
     const auto& computedLayout = getComputedLayout(getCurrentState());
 
     const auto& padding = computedLayout.padding;
-    Rect contentRect = {finalRect.x + static_cast<int>(padding.left),
-                        finalRect.y + static_cast<int>(padding.top),
-                        finalRect.width - static_cast<int>(padding.left + padding.right),
-                        finalRect.height - static_cast<int>(padding.top + padding.bottom)};
+    Rect content = LayoutManager::contentRect(*this, finalRect);
 
     for (const auto& child : children) {
         if (!child->isVisible()) {
-            // For an invisible child, we ask it to arrange itself into a zero-sized rectangle.
-            // Its own arrange() method will handle updating its internal state correctly.
-            child->arrange({contentRect.x, contentRect.y, 0, 0});
+            LayoutManager::arrangeInvisible(*child, content);
             continue;
         }
 
@@ -71,29 +66,27 @@ void AbsoluteContainer::arrange(const Rect& finalRect) {
         // 'right'/'bottom' edge; otherwise stick to the top-left corner.
         int childX;
         if (childLayout.left.has_value()) {
-            childX = contentRect.x + static_cast<int>(childLayout.left.value());
+            childX = content.x + static_cast<int>(childLayout.left.value());
         } else if (childLayout.right.has_value()) {
-            childX = contentRect.x + contentRect.width - childW -
-                     static_cast<int>(childLayout.right.value());
+            childX =
+                content.x + content.width - childW - static_cast<int>(childLayout.right.value());
         } else {
-            childX = contentRect.x;
+            childX = content.x;
         }
 
         int childY;
         if (childLayout.top.has_value()) {
-            childY = contentRect.y + static_cast<int>(childLayout.top.value());
+            childY = content.y + static_cast<int>(childLayout.top.value());
         } else if (childLayout.bottom.has_value()) {
-            childY = contentRect.y + contentRect.height - childH -
-                     static_cast<int>(childLayout.bottom.value());
+            childY =
+                content.y + content.height - childH - static_cast<int>(childLayout.bottom.value());
         } else {
-            childY = contentRect.y;
+            childY = content.y;
         }
 
         Rect childFinalRect = {childX, childY, childW, childH};
         child->arrange(childFinalRect);
     }
-
-    isLayoutDirty = false;
 }
 
 }  // namespace DxvUI
