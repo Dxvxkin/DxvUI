@@ -31,6 +31,8 @@ constexpr int kGapX = 20;
 constexpr int kGapY = 20;
 constexpr int kStartX = 50;
 constexpr int kStartY = 50;
+constexpr int kViewportW = 800;
+constexpr int kViewportH = 600;
 
 constexpr int kFramesClean = 500;
 constexpr int kFramesStatic = 500;
@@ -110,7 +112,17 @@ void runFrames(Scene& scene, SDLRenderer& renderer, int frames, HoverMode hoverM
 // window that fits the 800x600 viewport is culled in.
 void runScroll(SDLRenderer& renderer, int count) {
     constexpr int kSteps = 30;
-    constexpr float kStepPx = static_cast<float>(kCellH + kGapY);  // one grid row
+
+    const int rows = (count + kGridCols - 1) / kGridCols;
+    const int gridBottom = kStartY + rows * (kCellH + kGapY) - kGapY;
+    const int scrollRange = gridBottom - kViewportH;  // content below the viewport
+    if (scrollRange <= 0) {
+        std::printf("       scroll: content fits viewport (skipped)\n");
+        return;
+    }
+    // Scroll the window over the whole scrollable range in kSteps; never push
+    // the content fully off-screen (a fixed 80px step does that on small grids).
+    const float kStepPx = std::max(80.0f, static_cast<float>(scrollRange) / kSteps);
 
     auto scene = buildScene(count);
     scene->setRenderer(&renderer);
@@ -198,6 +210,8 @@ void hitTestAt(Scene& scene, const std::shared_ptr<SceneNode>& btn, const char* 
 // btn_0 is scanned last by the reverse-iteration hit test (worst case, full
 // O(n)). The "center" button is the one under the middle of the viewport - a
 // typical click target, still O(n) because it sits in front of ~n siblings.
+// Both are stationary targets: the hovered-node cache (if any) short-circuits
+// them to O(1), which is exactly the win this scenario demonstrates.
 void runHitTest(SDLRenderer& renderer, int count) {
     auto scene = buildScene(count);
     scene->setRenderer(&renderer);
@@ -211,13 +225,42 @@ void runHitTest(SDLRenderer& renderer, int count) {
     }
 
     const int rows = (count + kGridCols - 1) / kGridCols;
-    const int centerCol = std::clamp((400 - kStartX) / (kCellW + kGapX), 0, kGridCols - 1);
-    const int centerRow = std::clamp((300 - kStartY) / (kCellH + kGapY), 0, rows - 1);
+    const int centerCol =
+        std::clamp((kViewportW / 2 - kStartX) / (kCellW + kGapX), 0, kGridCols - 1);
+    const int centerRow = std::clamp((kViewportH / 2 - kStartY) / (kCellH + kGapY), 0, rows - 1);
     const int centerIndex = centerRow * kGridCols + centerCol;
 
     hitTestAt(*scene, root->findNodeById("btn_0"), "first", kHitTestEvents);
     hitTestAt(*scene, root->findNodeById("btn_" + std::to_string(centerIndex)), "center",
               kHitTestEvents);
+
+    // Moving mouse: every call lands on a different *on-screen* button, so a
+    // hovered-node cache can never short-circuit. Measured with findNodeAt()
+    // directly instead of processEvent(), because each move would change the
+    // hover state and fold a relayout into the timing. Click points outside the
+    // viewport would early-return at the root (O(1)), so only buttons whose
+    // center is inside the viewport are cycled through.
+    std::vector<int> onscreen;
+    for (int i = 0; i < count; ++i) {
+        auto btn = root->findNodeById("btn_" + std::to_string(i));
+        const Rect b = btn ? btn->getGlobalBounds() : Rect{};
+        const int cx = b.x + b.width / 2;
+        const int cy = b.y + b.height / 2;
+        if (cx >= 0 && cx < kViewportW && cy >= 0 && cy < kViewportH) onscreen.push_back(i);
+    }
+    double ms = 0.0;
+    for (int i = 0; i < kHitTestEvents; ++i) {
+        const int idx = onscreen[i % onscreen.size()];
+        auto btn = root->findNodeById("btn_" + std::to_string(idx));
+        const Rect b = btn->getGlobalBounds();
+        const int x = b.x + b.width / 2;
+        const int y = b.y + b.height / 2;
+        auto t = Clock::now();
+        root->findNodeAt(x, y);
+        ms += msSince(t);
+    }
+    std::printf("       hit-test moving: %.3f ms/call (scan only, %zu targets)\n",
+                ms / kHitTestEvents, onscreen.size());
 }
 
 void reportScene(SDLRenderer& renderer, int count) {
@@ -225,7 +268,9 @@ void reportScene(SDLRenderer& renderer, int count) {
     scene->setRenderer(&renderer);
     auto root = scene->getRoot();
 
-    std::printf("count=%d: built\n", count);
+    // Buttons are not the whole tree: each one also has a CenterContainer and a
+    // Label, so the live scene is ~3x the button count.
+    std::printf("count=%d: built (tree=%d nodes)\n", count, SceneNode::getNodeCount());
 
     // Warm-up: resolve styles, lay out, build texture/font caches.
     for (int i = 0; i < 20; ++i) {
@@ -315,7 +360,7 @@ extern "C" int SDL_main(int /*argc*/, char* /*argv*/[]) {
     // errors/warnings visible so failures during style resolution are not lost.
     Log::setLevel(spdlog::level::warn);
     std::printf("bench: creating renderer\n");
-    SDLRenderer renderer("DxvUI Benchmark", 800, 600);
+    SDLRenderer renderer("DxvUI Benchmark", kViewportW, kViewportH);
 
     std::printf("bench: scale sweep\n");
     reportScene(renderer, 200);
