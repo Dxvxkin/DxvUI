@@ -34,6 +34,6 @@ ctest --test-dir cmake-build-debug
 
 - Formatting: `.clang-format` (ColumnLimit 100, indent 4, `PointerAlignment: Left`, includes sorted/regrouped). Project was bulk-formatted in commit `9846733`; run clang-format on touched files.
 - `.clang-tidy` is generated from CLion inspections — do not hand-maintain.
-- Headers under `include/DxvUI/`, impls in `src/` mirroring the same subdirs (`widgets/`, `containers/`, `renderers/`, `sources/`, `style/`). `src/layout/` exists but is currently empty.
+- Headers under `include/DxvUI/`, impls in `src/` mirroring the same subdirs (`widgets/`, `containers/`, `renderers/`, `sources/`, `style/`, `layout/`).
 - Layout/arrange logic was recently extracted from `SceneNode` into the container classes — put measure/arrange overrides in containers, not `SceneNode`.
 - Commit messages and some comments are in Russian; match that when relevant.
