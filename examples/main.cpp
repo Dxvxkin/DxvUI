@@ -12,13 +12,15 @@
 #include <format>
 #include <iostream>
 #include <memory>
+#include <vector>
 
 #include "DxvUI/containers/HorizontalContainer.h"
 
 constexpr int SCREEN_WIDTH = 800;
 constexpr int SCREEN_HEIGHT = 600;
 
-void ContanersBuildText(std::shared_ptr<DxvUI::SceneNode>& root) {
+void ContanersBuildText(std::shared_ptr<DxvUI::SceneNode>& root,
+                        std::vector<std::unique_ptr<DxvUI::SceneNode::Connection>>& connections) {
     auto h_container = std::make_shared<DxvUI::HorizontalContainer>("container_horizontal");
     h_container->setSpacing(30);
     h_container->setStyle({.borderColor = DxvUI::Colors::Red,
@@ -32,13 +34,13 @@ void ContanersBuildText(std::shared_ptr<DxvUI::SceneNode>& root) {
     auto btn = DxvUI::Button::create("h_btn1", "Хуй");
 
     h_container->addChild(btn);
-    btn->on(DxvUI::EventType::Click, [](DxvUI::DxvEvent& event) {
+    connections.push_back(btn->on(DxvUI::EventType::Click, [](DxvUI::DxvEvent& event) {
         if (auto target = event.target.lock()) {
             if (auto p = target->getParent().lock()) {
                 p->updateStyle({.borderColor = DxvUI::Colors::Green});
             }
         }
-    });
+    }));
 
     h_container->addChild(DxvUI::Button::create("h_btn2", "h_btn2"));
     h_container->addChild(DxvUI::Button::create("h_btn3", "h_btn3"));
@@ -46,7 +48,8 @@ void ContanersBuildText(std::shared_ptr<DxvUI::SceneNode>& root) {
     root->addChild(h_container);
 }
 
-void buildUI(const std::shared_ptr<DxvUI::Scene>& scene) {
+void buildUI(const std::shared_ptr<DxvUI::Scene>& scene,
+             std::vector<std::unique_ptr<DxvUI::SceneNode::Connection>>& connections) {
     auto root = scene->getRoot();
 
     // Set global font properties on the root node. These will be inherited by
@@ -67,23 +70,23 @@ void buildUI(const std::shared_ptr<DxvUI::Scene>& scene) {
     // --- Button 1: Uses default styles + overrides ---
     auto myButton = DxvUI::Button::create("my_button", "Click Me!");
 
-    root->on(DxvUI::EventType::Change, [](DxvUI::DxvEvent& event) {
+    connections.push_back(root->on(DxvUI::EventType::Change, [](DxvUI::DxvEvent& event) {
         DxvUI::Log::info("Root callback");
         DxvUI::Log::info("{} ::onChange({}) ", event.target.lock()->getId(),
                          event.target.lock()->getBinding()->getString().value_or(""));
-    });
+    }));
 
-    myButton->on(DxvUI::EventType::Change, [](DxvUI::DxvEvent& event) {
+    connections.push_back(myButton->on(DxvUI::EventType::Change, [](DxvUI::DxvEvent& event) {
         DxvUI::Log::info("Button callback");
         DxvUI::Log::info("{} ::onChange({}) ", event.target.lock()->getId(),
                          event.target.lock()->getBinding()->getString().value_or(""));
-    });
+    }));
 
-    myButton->on(DxvUI::EventType::Attach, [](DxvUI::DxvEvent& event) {
+    connections.push_back(myButton->on(DxvUI::EventType::Attach, [](DxvUI::DxvEvent& event) {
         if (event.target.lock() == event.currentTarget.lock()) {
             DxvUI::Log::info("{} Attach", event.target.lock()->getId());
         }
-    });
+    }));
 
     // Override only position and size. Colors, padding, etc., will come from the
     // Button's default theme.
@@ -95,7 +98,7 @@ void buildUI(const std::shared_ptr<DxvUI::Scene>& scene) {
     myButton->setStyle({.borderColor = DxvUI::Colors::White, .borderThickness = 2},
                        DxvUI::WidgetState::Hovered);
 
-    myButton->on(DxvUI::EventType::Click, [](DxvUI::DxvEvent& event) {
+    connections.push_back(myButton->on(DxvUI::EventType::Click, [&connections](DxvUI::DxvEvent& event) {
         auto root = event.target.lock()->getScene()->getRoot();
         int randomX = rand() % (SCREEN_WIDTH - 200);
         int randomY = rand() % (SCREEN_HEIGHT - 50);
@@ -122,17 +125,20 @@ void buildUI(const std::shared_ptr<DxvUI::Scene>& scene) {
                          .borderRadius = 10},
                         DxvUI::WidgetState::Hovered);
 
-        label->on(DxvUI::EventType::Click, [](DxvUI::DxvEvent& event) {
+        connections.push_back(label->on(DxvUI::EventType::Click, [](DxvUI::DxvEvent& event) {
             if (auto target = event.target.lock()) {
                 target->detach();
             }
-        });
+        }));
+        // Tokens of labels that were clicked away (and destroyed) are dead; drop
+        // them so the connection list stays bounded.
+        std::erase_if(connections, [](const auto& c) { return c->expired(); });
 
         root->addChild(label);
 
         if (auto btn = event.target.lock()->as<DxvUI::Button>())
             btn->setText(std::format("Count {}", DxvUI::SceneNode::getNodeCount()));
-    });
+    }));
 
     root->addChild(myButton);
 
@@ -147,13 +153,13 @@ void buildUI(const std::shared_ptr<DxvUI::Scene>& scene) {
                     .height = 50},
                    DxvUI::WidgetState::Normal);
 
-    btn2->on(DxvUI::EventType::Click, [](DxvUI::DxvEvent& event) {
+    connections.push_back(btn2->on(DxvUI::EventType::Click, [](DxvUI::DxvEvent& event) {
         if (auto node = event.target.lock()) {
             if (auto label = node->getScene()->findNodeById("label_8")) {
                 label->as<DxvUI::Label>()->setText("Found!");
             }
         }
-    });
+    }));
 
     root->addChild(btn2);
 
@@ -161,7 +167,7 @@ void buildUI(const std::shared_ptr<DxvUI::Scene>& scene) {
     auto btn_test_def_styles = DxvUI::Button::create("btn_defStyle", "test");
     btn_test_def_styles->setStyle({.left = 500, .top = 500, .width = 100, .height = 50},
                                   DxvUI::WidgetState::Normal);
-    btn_test_def_styles->on(DxvUI::EventType::Click, [](DxvUI::DxvEvent& e) {
+    connections.push_back(btn_test_def_styles->on(DxvUI::EventType::Click, [](DxvUI::DxvEvent& e) {
         if (auto node = e.target.lock()) {
             if (auto target = node->getScene()->findNodeById("label_7")) {
                 auto style = target->as<DxvUI::Label>()->getStyle().get(DxvUI::WidgetState::Normal);
@@ -173,9 +179,9 @@ void buildUI(const std::shared_ptr<DxvUI::Scene>& scene) {
                 target->setStyle(newStyle, DxvUI::WidgetState::Normal);
             }
         }
-    });
+    }));
     root->addChild(btn_test_def_styles);
-    ContanersBuildText(root);
+    ContanersBuildText(root, connections);
 }
 
 extern "C" int SDL_main(int /*argc*/, char* /*argv*/[]) {
@@ -188,7 +194,11 @@ extern "C" int SDL_main(int /*argc*/, char* /*argv*/[]) {
     auto scene = DxvUI::Scene::create();
     scene->setRenderer(&dxv_renderer);
 
-    buildUI(scene);
+    // Keeps the event handler connections alive for the whole app lifetime;
+    // destroying one of these tokens would unsubscribe its handler.
+    std::vector<std::unique_ptr<DxvUI::SceneNode::Connection>> connections;
+
+    buildUI(scene, connections);
     scene->updateLayout();
 
     DxvUI::Log::info("Initial node count: {}", DxvUI::SceneNode::getNodeCount());

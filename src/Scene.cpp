@@ -109,6 +109,12 @@ std::shared_ptr<SceneNode> Scene::findNodeById(std::string id) {
 
 void Scene::processEvent(const DxvEvent& event) { eventManager->processRawEvent(event); }
 
+void Scene::onNodeRemoved(const std::shared_ptr<SceneNode>& node) {
+    if (eventManager) {
+        eventManager->onNodeRemoved(node);
+    }
+}
+
 void Scene::update(float deltaTime) {
     if (root) {
         // Resolve dirty styles and re-lay-out the tree if needed.

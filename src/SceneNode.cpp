@@ -58,9 +58,14 @@ void SceneNode::removeChild(const std::shared_ptr<SceneNode>& child) {
         child->parent.reset();
         child->setScene(nullptr);
         markLayoutDirty();
-        // A removed sibling can uncover a node under the cursor, so the event
-        // manager's hit-test cache must not survive the structural change.
-        if (auto s = scene.lock()) s->invalidateHitTestCache();
+        // A removed sibling can uncover a node under the cursor, and the removed
+        // node (or a descendant) may be the hovered/pressed/focused node: clear
+        // that state so detached-but-alive nodes stop receiving events and
+        // widgets do not stay stuck in Hovered/Pressed.
+        if (auto s = scene.lock()) {
+            s->onNodeRemoved(child);
+            s->invalidateHitTestCache();
+        }
     }
 }
 
@@ -139,6 +144,29 @@ std::shared_ptr<SceneNode> SceneNode::findNodeAt(int x, int y) {
         }
     }
     return shared_from_this();
+}
+
+bool SceneNode::hasNodeInFront(const Rect& bounds) {
+    // Children are kept in draw order (later = drawn on top). A sibling drawn
+    // in front of this node can cover the cursor without any relayout, so walk
+    // the ancestor chain and report whether any visible sibling intersects the
+    // given bounds. Rect-based because it is computed once per hit-test cache
+    // rebuild instead of per event, where the sibling walk would dominate.
+    const SceneNode* pathChild = this;
+    for (auto ancestor = parent.lock(); ancestor; ancestor = ancestor->parent.lock()) {
+        ancestor->sortChildrenIfDirty();
+        const auto& kids = ancestor->children;
+        for (auto it = kids.rbegin(); it != kids.rend(); ++it) {
+            if ((*it).get() == pathChild) {
+                break;
+            }
+            if ((*it)->isVisible() && (*it)->getGlobalBounds().intersects(bounds)) {
+                return true;
+            }
+        }
+        pathChild = ancestor.get();
+    }
+    return false;
 }
 
 void SceneNode::setStyle(const StyleRule& rule, WidgetState state) {
@@ -251,6 +279,15 @@ bool SceneNode::isRoot() const {
     return false;
 }
 
+bool SceneNode::isAncestorOf(const std::shared_ptr<SceneNode>& descendant) const {
+    for (auto n = descendant ? descendant->parent.lock() : nullptr; n; n = n->parent.lock()) {
+        if (n.get() == this) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void SceneNode::setHovered(bool hovered) {
     if (isHovered != hovered) {
         isHovered = hovered;
@@ -278,31 +315,62 @@ void SceneNode::setZIndex(int newZIndex) {
     if (zIndex != newZIndex) {
         zIndex = newZIndex;
         if (auto p = parent.lock()) p->childrenOrderDirty = true;
+        // A re-sorted sibling can now cover the node under the cursor.
+        if (auto s = scene.lock()) s->invalidateHitTestCache();
     }
 }
 
 int SceneNode::getZIndex() const { return zIndex; }
 
-void SceneNode::on(EventType type, ActionCallback callback) {
-    eventHandlers[type].push_back(std::move(callback));
+std::unique_ptr<SceneNode::Connection> SceneNode::on(EventType type, ActionCallback callback) {
+    const handlerID id = handlerIdCounter++;
+    eventHandlers[type][id] = std::move(callback);
+    return std::unique_ptr<Connection>(new Connection(weak_from_this(), type, id));
+}
+
+SceneNode::Connection::Connection(std::weak_ptr<SceneNode> node, EventType type, handlerID id)
+    : node(std::move(node)), type(type), id(id) {}
+
+SceneNode::Connection::~Connection() {
+    if (auto n = node.lock()) {
+        n->removeHandler(type, id);
+    }
+}
+
+void SceneNode::removeHandler(EventType type, handlerID id) {
+    if (auto it = eventHandlers.find(type); it != eventHandlers.end()) {
+        it->second.erase(id);
+        if (it->second.empty()) {
+            eventHandlers.erase(it);
+        }
+    }
 }
 
 void SceneNode::dispatchEvent(DxvEvent& event) {
     if (event.target.expired()) {
         return;
     }
+    // Snapshot the event type: a handler may mutate event.type, but that must
+    // not change which handlers run here nor what the parent dispatches for.
+    const EventType eventType = event.type;
     event.currentTarget = weak_from_this();
 
-    if (eventHandlers.contains(event.type)) {
-        for (const auto& callback : eventHandlers[event.type]) {
-            callback(event);
-            if (event.handled) {
-                return;
+    if (eventHandlers.contains(eventType)) {
+        // Snapshot the handlers so a handler registering or removing handlers
+        // during dispatch cannot invalidate the iteration.
+        const auto handlers = eventHandlers.at(eventType);
+        for (const auto& [id, callback] : handlers) {
+            if (callback) {
+                callback(event);
+                if (event.handled) {
+                    return;
+                }
             }
         }
     }
 
     if (!event.handled) {
+        event.type = eventType;
         if (const auto p = parent.lock()) {
             p->dispatchEvent(event);
         }

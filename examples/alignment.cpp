@@ -15,6 +15,7 @@
 #include <format>
 #include <memory>
 #include <string>
+#include <vector>
 
 constexpr int SCREEN_WIDTH = 800;
 constexpr int SCREEN_HEIGHT = 600;
@@ -86,7 +87,9 @@ void logAnchoredInfo(const std::shared_ptr<DxvUI::Button>& button) {
                      labelBounds.x, labelBounds.y, labelBounds.width, labelBounds.height);
 }
 
-AlignmentDemoNodes buildAlignmentDemoUI(const std::shared_ptr<DxvUI::Scene>& scene) {
+AlignmentDemoNodes buildAlignmentDemoUI(
+    const std::shared_ptr<DxvUI::Scene>& scene,
+    std::vector<std::unique_ptr<DxvUI::SceneNode::Connection>>& connections) {
     auto root = scene->getRoot();
 
     root->setStyle({.textColor = DxvUI::Colors::DarkGray,
@@ -153,9 +156,9 @@ AlignmentDemoNodes buildAlignmentDemoUI(const std::shared_ptr<DxvUI::Scene>& sce
                              bounds.width, bounds.height);
         }
     };
-    rowStart->on(DxvUI::EventType::Click, cycleVerticalAlignment);
-    rowCenter->on(DxvUI::EventType::Click, cycleVerticalAlignment);
-    rowEnd->on(DxvUI::EventType::Click, cycleVerticalAlignment);
+    connections.push_back(rowStart->on(DxvUI::EventType::Click, cycleVerticalAlignment));
+    connections.push_back(rowCenter->on(DxvUI::EventType::Click, cycleVerticalAlignment));
+    connections.push_back(rowEnd->on(DxvUI::EventType::Click, cycleVerticalAlignment));
 
     row->addChild(rowStart);
     row->addChild(rowCenter);
@@ -250,7 +253,11 @@ extern "C" int SDL_main(int /*argc*/, char* /*argv*/[]) {
     auto scene = DxvUI::Scene::create();
     scene->setRenderer(&dxv_renderer);
 
-    const auto demo = buildAlignmentDemoUI(scene);
+    // Keeps the event handler connections alive for the whole app lifetime;
+    // destroying one of these tokens would unsubscribe its handler.
+    std::vector<std::unique_ptr<DxvUI::SceneNode::Connection>> connections;
+
+    const auto demo = buildAlignmentDemoUI(scene, connections);
     scene->updateLayout();
 
     logNodeInfo("row", demo.rowStart);

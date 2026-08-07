@@ -36,6 +36,15 @@ class Scene : public std::enable_shared_from_this<Scene> {
     void draw();
 
     /**
+     * @brief Notifies the event manager that a node left the tree.
+     *
+     * Called by SceneNode when a child is removed: the removed node (or a
+     * descendant of it) may be the hovered, pressed or focused node, whose state
+     * must be cleared even if the application still holds a reference to it.
+     */
+    void onNodeRemoved(const std::shared_ptr<SceneNode>& node);
+
+    /**
      * @brief Discards the event manager's hit-test cache.
      *
      * Called whenever a relayout or hierarchy mutation may have moved a node

@@ -89,6 +89,13 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     std::weak_ptr<SceneNode> getParent() const;
 
     /**
+     * @brief Whether this node is a (strict) ancestor of the given node.
+     * @param descendant The node to test.
+     * @return True if this node appears in the ancestor chain of descendant.
+     */
+    bool isAncestorOf(const std::shared_ptr<SceneNode>& descendant) const;
+
+    /**
      * @brief Gets the direct children of this node.
      * @return A const reference to the children vector.
      */
@@ -127,6 +134,19 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
      * @return A shared pointer to the node at the given coordinates, or nullptr.
      */
     virtual std::shared_ptr<SceneNode> findNodeAt(int x, int y);
+
+    /**
+     * @brief Whether any visible sibling (of this node or of any ancestor) that
+     * is drawn in front of this node intersects the given bounds.
+     *
+     * A rect-level test used by the event system's hit-test cache: it is
+     * computed once when a cache entry is rebuilt, so a node with no covering
+     * sibling can be cached O(1) without a per-event sibling walk. Children are
+     * kept in draw order (later = on top).
+     * @param bounds The bounds to test (typically this node's global bounds).
+     * @return True if a node drawn on top could cover part of the bounds.
+     */
+    bool hasNodeInFront(const Rect& bounds);
 
     /**
      * @brief Performs a safe dynamic cast of the node to a derived type.
@@ -324,12 +344,44 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     //----------------------------------------------------------------
     ///@{
 
+    using handlerID = uint64_t;
+
+    /**
+     * @brief RAII handle for a registered event handler.
+     *
+     * Destroying the connection removes the handler. A handler that must live
+     * for the node's lifetime has to keep the returned connection alive
+     * (mirrors UIBinding::Connection). A connection whose node was destroyed is
+     * a no-op.
+     */
+    class Connection {
+       public:
+        ~Connection();
+        Connection(Connection&&) = delete;
+        Connection& operator=(Connection&&) = delete;
+        Connection(const Connection&) = delete;
+        Connection& operator=(const Connection&) = delete;
+
+        /**
+         * @brief Whether the owning node has been destroyed.
+         */
+        bool expired() const noexcept { return node.expired(); }
+
+       private:
+        friend class SceneNode;
+        Connection(std::weak_ptr<SceneNode> node, EventType type, handlerID id);
+        std::weak_ptr<SceneNode> node;
+        EventType type;
+        handlerID id;
+    };
+
     /**
      * @brief Registers a callback for a specific event type.
      * @param type The type of event to listen for.
      * @param callback The function to execute when the event occurs.
+     * @return A connection that removes the handler when destroyed.
      */
-    void on(EventType type, ActionCallback callback);
+    std::unique_ptr<Connection> on(EventType type, ActionCallback callback);
 
     /**
      * @brief Dispatches an event through the node's hierarchy.
@@ -500,6 +552,10 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
 
     void sortChildrenIfDirty();
 
+    // Removes the handler with the given id for the given event type. Called by
+    // Connection's destructor; a no-op when the handler is already gone.
+    void removeHandler(EventType type, handlerID id);
+
     // Recursive draw used by the public draw(); carries the viewport rect so
     // the whole tree is culled against it in O(visible) instead of O(all nodes).
     void drawImpl(IRenderer& renderer, const Rect& viewportRect);
@@ -510,7 +566,10 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     static int nodeCount;
     int zIndex = 0;
     bool childrenOrderDirty = false;
-    std::map<EventType, std::vector<ActionCallback>> eventHandlers;
+    // Handlers are keyed by id per event type so that registration, removal and
+    // snapshot dispatch are all safe while a handler is running.
+    std::map<EventType, std::map<handlerID, ActionCallback>> eventHandlers;
+    handlerID handlerIdCounter = 0;
 };
 
 }  // namespace DxvUI
