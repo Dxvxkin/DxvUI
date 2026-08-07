@@ -1,3 +1,4 @@
+#include <DxvUI/FpsCounter.h>
 #include <DxvUI/Log.h>
 #include <DxvUI/Scene.h>
 #include <DxvUI/containers/AbsoluteContainer.h>
@@ -11,6 +12,7 @@
 #include <DxvUI/widgets/Label.h>
 #include <SDL.h>
 
+#include <format>
 #include <memory>
 #include <string>
 
@@ -93,6 +95,12 @@ AlignmentDemoNodes buildAlignmentDemoUI(const std::shared_ptr<DxvUI::Scene>& sce
                     .width = SCREEN_WIDTH,
                     .height = SCREEN_HEIGHT},
                    DxvUI::WidgetState::Normal);
+
+    // Frame-rate readout pinned to the top-right corner; the text is refreshed
+    // by the main loop, and setText() is a no-op while the value stays stable.
+    auto fpsLabel = DxvUI::Label::create("fps_label", "FPS: --");
+    fpsLabel->setStyle({.top = 10, .right = 10}, DxvUI::WidgetState::Normal);
+    root->addChild(fpsLabel);
 
     // --- 1. HorizontalContainer: each child's verticalAlignment positions it
     // within the row's content height. Click a button to cycle Start/Center/End.
@@ -254,6 +262,15 @@ extern "C" int SDL_main(int /*argc*/, char* /*argv*/[]) {
     SDL_Event sdl_event;
     Uint32 last_time = SDL_GetTicks();
 
+    DxvUI::FpsCounter fps;
+    auto fpsLabel = scene->findNodeById("fps_label")->as<DxvUI::Label>();
+
+    // Optional headless run for profiling: when DXVUI_FRAMES is set, the loop
+    // exits after that many frames (no interaction needed). Not set = interactive.
+    const char* frames_env = std::getenv("DXVUI_FRAMES");
+    const long frame_cap = frames_env ? std::atol(frames_env) : 0;
+    long frame_count = 0;
+
     while (!quit) {
         Uint32 current_time = SDL_GetTicks();
         float delta_time = (current_time - last_time) / 1000.0f;
@@ -274,6 +291,15 @@ extern "C" int SDL_main(int /*argc*/, char* /*argv*/[]) {
         dxv_renderer.clear(DxvUI::Colors::White);
         scene->draw();
         dxv_renderer.present();
+
+        fps.tick();
+        fpsLabel->setText(
+            std::format("FPS: {:.0f} ({:.1f} ms)", fps.getFps(), fps.getFrameTimeMs()));
+
+        frame_count++;
+        if (frame_cap > 0 && frame_count >= frame_cap) {
+            quit = true;
+        }
     }
     scene->shutdown();
     scene.reset();

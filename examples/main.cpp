@@ -1,4 +1,5 @@
 #include <DxvUI/DxvUI.h>
+#include <DxvUI/FpsCounter.h>
 #include <DxvUI/Log.h>
 #include <DxvUI/renderers/SDLRenderer.h>
 #include <DxvUI/sources/SDLEventSource.h>
@@ -7,10 +8,10 @@
 #include <DxvUI/widgets/Label.h>
 #include <SDL.h>
 
+#include <cstdlib>
 #include <format>
 #include <iostream>
 #include <memory>
-#include <cstdlib>
 
 #include "DxvUI/containers/HorizontalContainer.h"
 
@@ -52,10 +53,16 @@ void buildUI(const std::shared_ptr<DxvUI::Scene>& scene) {
     // children.
     root->setStyle({.textColor = DxvUI::Colors::DarkGray,
                     .fontSize = 18,
-                    .fontPath = "C:/Windows/Fonts/segoeui.ttf",
+                    .fontPath = DxvUI::getDefaultFontPath(),
                     .width = SCREEN_WIDTH,
                     .height = SCREEN_HEIGHT},
                    DxvUI::WidgetState::Normal);
+
+    // Frame-rate readout pinned to the top-right corner; the text is refreshed
+    // by the main loop, and setText() is a no-op while the value stays stable.
+    auto fpsLabel = DxvUI::Label::create("fps_label", "FPS: --");
+    fpsLabel->setStyle({.top = 10, .right = 10}, DxvUI::WidgetState::Normal);
+    root->addChild(fpsLabel);
 
     // --- Button 1: Uses default styles + overrides ---
     auto myButton = DxvUI::Button::create("my_button", "Click Me!");
@@ -190,6 +197,9 @@ extern "C" int SDL_main(int /*argc*/, char* /*argv*/[]) {
     SDL_Event sdl_event;
     Uint32 last_time = SDL_GetTicks();
 
+    DxvUI::FpsCounter fps;
+    auto fpsLabel = scene->findNodeById("fps_label")->as<DxvUI::Label>();
+
     // Optional headless run for profiling: when DXVUI_FRAMES is set, the loop
     // exits after that many frames (no interaction needed). Not set = interactive.
     const char* frames_env = std::getenv("DXVUI_FRAMES");
@@ -216,6 +226,10 @@ extern "C" int SDL_main(int /*argc*/, char* /*argv*/[]) {
         dxv_renderer.clear(DxvUI::Colors::White);
         scene->draw();
         dxv_renderer.present();
+
+        fps.tick();
+        fpsLabel->setText(
+            std::format("FPS: {:.0f} ({:.1f} ms)", fps.getFps(), fps.getFrameTimeMs()));
 
         frame_count++;
         if (frame_cap > 0 && frame_count >= frame_cap) {
