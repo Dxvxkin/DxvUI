@@ -93,3 +93,26 @@ TEST(EventManagerTest, PressingAnotherNodeReleasesPreviousPress) {
     EXPECT_EQ(f.buttonA->getCurrentState(), WidgetState::Normal);
     EXPECT_EQ(f.buttonB->getCurrentState(), WidgetState::Pressed);
 }
+
+TEST(EventManagerTest, HitTestCacheIsInvalidatedWhenHierarchyShifts) {
+    EventFixture f;
+    f.moveTo(50, 25, MouseButton::None);  // hover button A; the cache now holds A
+    EXPECT_EQ(f.buttonA->getCurrentState(), WidgetState::Hovered);
+
+    // B moves on top of A; without invalidation the cache would keep resolving
+    // A even though B is now the topmost node at the same point.
+    f.buttonB->setStyle({.left = 0, .top = 0, .width = 100, .height = 50}, WidgetState::Normal);
+    f.manager.resolveDirtyStyles(f.root);
+    f.root->measure({800, 600});
+    f.root->arrange({0, 0, 800, 600});
+    f.moveTo(50, 25, MouseButton::None);
+    EXPECT_EQ(f.buttonA->getCurrentState(), WidgetState::Hovered);  // stale cache hit
+
+    // The cache is discarded (Scene does this after every relayout or hierarchy
+    // mutation), so the next event falls through to a fresh scan that resolves
+    // B as the topmost node.
+    f.scene->invalidateHitTestCache();
+    f.moveTo(50, 25, MouseButton::None);
+    EXPECT_EQ(f.buttonB->getCurrentState(), WidgetState::Hovered);
+    EXPECT_EQ(f.buttonA->getCurrentState(), WidgetState::Normal);
+}

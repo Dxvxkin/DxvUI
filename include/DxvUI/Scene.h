@@ -35,6 +35,15 @@ class Scene : public std::enable_shared_from_this<Scene> {
     void updateLayout();
     void draw();
 
+    /**
+     * @brief Discards the event manager's hit-test cache.
+     *
+     * Called whenever a relayout or hierarchy mutation may have moved a node
+     * under the cursor; keeping the cache across such a change could make the
+     * next event resolve the wrong (occluded) node.
+     */
+    void invalidateHitTestCache() noexcept { eventManager->invalidateHitTestCache(); }
+
     void shutdown();
 
    private:

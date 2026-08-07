@@ -8,6 +8,24 @@ namespace DxvUI {
 
 EventManager::EventManager(Scene& scene) : ownerScene(scene) {}
 
+std::shared_ptr<SceneNode> EventManager::hitTest(int x, int y) {
+    // The hovered node is a strong hint for a stationary mouse: while the cache
+    // is valid (no relayout or hierarchy mutation since it was set), verifying
+    // the node is still visible and contains the point short-circuits the O(n)
+    // reverse sibling scan that dominates a fresh hit-test. Re-entering the
+    // cached node's subtree resolves the deepest visible descendant, exactly
+    // like the root scan would.
+    if (nodeUnderMouseValid) {
+        if (auto cached = nodeUnderMouse.lock()) {
+            if (cached->isVisible() && cached->getGlobalBounds().contains(x, y)) {
+                return cached->findNodeAt(x, y);
+            }
+        }
+    }
+    auto root = ownerScene.getRoot();
+    return root ? root->findNodeAt(x, y) : nullptr;
+}
+
 void EventManager::processRawEvent(const DxvEvent& rawEvent) {
     DxvEvent event = rawEvent;
     auto root = ownerScene.getRoot();
@@ -64,7 +82,11 @@ void EventManager::handleMouseMove(DxvEvent& event) {
     }
 
     auto oldNode = nodeUnderMouse.lock();
-    auto newNode = root->findNodeAt(event.mouse.x, event.mouse.y);
+    auto newNode = hitTest(event.mouse.x, event.mouse.y);
+    // The cache now reflects a fresh hit-test (either it was valid and reused,
+    // or a full scan just ran), so it is trustworthy for the next event.
+    nodeUnderMouse = newNode;
+    nodeUnderMouseValid = true;
 
     if (oldNode != newNode) {
         if (oldNode && !oldNode->isRoot()) {
@@ -81,7 +103,6 @@ void EventManager::handleMouseMove(DxvEvent& event) {
             e.target = newNode;
             newNode->dispatchEvent(e);
         }
-        nodeUnderMouse = newNode;
     }
 
     if (auto renderer = ownerScene.getRenderer()) {
@@ -111,7 +132,7 @@ void EventManager::handleMouseDown(DxvEvent& event) {
     if (!root) return;
 
     lastMousePosition = {event.mouse.x, event.mouse.y};
-    auto targetNode = root->findNodeAt(event.mouse.x, event.mouse.y);
+    auto targetNode = hitTest(event.mouse.x, event.mouse.y);
 
     auto oldFocused = focusedNode.lock();
     if (oldFocused != targetNode) {
@@ -151,9 +172,7 @@ void EventManager::handleMouseDown(DxvEvent& event) {
 
 void EventManager::handleMouseUp(DxvEvent& event) {
     auto pressed = pressedNode.lock();
-    auto targetNodeOnUp = ownerScene.getRoot()
-                              ? ownerScene.getRoot()->findNodeAt(event.mouse.x, event.mouse.y)
-                              : nullptr;
+    auto targetNodeOnUp = hitTest(event.mouse.x, event.mouse.y);
 
     if (pressed) {
         pressed->setPressed(false);

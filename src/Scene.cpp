@@ -127,7 +127,15 @@ void Scene::updateLayout() {
     // The layout pass prunes clean subtrees, so it is O(1) on clean frames and
     // only walks the affected branch otherwise.
     Size viewportSize = renderer->getViewportSize();
+    // A relayout can move the node under the cursor or move a sibling on top of
+    // it, so the event manager's hit-test cache must not outlive the pass. The
+    // layout fast path returns early only when nothing could have moved.
+    const bool layoutWillRun =
+        root->isLayoutDirty() || root->getLastMeasureConstraints() != viewportSize;
     layoutManager.layout(root, viewportSize);
+    if (layoutWillRun) {
+        eventManager->invalidateHitTestCache();
+    }
 }
 
 void Scene::draw() {

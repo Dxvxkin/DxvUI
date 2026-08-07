@@ -39,6 +39,9 @@ void SceneNode::addChild(const std::shared_ptr<SceneNode>& child) {
     child->dispatchEvent(event);
     childrenOrderDirty = true;
     markLayoutDirty();
+    // A new sibling can now cover the node under the cursor, so the event
+    // manager's hit-test cache must not survive the structural change.
+    if (auto s = scene.lock()) s->invalidateHitTestCache();
 }
 
 void SceneNode::removeChild(const std::shared_ptr<SceneNode>& child) {
@@ -55,6 +58,9 @@ void SceneNode::removeChild(const std::shared_ptr<SceneNode>& child) {
         child->parent.reset();
         child->setScene(nullptr);
         markLayoutDirty();
+        // A removed sibling can uncover a node under the cursor, so the event
+        // manager's hit-test cache must not survive the structural change.
+        if (auto s = scene.lock()) s->invalidateHitTestCache();
     }
 }
 
