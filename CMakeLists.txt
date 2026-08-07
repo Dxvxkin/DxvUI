@@ -67,6 +67,13 @@ target_link_libraries(DxvUIAlignmentExample PRIVATE
         SDL2::SDL2main
 )
 
+# --- Benchmark ---
+add_executable(DxvUIBenchmark examples/benchmark.cpp)
+target_link_libraries(DxvUIBenchmark PRIVATE
+        DxvUI
+        SDL2::SDL2main
+)
+
 
 # --- Tests ---
 enable_testing()

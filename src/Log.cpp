@@ -25,4 +25,8 @@ void Log::init() {
 #endif
 }
 
+void Log::setLevel(spdlog::level::level_enum level) {
+    if (s_logger) s_logger->set_level(level);
+}
+
 }  // namespace DxvUI
