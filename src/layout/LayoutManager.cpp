@@ -101,6 +101,7 @@ void LayoutManager::arrangeNode(SceneNode& node, const Rect& finalRect) {
         return;
     }
 
+    data.lastArrangeRect = data.bounds;
     data.bounds = finalRect;
     node.onArrange(finalRect);
     data.isDirty = false;

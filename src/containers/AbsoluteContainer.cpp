@@ -16,8 +16,20 @@ Size AbsoluteContainer::onMeasure(const Size& availableSize) {
     for (const auto& child : children) {
         if (!child->isVisible()) continue;
 
-        Size childOuterSize = LayoutManager::measureChild(*child, availableSize);
         const auto& childLayout = child->getComputedLayout(child->getCurrentState());
+
+        // Clean children keep the result of their last measure pass; reuse the
+        // cached outer size instead of re-entering measureChild()/measureNode().
+        // The condition mirrors measureNode()'s prune check (LayoutManager.cpp),
+        // so the cached size is only reused while it is actually valid.
+        Size childOuterSize;
+        if (!child->isLayoutDirty() &&
+            child->getLastMeasureConstraints() ==
+                LayoutManager::subtractPadding(availableSize, childLayout.margin)) {
+            childOuterSize = LayoutManager::addPadding(child->getDesiredSize(), childLayout.margin);
+        } else {
+            childOuterSize = LayoutManager::measureChild(*child, availableSize);
+        }
 
         // The positioned element is the child's margin-box. If only
         // 'right'/'bottom' are set, the child is anchored to the opposite edge,
@@ -45,9 +57,19 @@ void AbsoluteContainer::onArrange(const Rect& finalRect) {
     const auto& padding = computedLayout.padding;
     Rect content = LayoutManager::contentRect(*this, finalRect);
 
+    // Children are positioned from their own styles (absolute anchoring),
+    // independent of siblings. If this container neither moved/resized nor
+    // changed its own layout state, a clean child keeps the exact rect assigned
+    // in the previous arrange pass, so it can be skipped entirely.
+    const bool rectChanged = layoutData.lastArrangeRect != finalRect;
+
     for (const auto& child : children) {
         if (!child->isVisible()) {
             LayoutManager::arrangeInvisible(*child, content);
+            continue;
+        }
+
+        if (!rectChanged && !layoutData.isDirty && !child->isLayoutDirty()) {
             continue;
         }
 

@@ -237,6 +237,22 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     Size getDesiredSize() const;
 
     /**
+     * @brief Whether this node (or a descendant) needs a fresh layout pass.
+     *
+     * Exposed for containers so layout passes can skip children whose cached
+     * measure/arrange results are still valid.
+     */
+    bool isLayoutDirty() const;
+
+    /**
+     * @brief Gets the measure constraints of the last measure pass.
+     *
+     * Exposed for containers so a cached desired size is only reused while it
+     * matches the constraints it was computed with.
+     */
+    const Size& getLastMeasureConstraints() const;
+
+    /**
      * @brief Gets the current interaction state of the node (e.g., Normal, Hovered).
      * @return The current WidgetState.
      */

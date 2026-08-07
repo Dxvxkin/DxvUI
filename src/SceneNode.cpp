@@ -219,6 +219,12 @@ Rect SceneNode::getGlobalBounds() const { return layoutData.bounds; }
 
 Size SceneNode::getDesiredSize() const { return layoutData.desiredSize; }
 
+bool SceneNode::isLayoutDirty() const { return layoutData.isDirty || layoutData.isSubtreeDirty; }
+
+const Size& SceneNode::getLastMeasureConstraints() const {
+    return layoutData.lastMeasureConstraints;
+}
+
 WidgetState SceneNode::getCurrentState() const {
     if (isPressed) return WidgetState::Pressed;
     if (isHovered) return WidgetState::Hovered;
