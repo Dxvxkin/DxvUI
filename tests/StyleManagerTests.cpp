@@ -444,6 +444,27 @@ TEST(ThemeTest, ThemeChangeReResolvesCachedStyles) {
     EXPECT_EQ(node->getComputedAppearance(WidgetState::Normal).borderThickness, 9);
 }
 
+TEST(ThemeTest, ThemeChangeReResolvesFullTree) {
+    Theme::registerDefaultStyle("TestWidget",
+                                {{WidgetState::Normal, {.backgroundColor = Colors::Red}}});
+
+    // The theme default applies to the child type, not to the root, so only a
+    // full-tree invalidation can reach it: a root-level resolve must not be
+    // pruned just because the root's own inherited text properties changed.
+    auto root = std::make_shared<SceneNode>("root");
+    auto child = std::make_shared<TestWidget>("child");
+    root->addChild(child);
+
+    Theme theme;
+    StyleManager manager(theme);
+    manager.resolveDirtyStyles(root);
+    EXPECT_EQ(child->getComputedAppearance(WidgetState::Normal).backgroundColor, Colors::Red);
+
+    theme.setDefaultStyle("TestWidget", {{WidgetState::Normal, {.backgroundColor = Colors::Blue}}});
+    manager.resolveDirtyStyles(root);
+    EXPECT_EQ(child->getComputedAppearance(WidgetState::Normal).backgroundColor, Colors::Blue);
+}
+
 TEST(ThemeTest, VersionIncrementsOnMutation) {
     Theme theme;
     const std::uint64_t initial = theme.getVersion();
@@ -541,6 +562,28 @@ TEST(StyleManagerTest, DeepChildEditOnlyResolvesTheBranch) {
 
     EXPECT_EQ(leaf->getComputedAppearance(WidgetState::Normal).fontSize, 30);
     EXPECT_EQ(root->getComputedAppearance(WidgetState::Normal).fontSize, 14);
+}
+
+TEST(StyleManagerTest, InheritableChangeCascadesToDescendants) {
+    auto root = std::make_shared<SceneNode>("root");
+    auto parent = std::make_shared<SceneNode>("parent");
+    auto child = std::make_shared<SceneNode>("child");
+    root->addChild(parent);
+    parent->addChild(child);
+
+    Theme theme;
+    StyleManager manager(theme);
+    manager.resolveDirtyStyles(root);
+    EXPECT_EQ(child->getComputedAppearance(WidgetState::Normal).fontSize, 14);
+
+    // A text-property change must cascade: the child inherits fontSize from
+    // the parent's Normal state and has to be re-resolved even though its own
+    // rule did not change.
+    parent->setStyle({.fontSize = 30}, WidgetState::Normal);
+    manager.resolveDirtyStyles(root);
+
+    EXPECT_EQ(parent->getComputedAppearance(WidgetState::Normal).fontSize, 30);
+    EXPECT_EQ(child->getComputedAppearance(WidgetState::Normal).fontSize, 30);
 }
 
 TEST(StyleManagerTest, IdempotentWhenNothingDirty) {

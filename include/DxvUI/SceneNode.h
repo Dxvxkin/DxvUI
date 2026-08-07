@@ -211,6 +211,16 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     void markLayoutDirtyRecursive();
 
     /**
+     * @brief Marks the style of this node and every descendant as dirty.
+     *
+     * A single ancestor-level markStyleDirty() only resolves that branch:
+     * descendants are re-resolved only when the inherited text properties
+     * actually changed. This forces a full-tree re-resolution and is used when
+     * a theme mutation changes the defaults of any node type.
+     */
+    void markStyleDirtyRecursive();
+
+    /**
      * @brief Gets the computed appearance properties for a given state.
      * @param state The widget state (e.g., Normal, Hovered).
      * @return A const reference to the computed appearance style.

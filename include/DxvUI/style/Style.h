@@ -344,6 +344,29 @@ inline bool hasTextMetricsProps(const StyleRule& rule) {
         appearanceProps);
 }
 
+template <typename Src, typename Dst>
+constexpr bool inheritablePropDiffers(const ComputedAppearanceStyle& a,
+                                      const ComputedAppearanceStyle& b,
+                                      const AppearanceProp<Src, Dst>& prop) {
+    return prop.inheritable && (a.*prop.dst) != (b.*prop.dst);
+}
+
+/**
+ * @brief Checks whether two resolved appearance styles differ in any
+ * inheritable property.
+ *
+ * Children only need re-resolution when the text properties they inherit from
+ * their parent's Normal state actually changed; a background- or layout-only
+ * change on a parent must not re-resolve its whole subtree. The property set
+ * comes from the same descriptor list as resolution, so it cannot drift.
+ */
+inline bool inheritableAppearanceDiffers(const ComputedAppearanceStyle& a,
+                                         const ComputedAppearanceStyle& b) {
+    return std::apply(
+        [&](const auto&... prop) { return (false || ... || inheritablePropDiffers(a, b, prop)); },
+        appearanceProps);
+}
+
 }  // namespace detail
 
 inline void StyleRule::merge(const StyleRule& other) {

@@ -115,12 +115,14 @@ ComputedLayoutStyle StyleManager::resolveLayout(const SceneNode& node, WidgetSta
 void StyleManager::resolveDirtyStyles(const std::shared_ptr<SceneNode>& root) {
     if (!root) return;
 
-    // If the theme changed since the last pass, the whole tree is stale. Mark
-    // the root dirty: the cascade below re-resolves every descendant.
+    // If the theme changed since the last pass, the whole tree is stale. A
+    // plain root markDirty() would leave clean descendants stale: they are only
+    // re-resolved when an inherited property actually changed, and a theme
+    // mutation can alter the defaults of any node type. Recursively marking
+    // every node dirty forces the cascade below to resolve the whole tree.
     if (theme_.getVersion() != lastResolvedThemeVersion_) {
         lastResolvedThemeVersion_ = theme_.getVersion();
-        root->style.markDirty();
-        root->style.markSubtreeDirty();
+        root->markStyleDirtyRecursive();
     }
 
     // A theme mutation can also change layout properties; those are tracked by
@@ -141,10 +143,11 @@ void StyleManager::resolveDirtyStyles(const std::shared_ptr<SceneNode>& root) {
     // Pruned top-down traversal. We only enter subtrees whose style-subtree
     // flag is set (a rule somewhere below was modified), and resolve every node
     // whose own cache is dirty. Resolving a node cascades the dirty flag onto
-    // its children because they inherit text properties; the parents are always
-    // resolved before their children since each node is enqueued by its parent.
-    // The subtree flags are consumed (cleared) right when a node is popped, so
-    // no post-pass cleanup is needed and the tree is clean for the next frame.
+    // its children when the text properties they inherit actually changed;
+    // parents are always resolved before their children since each node is
+    // enqueued by its parent. The subtree flags are consumed (cleared) right
+    // when a node is popped, so no post-pass cleanup is needed and the tree is
+    // clean for the next frame.
     std::queue<std::shared_ptr<SceneNode>> nodesToProcess;
     nodesToProcess.push(root);
 
@@ -155,6 +158,15 @@ void StyleManager::resolveDirtyStyles(const std::shared_ptr<SceneNode>& root) {
         node->style.clearSubtreeDirty();
 
         if (node->style.isDirty()) {
+            // Baseline of the inherited text properties before this pass; a
+            // nullptr means the cache was never populated, so there is nothing
+            // to diff against (and every node is dirty on the first pass
+            // anyway). Copied before the resolve loop because the resolve
+            // overwrites the cache in place.
+            const auto* baselinePtr = node->style.getComputedAppearance(WidgetState::Normal);
+            const auto baseline =
+                baselinePtr ? std::optional<ComputedAppearanceStyle>(*baselinePtr) : std::nullopt;
+
             for (size_t i = 0; i < kWidgetStateCount; ++i) {
                 WidgetState s = static_cast<WidgetState>(i);
                 node->style.setComputedAppearance(s, resolveAppearance(*node, s));
@@ -162,8 +174,14 @@ void StyleManager::resolveDirtyStyles(const std::shared_ptr<SceneNode>& root) {
             }
             node->style.markClean();
 
-            for (const auto& child : node->children) {
-                child->style.markDirty();
+            const bool inheritedChanged =
+                baseline.has_value() &&
+                detail::inheritableAppearanceDiffers(
+                    *baseline, *node->style.getComputedAppearance(WidgetState::Normal));
+            if (inheritedChanged) {
+                for (const auto& child : node->children) {
+                    child->style.markDirty();
+                }
             }
         }
 

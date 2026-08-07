@@ -215,6 +215,13 @@ void SceneNode::markLayoutDirtyRecursive() {
     }
 }
 
+void SceneNode::markStyleDirtyRecursive() {
+    markStyleDirty();
+    for (const auto& child : children) {
+        child->markStyleDirtyRecursive();
+    }
+}
+
 Rect SceneNode::getGlobalBounds() const { return layoutData.bounds; }
 
 Size SceneNode::getDesiredSize() const { return layoutData.desiredSize; }
