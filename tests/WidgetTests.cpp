@@ -118,7 +118,7 @@ class FakeRenderer : public IRenderer {
 
     void clear(const Color&) override {}
     void present() override {}
-    Size getViewportSize() const override { return {0, 0}; }
+    Size getViewportSize() const override { return {800, 600}; }
 
     void setCursor(CursorType) override {}
     CursorType getCursor() const override { return CursorType::Arrow; }
@@ -368,4 +368,26 @@ TEST(ClippingTest, NestedClipsPushAndPopInOrder) {
     EXPECT_EQ(renderer.clipPushes[0], parent->getGlobalBounds());
     EXPECT_EQ(renderer.clipPushes[1], child->getGlobalBounds());
     EXPECT_EQ(renderer.clipPops, 2);
+}
+
+TEST(ClippingTest, NodeOutsideViewportIsCulled) {
+    auto scene = Scene::create();
+    auto root = scene->getRoot();
+    // Entirely outside the 800x600 fake viewport: nothing must be drawn at all.
+    auto parent = std::make_shared<AbsoluteContainer>("parent");
+    parent->setStyle({.clipContent = true, .left = 900, .top = 700, .width = 100, .height = 50},
+                     WidgetState::Normal);
+    root->addChild(parent);
+
+    Theme theme;
+    StyleManager manager{theme};
+    manager.resolveDirtyStyles(root);
+    root->measure({800, 600});
+    root->arrange({0, 0, 800, 600});
+
+    FakeRenderer renderer;
+    root->draw(renderer);
+
+    EXPECT_TRUE(renderer.clipPushes.empty());
+    EXPECT_EQ(renderer.clipPops, 0);
 }

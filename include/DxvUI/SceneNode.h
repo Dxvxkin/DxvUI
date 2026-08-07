@@ -358,10 +358,10 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     /**
      * @brief Draws the node and its children.
      *
-     * Template method: it checks visibility, then calls the drawBackground()
-     * and drawContent() hooks, then draws the children. Subclasses that only
-     * need a styled background/border or simple content should override the
-     * protected hooks instead of this method.
+     * Template method: it checks visibility and viewport intersection, then
+     * calls the drawBackground() and drawContent() hooks, then draws the
+     * children. Subclasses that only need a styled background/border or simple
+     * content should override the protected hooks instead of this method.
      * @param renderer The renderer to use for drawing operations.
      */
     virtual void draw(IRenderer& renderer);
@@ -479,6 +479,10 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     void markStyleSubtreeDirty();
 
     void sortChildrenIfDirty();
+
+    // Recursive draw used by the public draw(); carries the viewport rect so
+    // the whole tree is culled against it in O(visible) instead of O(all nodes).
+    void drawImpl(IRenderer& renderer, const Rect& viewportRect);
 
     bool isHovered = false;
     bool isPressed = false;

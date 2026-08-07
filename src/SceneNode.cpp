@@ -344,7 +344,21 @@ void SceneNode::arrange(const Rect& finalRect) { LayoutManager::arrangeNode(*thi
 void SceneNode::onArrange(const Rect& /*finalRect*/) {}
 
 void SceneNode::draw(IRenderer& renderer) {
+    const Size viewportSize = renderer.getViewportSize();
+    drawImpl(renderer,
+             {0, 0, static_cast<int>(viewportSize.width), static_cast<int>(viewportSize.height)});
+}
+
+void SceneNode::drawImpl(IRenderer& renderer, const Rect& viewportRect) {
     if (!visible) {
+        return;
+    }
+
+    // Viewport culling: skip everything (background, content and children)
+    // once the node is fully outside the visible area. A descendant could
+    // theoretically overflow back on screen (absolute anchoring/overflow), but
+    // only while its parent is entirely off-screen, which is the rare case.
+    if (!getGlobalBounds().intersects(viewportRect)) {
         return;
     }
 
@@ -359,7 +373,7 @@ void SceneNode::draw(IRenderer& renderer) {
 
     sortChildrenIfDirty();
     for (const auto& child : children) {
-        child->draw(renderer);
+        child->drawImpl(renderer, viewportRect);
     }
 
     if (clip) {
