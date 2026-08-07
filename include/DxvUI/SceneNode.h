@@ -337,12 +337,6 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
      */
     virtual void onDetach();
 
-    /**
-     * @brief Called on every frame update.
-     * @param deltaTime The time elapsed since the last frame.
-     */
-    virtual void onUpdate(float deltaTime);
-
     ///@}
 
     //----------------------------------------------------------------

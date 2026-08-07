@@ -300,13 +300,6 @@ void SceneNode::onAttach() {}
 
 void SceneNode::onDetach() {}
 
-void SceneNode::onUpdate(float deltaTime) {
-    if (!visible) return;
-    for (const auto& child : children) {
-        child->onUpdate(deltaTime);
-    }
-}
-
 const ComputedAppearanceStyle& SceneNode::getComputedAppearance(WidgetState state) const {
     if (const auto* computed = style.getComputedAppearance(state)) {
         return *computed;

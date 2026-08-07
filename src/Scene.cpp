@@ -111,10 +111,7 @@ void Scene::processEvent(const DxvEvent& event) { eventManager->processRawEvent(
 
 void Scene::update(float deltaTime) {
     if (root) {
-        // 1. Perform logical updates (e.g., animations, state changes)
-        root->onUpdate(deltaTime);
-
-        // 2. Resolve dirty styles and re-lay-out the tree if needed.
+        // Resolve dirty styles and re-lay-out the tree if needed.
         updateLayout();
     }
 }
