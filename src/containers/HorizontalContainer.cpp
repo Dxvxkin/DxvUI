@@ -17,7 +17,7 @@ void HorizontalContainer::setSpacing(float spacing) {
 float HorizontalContainer::getSpacing() const { return spacing_; }
 
 Size HorizontalContainer::onMeasure(const Size& availableSize) {
-    const auto& computedLayout = getComputedLayout(getCurrentState());
+    const auto& computedLayout = getComputedLayout();
     const auto& padding = computedLayout.padding;
 
     const Size contentAvailableSize = LayoutManager::subtractPadding(availableSize, padding);
@@ -45,7 +45,7 @@ Size HorizontalContainer::onMeasure(const Size& availableSize) {
 }
 
 void HorizontalContainer::onArrange(const Rect& finalRect) {
-    const auto& computedLayout = getComputedLayout(getCurrentState());
+    const auto& computedLayout = getComputedLayout();
 
     const auto& padding = computedLayout.padding;
     const Rect content = LayoutManager::contentRect(*this, finalRect);

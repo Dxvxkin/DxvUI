@@ -34,7 +34,7 @@ class Scene : public std::enable_shared_from_this<Scene> {
      * @param id The ID of the node to find.
      * @return A shared pointer to the found node, or nullptr if not found.
      */
-    std::shared_ptr<SceneNode> findNodeById(std::string id);
+    std::shared_ptr<SceneNode> findNodeById(const std::string& id);
 
     /**
      * @brief Gets the node that currently owns keyboard focus.
@@ -52,7 +52,7 @@ class Scene : public std::enable_shared_from_this<Scene> {
     void setFocus(const std::shared_ptr<SceneNode>& node);
 
     void processEvent(const DxvEvent& event);
-    void update(float deltaTime);
+    void update();
     void updateLayout();
     void draw();
 

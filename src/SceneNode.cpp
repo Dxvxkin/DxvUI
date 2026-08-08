@@ -384,6 +384,10 @@ const ComputedAppearanceStyle& SceneNode::getComputedAppearance(WidgetState stat
     return empty;
 }
 
+const ComputedAppearanceStyle& SceneNode::getComputedAppearance() const {
+    return getComputedAppearance(getCurrentState());
+}
+
 const ComputedLayoutStyle& SceneNode::getComputedLayout(WidgetState state) const {
     if (const auto* computed = style.getComputedLayout(state)) {
         return *computed;
@@ -394,6 +398,10 @@ const ComputedLayoutStyle& SceneNode::getComputedLayout(WidgetState state) const
         id, (int)state);
     static constexpr ComputedLayoutStyle empty{};
     return empty;
+}
+
+const ComputedLayoutStyle& SceneNode::getComputedLayout() const {
+    return getComputedLayout(getCurrentState());
 }
 
 void SceneNode::sortChildrenIfDirty() {
@@ -435,7 +443,7 @@ void SceneNode::drawImpl(IRenderer& renderer, const Rect& viewportRect) {
 
     drawBackground(renderer);
 
-    const bool clip = getComputedAppearance(getCurrentState()).clipContent;
+    const bool clip = getComputedAppearance().clipContent;
     if (clip) {
         renderer.pushClipRect(getGlobalBounds());
     }
@@ -453,7 +461,7 @@ void SceneNode::drawImpl(IRenderer& renderer, const Rect& viewportRect) {
 }
 
 void SceneNode::drawBackground(IRenderer& renderer) {
-    const auto& computedAppearance = getComputedAppearance(getCurrentState());
+    const auto& computedAppearance = getComputedAppearance();
     if (computedAppearance.backgroundColor.a == 0 && computedAppearance.borderThickness <= 0) {
         return;
     }

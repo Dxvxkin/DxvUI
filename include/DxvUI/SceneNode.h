@@ -259,11 +259,23 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     const ComputedAppearanceStyle& getComputedAppearance(WidgetState state) const;
 
     /**
+     * @brief Gets the computed appearance properties for the current state.
+     * @return A const reference to the computed appearance style.
+     */
+    const ComputedAppearanceStyle& getComputedAppearance() const;
+
+    /**
      * @brief Gets the computed layout properties for a given state.
      * @param state The widget state (e.g., Normal, Hovered).
      * @return A const reference to the computed layout style.
      */
     const ComputedLayoutStyle& getComputedLayout(WidgetState state) const;
+
+    /**
+     * @brief Gets the computed layout properties for the current state.
+     * @return A const reference to the computed layout style.
+     */
+    const ComputedLayoutStyle& getComputedLayout() const;
 
     /**
      * @brief Gets the node's final position and size in global screen coordinates.

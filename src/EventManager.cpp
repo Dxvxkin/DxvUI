@@ -157,9 +157,9 @@ void EventManager::handleMouseMove(DxvEvent& event) {
 
     if (auto renderer = ownerScene.getRenderer()) {
         if (newNode) {
-            renderer->setCursor(newNode->getComputedAppearance(newNode->getCurrentState()).cursor);
+            renderer->setCursor(newNode->getComputedAppearance().cursor);
         } else {
-            renderer->setCursor(root->getComputedAppearance(root->getCurrentState()).cursor);
+            renderer->setCursor(root->getComputedAppearance().cursor);
         }
     }
 

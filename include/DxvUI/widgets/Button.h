@@ -15,7 +15,7 @@ class Button : public SceneNode {
     static std::shared_ptr<Button> create(std::string id, std::string text = "");
 
     void setText(std::string text);
-    const std::string getText() const;
+    std::string getText() const;
 
     // --- Overrides ---
     const char* getNodeType() const override;

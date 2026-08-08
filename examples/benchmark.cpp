@@ -92,7 +92,7 @@ void runFrames(Scene& scene, SDLRenderer& renderer, int frames, HoverMode hoverM
         }
 
         auto t0 = Clock::now();
-        scene.update(0.016f);
+        scene.update();
         updateMs += msSince(t0);
 
         renderer.clear(Colors::White);
@@ -132,7 +132,7 @@ void runScroll(SDLRenderer& renderer, int count) {
     if (buttons.empty()) return;
 
     for (int i = 0; i < 20; ++i) {
-        scene->update(0.016f);
+        scene->update();
         renderer.clear(Colors::White);
         scene->draw();
         renderer.present();
@@ -156,7 +156,7 @@ void runScroll(SDLRenderer& renderer, int count) {
 
         renderer.clear(Colors::White);
         t = Clock::now();
-        scene->update(0.016f);
+        scene->update();
         relayoutMs += msSince(t);
 
         renderer.clear(Colors::White);
@@ -219,7 +219,7 @@ void runHitTest(SDLRenderer& renderer, int count) {
     auto root = scene->getRoot();
 
     for (int i = 0; i < 20; ++i) {
-        scene->update(0.016f);
+        scene->update();
         renderer.clear(Colors::White);
         scene->draw();
         renderer.present();
@@ -275,7 +275,7 @@ void reportScene(SDLRenderer& renderer, int count) {
 
     // Warm-up: resolve styles, lay out, build texture/font caches.
     for (int i = 0; i < 20; ++i) {
-        scene->update(0.016f);
+        scene->update();
         renderer.clear(Colors::White);
         scene->draw();
         renderer.present();

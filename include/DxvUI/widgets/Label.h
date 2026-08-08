@@ -16,7 +16,7 @@ class Label : public SceneNode {
     explicit Label(std::string id = "", std::string text = "");
 
     void setText(std::string text);
-    const std::string getText() const;
+    std::string getText() const;
 
     // --- Overrides ---
     void onChange(const UIBinding& val) override;

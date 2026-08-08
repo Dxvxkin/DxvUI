@@ -55,7 +55,7 @@ std::shared_ptr<SceneNode> Scene::getRoot() const { return root; }
 
 Theme& Scene::getTheme() { return theme; }
 
-std::shared_ptr<SceneNode> Scene::findNodeById(std::string id) {
+std::shared_ptr<SceneNode> Scene::findNodeById(const std::string& id) {
     return root ? root->findNodeById(id) : nullptr;
 }
 
@@ -77,7 +77,7 @@ void Scene::onNodeRemoved(const std::shared_ptr<SceneNode>& node) {
     }
 }
 
-void Scene::update(float deltaTime) {
+void Scene::update() {
     if (root) {
         // Resolve dirty styles and re-lay-out the tree if needed.
         updateLayout();

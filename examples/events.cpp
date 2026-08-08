@@ -324,16 +324,11 @@ extern "C" int SDL_main(int /*argc*/, char* /*argv*/[]) {
 
     bool quit = false;
     SDL_Event sdl_event;
-    Uint32 last_time = SDL_GetTicks();
 
     DxvUI::FpsCounter fps;
     auto fpsLabel = scene->findNodeById("fps_label")->as<DxvUI::Label>();
 
     while (!quit) {
-        Uint32 current_time = SDL_GetTicks();
-        float delta_time = (current_time - last_time) / 1000.0f;
-        last_time = current_time;
-
         while (SDL_PollEvent(&sdl_event) != 0) {
             DxvUI::DxvEvent dxv_event;
             if (eventSource.processEvent(sdl_event, dxv_event)) {
@@ -345,7 +340,7 @@ extern "C" int SDL_main(int /*argc*/, char* /*argv*/[]) {
             }
         }
 
-        scene->update(delta_time);
+        scene->update();
 
         dxv_renderer.clear(DxvUI::Colors::White);
         scene->draw();

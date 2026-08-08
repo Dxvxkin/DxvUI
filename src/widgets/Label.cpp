@@ -47,7 +47,7 @@ void Label::setText(std::string newText) {
     }
 }
 
-const std::string Label::getText() const { return getBinding()->getString(); }
+std::string Label::getText() const { return getBinding()->getString(); }
 
 void Label::onChange(const UIBinding& /*val*/) {
     // Binding-driven text changes must re-measure the label: otherwise the
@@ -57,8 +57,8 @@ void Label::onChange(const UIBinding& /*val*/) {
 }
 
 Size Label::onMeasure(const Size& availableSize) {
-    const auto& computedAppearance = getComputedAppearance(getCurrentState());
-    auto padding = getComputedLayout(getCurrentState()).padding;
+    const auto& computedAppearance = getComputedAppearance();
+    auto padding = getComputedLayout().padding;
 
     auto scene = getScene();
     if (scene && scene->getRenderer()) {
@@ -72,7 +72,7 @@ Size Label::onMeasure(const Size& availableSize) {
 }
 
 void Label::drawContent(IRenderer& renderer) {
-    const auto& computedAppearance = getComputedAppearance(getCurrentState());
+    const auto& computedAppearance = getComputedAppearance();
 
     // Определяем, нужно ли пересоздавать текстуру.
     // Это нужно, только если изменился текст или параметры, влияющие на

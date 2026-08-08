@@ -7,7 +7,7 @@
 namespace DxvUI {
 
 Size AbsoluteContainer::onMeasure(const Size& availableSize) {
-    const auto& computedLayout = getComputedLayout(getCurrentState());
+    const auto& computedLayout = getComputedLayout();
     const auto& padding = computedLayout.padding;
 
     float requiredWidth = 0.0f;
@@ -52,7 +52,7 @@ Size AbsoluteContainer::onMeasure(const Size& availableSize) {
 }
 
 void AbsoluteContainer::onArrange(const Rect& finalRect) {
-    const auto& computedLayout = getComputedLayout(getCurrentState());
+    const auto& computedLayout = getComputedLayout();
 
     const auto& padding = computedLayout.padding;
     Rect content = LayoutManager::contentRect(*this, finalRect);
