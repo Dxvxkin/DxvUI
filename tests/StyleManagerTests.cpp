@@ -258,8 +258,8 @@ TEST(StyleManagerTest, AllStatesAreResolved) {
 
     // The cache is populated for every state; a missing cache entry triggers a
     // FATAL log and falls back to empty values, so we assert real defaults.
-    for (const auto state :
-         {WidgetState::Normal, WidgetState::Hovered, WidgetState::Pressed, WidgetState::Disabled}) {
+    for (const auto state : {WidgetState::Normal, WidgetState::Hovered, WidgetState::Pressed,
+                             WidgetState::Focused, WidgetState::Disabled}) {
         EXPECT_EQ(node->getComputedAppearance(state).fontSize, 14);
         EXPECT_FLOAT_EQ(node->getComputedLayout(state).width, 0.0f);
     }
@@ -282,6 +282,46 @@ TEST(StyleManagerTest, StateChangeSelectsCachedEntryWithoutReResolve) {
     node->setHovered(false);
     node->setPressed(true);
     EXPECT_EQ(node->getComputedAppearance(node->getCurrentState()).textColor, Colors::Black);
+}
+
+TEST(StyleManagerTest, FocusedStateSelectsCachedEntry) {
+    auto node = std::make_shared<SceneNode>("node");
+    node->setStyle({.textColor = Colors::Red}, WidgetState::Focused);
+    Theme theme;
+    StyleManager manager(theme);
+
+    manager.resolveDirtyStyles(node);
+
+    node->setFocused(true);
+    EXPECT_EQ(node->getComputedAppearance(node->getCurrentState()).textColor, Colors::Red);
+}
+
+TEST(StyleManagerTest, FocusedTakesPrecedenceOverHover) {
+    auto node = std::make_shared<SceneNode>("node");
+    node->setStyle({.textColor = Colors::Red}, WidgetState::Focused);
+    node->setStyle({.textColor = Colors::Blue}, WidgetState::Hovered);
+    Theme theme;
+    StyleManager manager(theme);
+    manager.resolveDirtyStyles(node);
+
+    node->setFocused(true);
+    node->setHovered(true);
+    EXPECT_EQ(node->getCurrentState(), WidgetState::Focused);
+    EXPECT_EQ(node->getComputedAppearance(node->getCurrentState()).textColor, Colors::Red);
+}
+
+TEST(StyleManagerTest, PressedTakesPrecedenceOverFocused) {
+    auto node = std::make_shared<SceneNode>("node");
+    node->setStyle({.textColor = Colors::Red}, WidgetState::Focused);
+    node->setStyle({.textColor = Colors::Green}, WidgetState::Pressed);
+    Theme theme;
+    StyleManager manager(theme);
+    manager.resolveDirtyStyles(node);
+
+    node->setFocused(true);
+    node->setPressed(true);
+    EXPECT_EQ(node->getCurrentState(), WidgetState::Pressed);
+    EXPECT_EQ(node->getComputedAppearance(node->getCurrentState()).textColor, Colors::Green);
 }
 
 TEST(StyleManagerTest, MinMaxSizeConstraintsAreResolved) {

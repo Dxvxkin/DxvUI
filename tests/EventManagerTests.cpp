@@ -91,7 +91,8 @@ TEST(EventManagerTest, ButtonUpMissedPressIsClearedOnButtonlessMove) {
     // state to Hovered and hide what we are asserting (that Pressed is cleared).
     f.moveTo(400, 400, MouseButton::None);
 
-    EXPECT_EQ(f.buttonA->getCurrentState(), WidgetState::Normal);
+    // The press is cleared; the button keeps the Focused state from the press.
+    EXPECT_EQ(f.buttonA->getCurrentState(), WidgetState::Focused);
 }
 
 TEST(EventManagerTest, PressingAnotherNodeReleasesPreviousPress) {
@@ -199,6 +200,29 @@ TEST(EventManagerTest, RemovedFocusedNodeFiresFocusLost) {
     f.pressAt(50, 25);  // button A gains focus
     f.root->removeChild(f.buttonA);
     EXPECT_TRUE(lost);
+    // The detached-but-alive node must not stay stuck in the Focused state.
+    EXPECT_EQ(f.buttonA->getCurrentState(), WidgetState::Normal);
+}
+
+TEST(EventManagerTest, ClickedNodeKeepsFocusedStateAfterRelease) {
+    EventFixture f;
+    f.pressAt(50, 25);
+    EXPECT_EQ(f.buttonA->getCurrentState(), WidgetState::Pressed);
+
+    f.releaseAt(50, 25);
+    EXPECT_EQ(f.buttonA->getCurrentState(), WidgetState::Focused);
+}
+
+TEST(EventManagerTest, FocusMovesToNewlyPressedNode) {
+    EventFixture f;
+    f.pressAt(50, 25);
+    f.releaseAt(50, 25);
+    EXPECT_EQ(f.buttonA->getCurrentState(), WidgetState::Focused);
+
+    f.pressAt(250, 25);
+    f.releaseAt(250, 25);
+    EXPECT_EQ(f.buttonA->getCurrentState(), WidgetState::Normal);
+    EXPECT_EQ(f.buttonB->getCurrentState(), WidgetState::Focused);
 }
 
 TEST(EventManagerTest, DestroyingConnectionUnsubscribesHandler) {
@@ -282,7 +306,8 @@ TEST(EventManagerTest, PerButtonPressTracking) {
 
     f.releaseAt(250, 25, MouseButton::Right);
     EXPECT_EQ(f.buttonA->getCurrentState(), WidgetState::Pressed);
-    EXPECT_EQ(f.buttonB->getCurrentState(), WidgetState::Normal);
+    // The right-click focused B, so it keeps the Focused state after the release.
+    EXPECT_EQ(f.buttonB->getCurrentState(), WidgetState::Focused);
 }
 
 TEST(EventManagerTest, DxvEventTargetAccessors) {
