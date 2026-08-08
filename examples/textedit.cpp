@@ -68,7 +68,7 @@ void buildTextEditDemoUI(const std::shared_ptr<DxvUI::Scene>& scene,
     connections.push_back(
         field->on(DxvUI::EventType::KeyDown,
                   [state, field, echo](DxvUI::DxvEvent& e, const DxvUI::UIContext&) {
-                      if (e.key.sym == SDLK_RETURN || e.key.sym == SDLK_KP_ENTER) {
+                      if (e.key.sym == DxvUI::KeyCode::Enter) {
                           ++state->submits;
                           const std::string text = field->getText();
                           DxvUI::Log::info("[demo] submit #{}: '{}'", state->submits, text);
@@ -117,7 +117,7 @@ void runScriptedTextEdit(const std::shared_ptr<DxvUI::Scene>& scene,
         e.text = text;
         scene->processEvent(e);
     };
-    auto key = [&](int sym, uint16_t mod = DxvUI::KeyModifier::None) {
+    auto key = [&](DxvUI::KeyCode sym, uint16_t mod = DxvUI::KeyModifier::None) {
         DxvUI::DxvEvent e;
         e.type = DxvUI::EventType::KeyDown;
         e.key.sym = sym;
@@ -137,25 +137,25 @@ void runScriptedTextEdit(const std::shared_ptr<DxvUI::Scene>& scene,
     ok &= field->getCurrentState() == DxvUI::WidgetState::Focused;
 
     // Ctrl+A, затем печать заменяет всё содержимое.
-    key(SDLK_a, DxvUI::KeyModifier::Ctrl);
+    key(DxvUI::KeyCode::A, DxvUI::KeyModifier::Ctrl);
     typeText("Иван");
     DxvUI::Log::info("[check] текст после замены: '{}'", field->getText());
     ok &= field->getText() == "\xD0\x98\xD0\xB2\xD0\xB0\xD0\xBD";  // "Иван"
 
     // Enter → submit; текст эха обновляется.
-    key(SDLK_RETURN);
+    key(DxvUI::KeyCode::Enter);
     auto echo = scene->findNodeById("echo_label")->as<DxvUI::Label>();
     DxvUI::Log::info("[check] эхо: '{}'", echo->getText());
     ok &= echo->getText().find("Иван") != std::string::npos;
 
     // Backspace удаляет целый UTF-8 code point.
-    key(SDLK_END);
-    key(SDLK_BACKSPACE);
+    key(DxvUI::KeyCode::End);
+    key(DxvUI::KeyCode::Backspace);
     DxvUI::Log::info("[check] после Backspace: '{}'", field->getText());
     ok &= field->getText() == "\xD0\x98\xD0\xB2\xD0\xB0";  // "Ива"
 
     // Undo возвращает "Иван".
-    key(SDLK_z, DxvUI::KeyModifier::Ctrl);
+    key(DxvUI::KeyCode::Z, DxvUI::KeyModifier::Ctrl);
     DxvUI::Log::info("[check] после Ctrl+Z: '{}'", field->getText());
     ok &= field->getText() == "\xD0\x98\xD0\xB2\xD0\xB0\xD0\xBD";
 

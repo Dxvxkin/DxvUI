@@ -111,6 +111,7 @@ add_executable(DxvUITests
         tests/WidgetTests.cpp
         tests/TextEditorTests.cpp
         tests/TextEngineTests.cpp
+        tests/SDLEventSourceTests.cpp
         tests/UIBindingTests.cpp
         tests/UIContextTests.cpp
 

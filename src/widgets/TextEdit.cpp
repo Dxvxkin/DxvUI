@@ -118,46 +118,45 @@ void TextEdit::handleKeyDown(DxvEvent& event) {
     const bool shift = (event.key.mod & KeyModifier::Shift) != 0;
 
     switch (event.key.sym) {
-        case SDLK_LEFT:
+        case KeyCode::Left:
             moveCaretBy(-1, shift);
             event.handled = true;
             break;
-        case SDLK_RIGHT:
+        case KeyCode::Right:
             moveCaretBy(+1, shift);
             event.handled = true;
             break;
-        case SDLK_HOME:
+        case KeyCode::Home:
             moveCaretToBoundary(0, shift);
             event.handled = true;
             break;
-        case SDLK_END:
+        case KeyCode::End:
             moveCaretToBoundary(editor_.length(), shift);
             event.handled = true;
             break;
-        case SDLK_BACKSPACE:
+        case KeyCode::Backspace:
             editor_.backspace();
             markLayoutDirty();
             event.handled = true;
             break;
-        case SDLK_DELETE:
+        case KeyCode::Delete:
             editor_.deleteForward();
             markLayoutDirty();
             event.handled = true;
             break;
-        case SDLK_RETURN:
-        case SDLK_KP_ENTER:
+        case KeyCode::Enter:
             if (onSubmit_) {
                 onSubmit_(editor_.getText());
             }
             event.handled = true;
             break;
-        case SDLK_a:
+        case KeyCode::A:
             if (ctrl) {
                 editor_.selectAll();
                 event.handled = true;
             }
             break;
-        case SDLK_z:
+        case KeyCode::Z:
             if (ctrl) {
                 if (shift) {
                     editor_.redo();
@@ -168,20 +167,20 @@ void TextEdit::handleKeyDown(DxvEvent& event) {
                 event.handled = true;
             }
             break;
-        case SDLK_y:
+        case KeyCode::Y:
             if (ctrl) {
                 editor_.redo();
                 markLayoutDirty();
                 event.handled = true;
             }
             break;
-        case SDLK_c:
+        case KeyCode::C:
             if (ctrl && editor_.hasSelection()) {
                 SDL_SetClipboardText(editor_.selectedText().c_str());
                 event.handled = true;
             }
             break;
-        case SDLK_x:
+        case KeyCode::X:
             if (ctrl && editor_.hasSelection()) {
                 SDL_SetClipboardText(editor_.selectedText().c_str());
                 editor_.deleteSelection();
@@ -189,7 +188,7 @@ void TextEdit::handleKeyDown(DxvEvent& event) {
                 event.handled = true;
             }
             break;
-        case SDLK_v:
+        case KeyCode::V:
             if (ctrl) {
                 if (char* clip = SDL_GetClipboardText()) {
                     editor_.insertText(clip);

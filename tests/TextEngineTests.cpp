@@ -316,7 +316,7 @@ struct TextEditFixture {
         scene->processEvent(e);
     }
 
-    void keyDown(int sym, uint16_t mod = KeyModifier::None) {
+    void keyDown(KeyCode sym, uint16_t mod = KeyModifier::None) {
         DxvEvent e;
         e.type = EventType::KeyDown;
         e.key.sym = sym;
@@ -368,47 +368,47 @@ TEST(TextEditTest, KeyboardEditingWhileFocused) {
     f.release(4, 10);
     ASSERT_EQ(f.field->getCurrentState(), WidgetState::Focused);
 
-    f.keyDown(SDLK_BACKSPACE);  // no-op at start
+    f.keyDown(KeyCode::Backspace);  // no-op at start
     EXPECT_EQ(f.field->getText(), "Hello");
 
     f.typeText("!");
     EXPECT_EQ(f.field->getText(), "!Hello");
 
-    f.keyDown(SDLK_RIGHT);
-    f.keyDown(SDLK_BACKSPACE);
+    f.keyDown(KeyCode::Right);
+    f.keyDown(KeyCode::Backspace);
     EXPECT_EQ(f.field->getText(), "!ello");
 
-    f.keyDown(SDLK_HOME);
-    f.keyDown(SDLK_DELETE);
+    f.keyDown(KeyCode::Home);
+    f.keyDown(KeyCode::Delete);
     EXPECT_EQ(f.field->getText(), "ello");
 
-    f.keyDown(SDLK_END);
+    f.keyDown(KeyCode::End);
     f.typeText("!");
     EXPECT_EQ(f.field->getText(), "ello!");
 
     // Undo/redo through the keyboard.
-    f.keyDown(SDLK_z, KeyModifier::Ctrl);
+    f.keyDown(KeyCode::Z, KeyModifier::Ctrl);
     EXPECT_EQ(f.field->getText(), "ello");
-    f.keyDown(SDLK_y, KeyModifier::Ctrl);
+    f.keyDown(KeyCode::Y, KeyModifier::Ctrl);
     EXPECT_EQ(f.field->getText(), "ello!");
 }
 
 TEST(TextEditTest, KeyboardIgnoredWithoutFocus) {
     TextEditFixture f;
-    f.keyDown(SDLK_BACKSPACE);
+    f.keyDown(KeyCode::Backspace);
     EXPECT_EQ(f.field->getText(), "Hello");
 }
 
 TEST(TextEditTest, SelectAllAndSubmit) {
     TextEditFixture f;
     f.press(4, 10);  // focus
-    f.keyDown(SDLK_a, KeyModifier::Ctrl);
+    f.keyDown(KeyCode::A, KeyModifier::Ctrl);
     EXPECT_TRUE(f.field->getEditor().hasSelection());
     EXPECT_EQ(f.field->getEditor().selectedText(), "Hello");
 
     std::string submitted;
     f.field->setOnSubmit([&](const std::string& text) { submitted = text; });
-    f.keyDown(SDLK_RETURN);
+    f.keyDown(KeyCode::Enter);
     EXPECT_EQ(submitted, "Hello");
 }
 
@@ -429,7 +429,7 @@ TEST(TextEditTest, BackspaceDeletesWholeUtf8CodePoint) {
     f.root->measure({800, 600});
     f.root->arrange({0, 0, 800, 600});
     f.press(4, 10);  // focus, caret at 0
-    f.keyDown(SDLK_END);
-    f.keyDown(SDLK_BACKSPACE);
+    f.keyDown(KeyCode::End);
+    f.keyDown(KeyCode::Backspace);
     EXPECT_EQ(f.field->getText(), "\xD0\x90");
 }

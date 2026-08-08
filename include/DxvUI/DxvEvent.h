@@ -37,6 +37,81 @@ enum class EventType {
 
 enum class MouseButton { None, Left, Middle, Right };
 
+/**
+ * @brief Backend-neutral key identifiers.
+ *
+ * The event source translates the backend's physical key symbols (e.g.
+ * SDL_Keycode) into these values, so UI code never touches backend key
+ * enums. Letters map to their uppercase value (SDLK_a and SDLK_A both arrive
+ * as KeyCode::A; case is conveyed by KeyModifier::Shift).
+ */
+enum class KeyCode : int {
+    Unknown = 0,
+    Backspace,
+    Tab,
+    Enter,
+    Escape,
+    Space,
+    Left,
+    Right,
+    Up,
+    Down,
+    Home,
+    End,
+    PageUp,
+    PageDown,
+    Delete,
+    Insert,
+    A,
+    B,
+    C,
+    D,
+    E,
+    F,
+    G,
+    H,
+    I,
+    J,
+    K,
+    L,
+    M,
+    N,
+    O,
+    P,
+    Q,
+    R,
+    S,
+    T,
+    U,
+    V,
+    W,
+    X,
+    Y,
+    Z,
+    Digit0,
+    Digit1,
+    Digit2,
+    Digit3,
+    Digit4,
+    Digit5,
+    Digit6,
+    Digit7,
+    Digit8,
+    Digit9,
+    F1,
+    F2,
+    F3,
+    F4,
+    F5,
+    F6,
+    F7,
+    F8,
+    F9,
+    F10,
+    F11,
+    F12,
+};
+
 enum KeyModifier : uint16_t {
     None = 0x0000,
     LShift = 0x0001,
@@ -67,13 +142,11 @@ struct DxvEvent {
     } mouse;
 
     struct {
-        int sym = 0;
-        int scancode = 0;
+        KeyCode sym = KeyCode::Unknown;
         uint16_t mod = 0;
-        // Non-zero when the OS key autorepeat is delivering a held-down key
-        // (SDL_KeyboardEvent.repeat). Needed so editors can hold Backspace or
-        // the arrow keys to repeat an action instead of doing one step per
-        // physical press.
+        // Non-zero when the OS key autorepeat is delivering a held-down key.
+        // Needed so editors can hold Backspace or the arrow keys to repeat an
+        // action instead of doing one step per physical press.
         uint8_t repeat = 0;
     } key;
 

@@ -145,7 +145,7 @@ void buildEventsDemoUI(const std::shared_ptr<DxvUI::Scene>& scene,
         }));
     connections.push_back(
         btnBubble->on(DxvUI::EventType::KeyDown, [](DxvUI::DxvEvent& e, const DxvUI::UIContext&) {
-            DxvUI::Log::info("[btn_bubble] KeyDown sym={} scancode={}", e.key.sym, e.key.scancode);
+            DxvUI::Log::info("[btn_bubble] KeyDown sym={}", static_cast<int>(e.key.sym));
         }));
     root->addChild(btnBubble);
 
@@ -266,8 +266,7 @@ void runScriptedEvents(const std::shared_ptr<DxvUI::Scene>& scene,
     clickAt(400, 110);  // btn_bubble: Click доходит до корня, кнопка получает фокус
     DxvUI::DxvEvent key;
     key.type = DxvUI::EventType::KeyDown;
-    key.key.sym = SDLK_SPACE;
-    key.key.scancode = SDL_SCANCODE_SPACE;
+    key.key.sym = DxvUI::KeyCode::Space;
     scene->processEvent(key);  // клавиша уходит в focused-ноду (btn_bubble)
 
     // Runtime-подписка/отписка: тоггл подключает/отключает доп. обработчик на

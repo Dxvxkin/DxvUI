@@ -6,6 +6,55 @@ namespace DxvUI {
 
 SDLEventSource::~SDLEventSource() = default;
 
+namespace {
+
+KeyCode translateKeySym(int sdlKeycode) {
+    if (sdlKeycode >= SDLK_a && sdlKeycode <= SDLK_z) {
+        return static_cast<KeyCode>(static_cast<int>(KeyCode::A) + (sdlKeycode - SDLK_a));
+    }
+    if (sdlKeycode >= SDLK_0 && sdlKeycode <= SDLK_9) {
+        return static_cast<KeyCode>(static_cast<int>(KeyCode::Digit0) + (sdlKeycode - SDLK_0));
+    }
+    if (sdlKeycode >= SDLK_F1 && sdlKeycode <= SDLK_F12) {
+        return static_cast<KeyCode>(static_cast<int>(KeyCode::F1) + (sdlKeycode - SDLK_F1));
+    }
+    switch (sdlKeycode) {
+        case SDLK_BACKSPACE:
+            return KeyCode::Backspace;
+        case SDLK_TAB:
+            return KeyCode::Tab;
+        case SDLK_RETURN:
+        case SDLK_KP_ENTER:
+            return KeyCode::Enter;
+        case SDLK_ESCAPE:
+            return KeyCode::Escape;
+        case SDLK_SPACE:
+            return KeyCode::Space;
+        case SDLK_LEFT:
+            return KeyCode::Left;
+        case SDLK_RIGHT:
+            return KeyCode::Right;
+        case SDLK_UP:
+            return KeyCode::Up;
+        case SDLK_DOWN:
+            return KeyCode::Down;
+        case SDLK_HOME:
+            return KeyCode::Home;
+        case SDLK_END:
+            return KeyCode::End;
+        case SDLK_PAGEUP:
+            return KeyCode::PageUp;
+        case SDLK_PAGEDOWN:
+            return KeyCode::PageDown;
+        case SDLK_DELETE:
+            return KeyCode::Delete;
+        case SDLK_INSERT:
+            return KeyCode::Insert;
+        default:
+            return KeyCode::Unknown;
+    }
+}
+
 static void translateMouseButtonEvent(DxvEvent& dxvEvent,
                                       const SDL_MouseButtonEvent& sdlButtonEvent) {
     dxvEvent.mouse.x = sdlButtonEvent.x;
@@ -27,11 +76,12 @@ static void translateMouseButtonEvent(DxvEvent& dxvEvent,
 }
 
 static void translateKeyboardEvent(DxvEvent& dxvEvent, const SDL_KeyboardEvent& sdlKeyEvent) {
-    dxvEvent.key.sym = sdlKeyEvent.keysym.sym;
-    dxvEvent.key.scancode = sdlKeyEvent.keysym.scancode;
+    dxvEvent.key.sym = translateKeySym(sdlKeyEvent.keysym.sym);
     dxvEvent.key.mod = sdlKeyEvent.keysym.mod;
     dxvEvent.key.repeat = sdlKeyEvent.repeat;
 }
+
+}  // namespace
 
 bool SDLEventSource::pollEvent(DxvEvent& event) {
     SDL_Event sdlEvent;
