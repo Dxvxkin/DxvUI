@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "DxvUI/core.h"
 #include "DxvUI/interfaces/ITexture.h"

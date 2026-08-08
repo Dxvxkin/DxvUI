@@ -2,33 +2,34 @@
 #define DXVUI_H
 
 // Core
-#include "core.h"
+#include "DxvEvent.h"
+#include "EventManager.h"
+#include "FpsCounter.h"
+#include "Log.h"
 #include "Scene.h"
 #include "SceneNode.h"
-#include "EventManager.h"
-#include "Log.h"
 #include "UIBinding.h"
 #include "Utils.h"
-#include "FpsCounter.h"
+#include "core.h"
 
 // Interfaces
-#include "interfaces/IRenderer.h"
 #include "interfaces/IEventSource.h"
+#include "interfaces/IRenderer.h"
 #include "interfaces/ITexture.h"
 
 // Containers
-#include "containers/Container.h"
-#include "containers/CenterContainer.h"
-#include "containers/HorizontalContainer.h"
 #include "containers/AbsoluteContainer.h"
+#include "containers/CenterContainer.h"
+#include "containers/Container.h"
+#include "containers/HorizontalContainer.h"
 
 // Widgets
 #include "widgets/Button.h"
 #include "widgets/Label.h"
 
 // Layout
-#include "layout/LayoutManager.h"
 #include "layout/LayoutData.h"
+#include "layout/LayoutManager.h"
 
 // Sources
 #include "sources/SDLEventSource.h"
@@ -37,10 +38,10 @@
 #include "renderers/SDLRenderer.h"
 
 // Style
-#include "style/Theme.h"
-#include "style/StyleManager.h"
-#include "style/Style.h"
-#include "style/Colors.h"
 #include "style/Color.h"
+#include "style/Colors.h"
+#include "style/Style.h"
+#include "style/StyleManager.h"
+#include "style/Theme.h"
 
-#endif //DXVUI_H
+#endif  // DXVUI_H

@@ -347,7 +347,7 @@ void SceneNode::removeHandler(EventType type, handlerID id) {
 }
 
 void SceneNode::dispatchEvent(DxvEvent& event) {
-    if (event.target.expired()) {
+    if (!event.getTarget()) {
         return;
     }
     // Snapshot the event type: a handler may mutate event.type, but that must

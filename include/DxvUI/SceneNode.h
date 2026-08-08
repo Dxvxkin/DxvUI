@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include "DxvUI/DxvEvent.h"
 #include "DxvUI/UIBinding.h"
 #include "DxvUI/core.h"
 #include "DxvUI/interfaces/IRenderer.h"

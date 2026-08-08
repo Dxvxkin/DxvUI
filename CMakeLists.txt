@@ -23,6 +23,7 @@ target_sources(DxvUI PRIVATE
         src/Log.cpp # Add the new Log source file
 
         src/EventManager.cpp
+        src/DxvEvent.cpp
         src/Scene.cpp
         src/SceneNode.cpp
         src/UIBinding.cpp

@@ -4,6 +4,7 @@
 #include <map>
 #include <memory>
 
+#include "DxvEvent.h"
 #include "core.h"
 
 namespace DxvUI {
