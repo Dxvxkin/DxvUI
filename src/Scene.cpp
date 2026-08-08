@@ -55,56 +55,8 @@ std::shared_ptr<SceneNode> Scene::getRoot() const { return root; }
 
 Theme& Scene::getTheme() { return theme; }
 
-bool Scene::unregisterNode(std::weak_ptr<SceneNode> node) {
-    if (auto _node = node.lock()) {
-        Log::trace("Unregistering node '{}'", _node->getId());
-
-        if (_node->getId().empty()) return false;
-        auto count = nodeById.erase(_node->getId());
-        if (count == 0) {
-            Log::warn("Attempt to unregister node '{}' that is not registered", _node->getId());
-            return false;
-        }
-        return true;
-    }
-    Log::warn("Attempt to unregister an expired node");
-    return false;
-}
-
-bool Scene::registerNode(std::weak_ptr<SceneNode> node) {
-    if (auto _node = node.lock()) {
-        Log::trace("Registering node '{}'", _node->getId());  // не удалять
-
-        if (_node->getId().empty()) {
-            Log::warn("Attempt to register node with empty id");
-            return false;
-        }
-        if (nodeById.contains(_node->getId())) {
-            Log::error(
-                "Attempt to register node with id '{}' that is already "
-                "registered",
-                _node->getId());
-            return false;
-        }
-
-        nodeById[_node->getId()] = node;
-        return true;
-    }
-    Log::warn("Attempt to register an expired node");
-    return false;
-}
-
 std::shared_ptr<SceneNode> Scene::findNodeById(std::string id) {
-    auto it = nodeById.find(id);
-    if (it == nodeById.end()) {
-        return nullptr;
-    }
-
-    if (auto locked = it->second.lock()) {
-        return locked;
-    }
-
-    return nullptr;
+    return root ? root->findNodeById(id) : nullptr;
 }
 
 void Scene::processEvent(const DxvEvent& event) { eventManager->processRawEvent(event); }

@@ -26,9 +26,15 @@ class Scene : public std::enable_shared_from_this<Scene> {
 
     Theme& getTheme();  // Getter for the theme
 
-    bool unregisterNode(std::weak_ptr<SceneNode>);
-    bool registerNode(std::weak_ptr<SceneNode>);
-    std::shared_ptr<SceneNode> findNodeById(std::string);
+    /**
+     * @brief Finds the first node with the given ID anywhere in the tree.
+     *
+     * Delegates to the root's subtree search (SceneNode::findNodeById). Returns
+     * nullptr when the scene has no root or no matching node exists.
+     * @param id The ID of the node to find.
+     * @return A shared pointer to the found node, or nullptr if not found.
+     */
+    std::shared_ptr<SceneNode> findNodeById(std::string id);
 
     void processEvent(const DxvEvent& event);
     void update(float deltaTime);
@@ -65,7 +71,6 @@ class Scene : public std::enable_shared_from_this<Scene> {
     StyleManager styleManager{theme};
     LayoutManager layoutManager;
     IRenderer* renderer = nullptr;
-    std::unordered_map<std::string, std::weak_ptr<SceneNode>> nodeById;
 };
 
 }  // namespace DxvUI

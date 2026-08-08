@@ -127,14 +127,16 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     void setId(const std::string& newId);
 
     /**
-     * @brief Finds a node by its ID anywhere in the scene.
+     * @brief Finds the first node whose ID matches within the subtree of this node.
      *
-     * The search is scene-wide (Scene::findNodeById), not limited to this node's
-     * subtree. Returns nullptr if this node is not attached to a scene.
+     * Depth-first search: this node is checked first, then its children in draw
+     * order. Duplicate IDs in different subtrees are allowed; the first match
+     * in traversal order wins. Hidden nodes are searched too (a structural
+     * lookup, not a hit-test).
      * @param searchId The ID of the node to find.
      * @return A shared pointer to the found node, or nullptr if not found.
      */
-    std::shared_ptr<SceneNode> findNodeById(const std::string& searchId) const;
+    std::shared_ptr<SceneNode> findNodeById(const std::string& searchId);
 
     /**
      * @brief Finds the topmost node at a given screen coordinate.

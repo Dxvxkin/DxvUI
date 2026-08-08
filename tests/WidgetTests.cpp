@@ -391,3 +391,54 @@ TEST(ClippingTest, NodeOutsideViewportIsCulled) {
     EXPECT_TRUE(renderer.clipPushes.empty());
     EXPECT_EQ(renderer.clipPops, 0);
 }
+
+TEST(SceneNodeTest, FindNodeByIdFindsFirstMatchInSubtree) {
+    auto scene = Scene::create();
+    auto root = scene->getRoot();
+    auto first = std::make_shared<SceneNode>("dup");
+    auto second = std::make_shared<SceneNode>("dup");
+    root->addChild(first);
+    root->addChild(second);
+
+    // Duplicate IDs are allowed; the first match in children order wins.
+    EXPECT_EQ(root->findNodeById("dup"), first);
+    // First match inside a nested subtree shadows later siblings.
+    auto nested = std::make_shared<SceneNode>("nested");
+    first->addChild(nested);
+    EXPECT_EQ(first->findNodeById("nested"), nested);
+    EXPECT_EQ(root->findNodeById("nested"), nested);
+}
+
+TEST(SceneNodeTest, FindNodeByIdReturnsNullWhenNotFound) {
+    auto scene = Scene::create();
+    auto root = scene->getRoot();
+    root->addChild(std::make_shared<SceneNode>("present"));
+
+    EXPECT_EQ(root->findNodeById("present")->getId(), "present");
+    EXPECT_EQ(root->findNodeById("missing"), nullptr);
+    EXPECT_EQ(scene->findNodeById("missing"), nullptr);
+}
+
+TEST(SceneNodeTest, FindNodeByIdWorksOnDetachedSubtree) {
+    auto scene = Scene::create();
+    auto root = scene->getRoot();
+    auto parent = std::make_shared<SceneNode>("parent");
+    parent->addChild(std::make_shared<SceneNode>("child"));
+    root->addChild(parent);
+
+    // Search from the tree finds the detached node no longer.
+    parent->detach();
+    EXPECT_EQ(root->findNodeById("child"), nullptr);
+    // Searching the detached branch itself still resolves its descendants.
+    EXPECT_EQ(parent->findNodeById("child")->getId(), "child");
+}
+
+TEST(SceneNodeTest, SceneFindNodeByIdDelegatesToRoot) {
+    auto scene = Scene::create();
+    auto root = scene->getRoot();
+    auto button = Button::create("btn", "press");
+    root->addChild(button);
+
+    EXPECT_EQ(scene->findNodeById("btn"), button);
+    EXPECT_EQ(scene->findNodeById("nope"), nullptr);
+}

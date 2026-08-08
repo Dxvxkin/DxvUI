@@ -86,17 +86,7 @@ void SceneNode::detachSubtree() {
 void SceneNode::setScene(const std::shared_ptr<Scene>& newScene) {
     if (scene.lock() == newScene) return;
 
-    if (const auto oldScene = scene.lock()) {
-        oldScene->unregisterNode(shared_from_this());
-    }
-
     scene = newScene;
-
-    if (const auto currentScene = scene.lock()) {
-        if (!currentScene->registerNode(shared_from_this())) {
-            Log::error("{} Failed to register node '{}' to new scene", indent(this), id);
-        }
-    }
 
     markStyleDirty();  // When scene changes, styles need re-evaluation
     markLayoutDirty();
@@ -112,23 +102,19 @@ const std::string& SceneNode::getId() const { return id; }
 
 void SceneNode::setId(const std::string& newId) {
     if (id == newId) return;
-
-    if (const auto s = getScene()) {
-        s->unregisterNode(shared_from_this());
-    }
-
     id = newId;
-
-    if (const auto s = getScene()) {
-        s->registerNode(shared_from_this());
-    }
 }
 
 const char* SceneNode::getNodeType() const { return "SceneNode"; }
 
-std::shared_ptr<SceneNode> SceneNode::findNodeById(const std::string& searchId) const {
-    if (auto s = getScene()) {
-        return s->findNodeById(searchId);
+std::shared_ptr<SceneNode> SceneNode::findNodeById(const std::string& searchId) {
+    if (id == searchId) {
+        return shared_from_this();
+    }
+    for (const auto& child : children) {
+        if (auto found = child->findNodeById(searchId)) {
+            return found;
+        }
     }
     return nullptr;
 }
