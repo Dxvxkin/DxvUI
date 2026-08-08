@@ -306,6 +306,15 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     const Size& getLastMeasureConstraints() const;
 
     /**
+     * @brief Gets the cached measure/arrange state of the node.
+     *
+     * Exposed for containers so arrange passes can skip nodes that kept their
+     * previous rect (AbsoluteContainer/CenterContainer prune on it). Read-only;
+     * the LayoutData is maintained exclusively by the LayoutManager.
+     */
+    const LayoutData& getLayoutData() const;
+
+    /**
      * @brief Gets the current interaction state of the node (e.g., Normal, Hovered).
      * @return The current WidgetState.
      */
@@ -569,6 +578,13 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     friend class StyleManager;
     friend class LayoutManager;
 
+    std::shared_ptr<UIBinding> binding_;
+    std::unique_ptr<UIBinding::Connection> connection_;
+
+   private:
+    // Hierarchy and identification are owned exclusively by SceneNode; widgets
+    // and containers reach them through the public accessors (getChildren(),
+    // getId(), getLayoutData()) and the framework managers read them as friends.
     std::weak_ptr<SceneNode> parent;
     std::vector<std::shared_ptr<SceneNode>> children;
 
@@ -577,10 +593,6 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
 
     LayoutData layoutData;
 
-    std::shared_ptr<UIBinding> binding_;
-    std::unique_ptr<UIBinding::Connection> connection_;
-
-   private:
     // Sets the style subtree-dirty flag on this node and every ancestor up to
     // the root. Used by markStyleDirty() so the StyleManager can prune its
     // resolution traversal.

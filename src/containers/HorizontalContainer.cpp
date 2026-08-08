@@ -26,7 +26,7 @@ Size HorizontalContainer::onMeasure(const Size& availableSize) {
     float maxHeight = 0.0f;
     bool firstVisibleChild = true;
 
-    for (const auto& child : children) {
+    for (const auto& child : getChildren()) {
         if (!child->isVisible()) continue;
 
         // Add spacing before the element (but not for the first one)
@@ -52,7 +52,7 @@ void HorizontalContainer::onArrange(const Rect& finalRect) {
 
     float currentX = static_cast<float>(content.x);
 
-    for (const auto& child : children) {
+    for (const auto& child : getChildren()) {
         if (!child->isVisible()) {
             LayoutManager::arrangeInvisible(*child, content);
             continue;

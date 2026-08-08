@@ -13,7 +13,7 @@ Size AbsoluteContainer::onMeasure(const Size& availableSize) {
     float requiredWidth = 0.0f;
     float requiredHeight = 0.0f;
 
-    for (const auto& child : children) {
+    for (const auto& child : getChildren()) {
         if (!child->isVisible()) continue;
 
         const auto& childLayout = child->getComputedLayout(child->getCurrentState());
@@ -61,15 +61,15 @@ void AbsoluteContainer::onArrange(const Rect& finalRect) {
     // independent of siblings. If this container neither moved/resized nor
     // changed its own layout state, a clean child keeps the exact rect assigned
     // in the previous arrange pass, so it can be skipped entirely.
-    const bool rectChanged = layoutData.lastArrangeRect != finalRect;
+    const bool rectChanged = getLayoutData().lastArrangeRect != finalRect;
 
-    for (const auto& child : children) {
+    for (const auto& child : getChildren()) {
         if (!child->isVisible()) {
             LayoutManager::arrangeInvisible(*child, content);
             continue;
         }
 
-        if (!rectChanged && !layoutData.isDirty && !child->isLayoutDirty()) {
+        if (!rectChanged && !getLayoutData().isDirty && !child->isLayoutDirty()) {
             continue;
         }
 

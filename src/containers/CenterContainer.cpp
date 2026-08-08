@@ -13,8 +13,8 @@ Size CenterContainer::onMeasure(const Size& availableSize) {
     Size contentAvailableSize = LayoutManager::subtractPadding(availableSize, padding);
 
     Size childOuterSize = {0, 0};
-    if (!children.empty() && children.front()) {
-        auto& child = children.front();
+    if (!getChildren().empty() && getChildren().front()) {
+        auto& child = getChildren().front();
         const auto& margin = child->getComputedLayout(child->getCurrentState()).margin;
 
         // Clean children keep the result of their last measure pass; reuse the
@@ -37,12 +37,12 @@ void CenterContainer::onArrange(const Rect& finalRect) {
     const auto& padding = computedLayout.padding;
     Rect content = LayoutManager::contentRect(*this, finalRect);
 
-    if (!children.empty() && children.front()) {
-        auto& child = children.front();
+    if (!getChildren().empty() && getChildren().front()) {
+        auto& child = getChildren().front();
 
         // If neither this container nor the child changed, the centered slot
         // computed in the previous arrange pass is still valid.
-        if (layoutData.lastArrangeRect == finalRect && !layoutData.isDirty &&
+        if (getLayoutData().lastArrangeRect == finalRect && !getLayoutData().isDirty &&
             !child->isLayoutDirty()) {
             return;
         }

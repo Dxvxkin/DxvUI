@@ -253,6 +253,8 @@ const Size& SceneNode::getLastMeasureConstraints() const {
     return layoutData.lastMeasureConstraints;
 }
 
+const LayoutData& SceneNode::getLayoutData() const { return layoutData; }
+
 WidgetState SceneNode::getCurrentState() const {
     if (isPressed) return WidgetState::Pressed;
     if (isFocused) return WidgetState::Focused;
@@ -345,14 +347,22 @@ void SceneNode::dispatchEvent(DxvEvent& event) {
     const EventType eventType = event.type;
     event.currentTarget = weak_from_this();
 
-    if (eventHandlers.contains(eventType)) {
-        // Snapshot the handlers so a handler registering or removing handlers
-        // during dispatch cannot invalidate the iteration.
-        const auto handlers = eventHandlers.at(eventType);
+    auto handlerIt = eventHandlers.find(eventType);
+    if (handlerIt != eventHandlers.end()) {
+        // Snapshot only the handler ids, not the callbacks: std::map iterators
+        // stay valid across insert/erase, but a handler may remove itself (or
+        // register new ones) while running, so a live iteration is unsafe and a
+        // full copy of the std::functions would allocate per dispatched event.
+        std::vector<handlerID> ids;
+        ids.reserve(handlerIt->second.size());
+        for (const auto& [id, callback] : handlerIt->second) {
+            ids.push_back(id);
+        }
         const UIContext ctx(getScene().get());
-        for (const auto& [id, callback] : handlers) {
-            if (callback) {
-                callback(event, ctx);
+        for (const handlerID id : ids) {
+            const auto callbackIt = handlerIt->second.find(id);
+            if (callbackIt != handlerIt->second.end() && callbackIt->second) {
+                callbackIt->second(event, ctx);
                 if (event.handled) {
                     return;
                 }

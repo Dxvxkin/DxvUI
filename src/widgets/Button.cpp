@@ -47,10 +47,10 @@ const char* Button::getNodeType() const { return "Button"; }
 void Button::onAttach() {
     SceneNode::onAttach();
     if (!label) {
-        label = Label::create(id + "_label", getBinding()->getString());
+        label = Label::create(getId() + "_label", getBinding()->getString());
         label->bind(binding_);
 
-        auto centerContainer = std::make_shared<CenterContainer>(id + "_center");
+        auto centerContainer = std::make_shared<CenterContainer>(getId() + "_center");
         centerContainer->addChild(label);
 
         addChild(centerContainer);
@@ -59,8 +59,8 @@ void Button::onAttach() {
 
 Size Button::onMeasure(const Size& availableSize) {
     Size childDesiredSize = {0, 0};
-    if (!children.empty()) {
-        childDesiredSize = LayoutManager::measureChild(*children.front(), availableSize);
+    if (!getChildren().empty()) {
+        childDesiredSize = LayoutManager::measureChild(*getChildren().front(), availableSize);
     }
 
     const auto& computedLayout = getComputedLayout();
@@ -70,12 +70,14 @@ Size Button::onMeasure(const Size& availableSize) {
 }
 
 void Button::onArrange(const Rect& finalRect) {
-    if (!children.empty()) {
+    if (!getChildren().empty()) {
         const Rect content = LayoutManager::contentRect(*this, finalRect);
-        const auto& margin =
-            children.front()->getComputedLayout(children.front()->getCurrentState()).margin;
+        const auto& margin = getChildren()
+                                 .front()
+                                 ->getComputedLayout(getChildren().front()->getCurrentState())
+                                 .margin;
         const Rect childRect = LayoutManager::shrinkRect(content, margin);
-        children.front()->arrange(childRect);
+        getChildren().front()->arrange(childRect);
     }
 }
 
