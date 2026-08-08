@@ -111,11 +111,10 @@ void buildEventsDemoUI(const std::shared_ptr<DxvUI::Scene>& scene,
 
     auto labelCount = makeLabel("label_count", "Кликов: 0", 50, 150);
     root->addChild(labelCount);
-    connections.push_back(
-        labelCount->on(DxvUI::EventType::Change, [](DxvUI::DxvEvent& e, const DxvUI::UIContext&) {
-            DxvUI::Log::info("[label_count] Change: '{}'",
-                             e.getTarget()->getBinding()->getString().value_or(""));
-        }));
+    connections.push_back(labelCount->on(DxvUI::EventType::Change, [](DxvUI::DxvEvent& e,
+                                                                      const DxvUI::UIContext&) {
+        DxvUI::Log::info("[label_count] Change: '{}'", e.getTarget()->getBinding()->getString());
+    }));
 
     connections.push_back(btnClick->on(
         DxvUI::EventType::Click, [state, labelCount](DxvUI::DxvEvent& e, const DxvUI::UIContext&) {

@@ -30,12 +30,10 @@ TEST_F(UIBindingTest, CreationAndInitialValue) {
 
 TEST_F(UIBindingTest, SetAndGetValue) {
     auto binding = UIBinding::create("initial");
-    ASSERT_TRUE(binding->getString().has_value());
-    EXPECT_EQ(binding->getString().value(), "initial");
+    EXPECT_EQ(binding->getString(), "initial");
 
     binding->set("new_value");
-    ASSERT_TRUE(binding->getString().has_value());
-    EXPECT_EQ(binding->getString().value(), "new_value");
+    EXPECT_EQ(binding->getString(), "new_value");
 }
 
 // --- Type Conversion Tests ---
@@ -54,8 +52,7 @@ TEST_F(UIBindingTest, GetFloatFromString) {
 
 TEST_F(UIBindingTest, GetStringFromInt) {
     auto binding = UIBinding::create(42);
-    ASSERT_TRUE(binding->getString().has_value());
-    EXPECT_EQ(binding->getString().value(), "42");
+    EXPECT_EQ(binding->getString(), "42");
 }
 
 TEST_F(UIBindingTest, GetBoolFromString) {
@@ -72,6 +69,50 @@ TEST_F(UIBindingTest, InvalidConversionReturnsNullopt) {
     auto binding = UIBinding::create(std::string("not_a_number"));
     EXPECT_FALSE(binding->getInt().has_value());
     EXPECT_FALSE(binding->getFloat().has_value());
+}
+
+// --- Fallback (*Or) Getters ---
+
+TEST_F(UIBindingTest, GetIntOrReturnsValueOrFallback) {
+    auto number = UIBinding::create(42);
+    EXPECT_EQ(number->getIntOr(), 42);
+    EXPECT_EQ(number->getIntOr(7), 42);
+
+    auto parseable = UIBinding::create(std::string("123"));
+    EXPECT_EQ(parseable->getIntOr(7), 123);
+
+    auto unparseable = UIBinding::create(std::string("abc"));
+    EXPECT_EQ(unparseable->getIntOr(7), 7);
+}
+
+TEST_F(UIBindingTest, GetFloatOrReturnsValueOrFallback) {
+    auto number = UIBinding::create(123.45f);
+    EXPECT_FLOAT_EQ(number->getFloatOr(), 123.45f);
+    EXPECT_FLOAT_EQ(number->getFloatOr(1.5f), 123.45f);
+
+    auto unparseable = UIBinding::create(std::string("abc"));
+    EXPECT_FLOAT_EQ(unparseable->getFloatOr(1.5f), 1.5f);
+}
+
+TEST_F(UIBindingTest, GetBoolOrReturnsValueOrFallback) {
+    auto yes = UIBinding::create(true);
+    EXPECT_TRUE(yes->getBoolOr());
+    EXPECT_TRUE(yes->getBoolOr(false));
+
+    auto parsed = UIBinding::create(std::string("false"));
+    EXPECT_FALSE(parsed->getBoolOr(true));
+
+    auto invalid = UIBinding::create(std::string("maybe"));
+    EXPECT_TRUE(invalid->getBoolOr(true));
+}
+
+TEST_F(UIBindingTest, GetStringIsTotal) {
+    // getString never fails: every stored type stringifies.
+    EXPECT_EQ(UIBinding::create(42)->getString(), "42");
+    EXPECT_EQ(UIBinding::create(1.5f)->getString(), "1.500000");
+    EXPECT_EQ(UIBinding::create(std::string("text"))->getString(), "text");
+    EXPECT_EQ(UIBinding::create(true)->getString(), "true");
+    EXPECT_EQ(UIBinding::create(false)->getString(), "false");
 }
 
 // --- Subscription and Notification Tests ---

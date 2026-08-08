@@ -74,14 +74,14 @@ void buildUI(const std::shared_ptr<DxvUI::Scene>& scene,
     // connections.push_back(root->on(DxvUI::EventType::Change, [](DxvUI::DxvEvent& event) {
     //     DxvUI::Log::info("Root callback");
     //     DxvUI::Log::info("{} ::onChange({}) ", event.getTargetId(),
-    //                      event.getTarget()->getBinding()->getString().value_or(""));
+    //                      event.getTarget()->getBinding()->getString());
     // }));
 
     connections.push_back(
         myButton->on(DxvUI::EventType::Change, [](DxvUI::DxvEvent& event, const DxvUI::UIContext&) {
             DxvUI::Log::info("Button callback");
             DxvUI::Log::info("{} ::onChange({}) ", event.getTargetId(),
-                             event.getTarget()->getBinding()->getString().value_or(""));
+                             event.getTarget()->getBinding()->getString());
         }));
 
     connections.push_back(

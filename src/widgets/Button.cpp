@@ -47,7 +47,7 @@ const char* Button::getNodeType() const { return "Button"; }
 void Button::onAttach() {
     SceneNode::onAttach();
     if (!label) {
-        label = Label::create(id + "_label", getBinding()->getString().value_or(""));
+        label = Label::create(id + "_label", getBinding()->getString());
         label->bind(binding_);
 
         auto centerContainer = std::make_shared<CenterContainer>(id + "_center");
@@ -88,6 +88,6 @@ std::shared_ptr<SceneNode> Button::findNodeAt(int x, int y) {
 
 void Button::setText(std::string text) { getBinding()->set(std::move(text)); }
 
-const std::string Button::getText() const { return getBinding()->getString().value_or(""); }
+const std::string Button::getText() const { return getBinding()->getString(); }
 
 }  // namespace DxvUI

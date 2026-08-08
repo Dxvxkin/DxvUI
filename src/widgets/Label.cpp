@@ -40,14 +40,14 @@ Label::Label(std::string id, std::string text) : SceneNode(std::move(id)) {
 const char* Label::getNodeType() const noexcept { return "Label"; }
 
 void Label::setText(std::string newText) {
-    auto current_text = getBinding()->getString().value_or("");
+    auto current_text = getBinding()->getString();
     if (current_text != newText) {
         // Сравнение до перемещения
         binding_->set(std::move(newText));
     }
 }
 
-const std::string Label::getText() const { return getBinding()->getString().value_or(""); }
+const std::string Label::getText() const { return getBinding()->getString(); }
 
 void Label::onChange(const UIBinding& /*val*/) {
     // Binding-driven text changes must re-measure the label: otherwise the

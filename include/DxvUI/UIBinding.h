@@ -58,6 +58,10 @@ class UIBinding : public std::enable_shared_from_this<UIBinding> {
             value_);
     }
 
+    [[nodiscard]] int getIntOr(int fallback = 0) const noexcept {
+        return getInt().value_or(fallback);
+    }
+
     [[nodiscard]] std::optional<float> getFloat() const noexcept {
         std::lock_guard<std::mutex> lock(mutex_);
         return std::visit(
@@ -74,7 +78,11 @@ class UIBinding : public std::enable_shared_from_this<UIBinding> {
             value_);
     }
 
-    [[nodiscard]] std::optional<std::string> getString() const {
+    [[nodiscard]] float getFloatOr(float fallback = 0.0f) const noexcept {
+        return getFloat().value_or(fallback);
+    }
+
+    [[nodiscard]] std::string getString() const {
         std::lock_guard<std::mutex> lock(mutex_);
         return std::visit(
             overloaded{[](int arg) { return std::to_string(arg); },
@@ -100,6 +108,10 @@ class UIBinding : public std::enable_shared_from_this<UIBinding> {
                                      },
                                      [](bool arg) -> std::optional<bool> { return arg; }},
                           value_);
+    }
+
+    [[nodiscard]] bool getBoolOr(bool fallback = false) const noexcept {
+        return getBool().value_or(fallback);
     }
 
    private:
