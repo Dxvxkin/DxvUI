@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "DxvUI/core.h"
+#include "DxvUI/interfaces/IClipboard.h"
 #include "DxvUI/interfaces/ITexture.h"
 #include "DxvUI/text/ITextEngine.h"
 
@@ -27,6 +28,13 @@ class IRenderer {
      * never exposes implicit "current font/color" state to widgets.
      */
     virtual ITextEngine& getTextEngine() = 0;
+
+    /**
+     * @brief Gets the backend-neutral clipboard owned by this renderer.
+     *
+     * Widgets use it for copy/paste without depending on the SDL clipboard API.
+     */
+    virtual IClipboard& getClipboard() = 0;
 
     // Cursor
     virtual void setCursor(CursorType type) = 0;

@@ -97,11 +97,15 @@ class FakeTextEngine : public ITextEngine {
     std::map<std::tuple<const IFont*, std::string, uint32_t>, std::shared_ptr<ITexture>> textures;
 };
 
-// Minimal IRenderer so Label::onMeasure and Label::drawContent can be exercised
-// without an SDL backend or a real font file.
-class FakeRenderer : public IRenderer {
-   public:
-    ITextEngine& getTextEngine() override { return engine; }
+    // Minimal IRenderer so Label::onMeasure and Label::drawContent can be exercised
+    // without an SDL backend or a real font file.
+    class FakeRenderer : public IRenderer {
+       public:
+        FakeTextEngine engine;
+        FakeClipboard clipboard;
+
+        ITextEngine& getTextEngine() override { return engine; }
+        IClipboard& getClipboard() override { return clipboard; }
 
     void clear(const Color&) override {}
     void present() override {}
@@ -154,6 +158,10 @@ class FakeRenderer : public IRenderer {
     void fillPolygon(const std::vector<PointI>&, const Color&, const Border&) override {}
 
     FakeTextEngine engine;
+    FakeClipboard clipboard;
+
+    ITextEngine& getTextEngine() override { return engine; }
+    IClipboard& getClipboard() override { return clipboard; }
 };
 
 struct LabelFixture {

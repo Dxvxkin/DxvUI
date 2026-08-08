@@ -11,6 +11,8 @@
 
 namespace DxvUI {
 
+class IClipboard;
+
 /**
  * @brief Single-line editable text field widget.
  *
@@ -73,6 +75,9 @@ class TextEdit : public SceneNode {
     // Returns the text engine and font for the current style, or false when the
     // widget is not attached to a renderer or the font could not be loaded.
     bool getEditContext(ITextEngine** engine, const IFont** font);
+
+    // Returns the clipboard from the renderer, or nullptr if not attached.
+    IClipboard* getClipboard();
 
     TextEditor editor_;
     std::unique_ptr<TextEditorView> view_;

@@ -1,11 +1,10 @@
 #include "DxvUI/widgets/TextEdit.h"
 
-#include <SDL.h>
-
 #include <utility>
 
 #include "DxvUI/Log.h"
 #include "DxvUI/Scene.h"
+#include "DxvUI/interfaces/IClipboard.h"
 #include "DxvUI/layout/LayoutManager.h"
 #include "DxvUI/renderers/SDLTextEditorView.h"
 #include "DxvUI/style/Colors.h"
@@ -113,6 +112,14 @@ bool TextEdit::getEditContext(ITextEngine** engine, const IFont** font) {
     return true;
 }
 
+IClipboard* TextEdit::getClipboard() {
+    auto scene = getScene();
+    if (!scene || !scene->getRenderer()) {
+        return nullptr;
+    }
+    return &scene->getRenderer()->getClipboard();
+}
+
 void TextEdit::handleKeyDown(DxvEvent& event) {
     const bool ctrl = (event.key.mod & KeyModifier::Ctrl) != 0;
     const bool shift = (event.key.mod & KeyModifier::Shift) != 0;
@@ -176,13 +183,17 @@ void TextEdit::handleKeyDown(DxvEvent& event) {
             break;
         case KeyCode::C:
             if (ctrl && editor_.hasSelection()) {
-                SDL_SetClipboardText(editor_.selectedText().c_str());
+                if (auto* clipboard = getClipboard()) {
+                    clipboard->setText(editor_.selectedText());
+                }
                 event.handled = true;
             }
             break;
         case KeyCode::X:
             if (ctrl && editor_.hasSelection()) {
-                SDL_SetClipboardText(editor_.selectedText().c_str());
+                if (auto* clipboard = getClipboard()) {
+                    clipboard->setText(editor_.selectedText());
+                }
                 editor_.deleteSelection();
                 markLayoutDirty();
                 event.handled = true;
@@ -190,12 +201,14 @@ void TextEdit::handleKeyDown(DxvEvent& event) {
             break;
         case KeyCode::V:
             if (ctrl) {
-                if (char* clip = SDL_GetClipboardText()) {
-                    editor_.insertText(clip);
-                    SDL_free(clip);
-                    markLayoutDirty();
-                    event.handled = true;
+                if (auto* clipboard = getClipboard()) {
+                    const std::string text = clipboard->getText();
+                    if (!text.empty()) {
+                        editor_.insertText(text);
+                        markLayoutDirty();
+                    }
                 }
+                event.handled = true;
             }
             break;
         default:

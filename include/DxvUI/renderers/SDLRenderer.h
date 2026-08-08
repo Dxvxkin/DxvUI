@@ -9,6 +9,8 @@
 #include <string>
 #include <vector>
 
+#include <DxvUI/sources/SDLClipboard.h>
+
 struct SDL_Window;
 struct SDL_Renderer;
 
@@ -28,6 +30,7 @@ class SDLRenderer : public IRenderer {
     Size getViewportSize() const override;
 
     ITextEngine& getTextEngine() override;
+    IClipboard& getClipboard() override;
 
     // Cursor
     void setCursor(CursorType type) override;
@@ -93,6 +96,8 @@ class SDLRenderer : public IRenderer {
     // Owns the fonts and rasterized-text textures; cleared before the SDL
     // renderer is destroyed (see ~SDLRenderer()).
     std::unique_ptr<SDLTextEngine> textEngine;
+
+    SDLClipboard clipboard;
 
     // Saved clip rectangles for pushClipRect()/popClipRect() nesting. The bool
     // records whether the saved clip was enabled at push time, so popClipRect()

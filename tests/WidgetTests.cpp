@@ -124,12 +124,23 @@ class FakeTextEngine : public ITextEngine {
     }
 };
 
+class FakeClipboard : public IClipboard {
+   public:
+    std::string text;
+    std::string getText() override { return text; }
+    bool setText(const std::string& t) override {
+        text = t;
+        return true;
+    }
+};
+
 // A renderer stub that records clip operations instead of drawing, so the
 // SceneNode draw template can be exercised without a real SDL backend.
 class FakeRenderer : public IRenderer {
    public:
     std::vector<Rect> clipPushes;
     int clipPops = 0;
+    FakeClipboard clipboard;
 
     void clear(const Color&) override {}
     void present() override {}
@@ -142,6 +153,7 @@ class FakeRenderer : public IRenderer {
     void popClipRect() override { clipPops++; }
 
     ITextEngine& getTextEngine() override { return textEngine; }
+    IClipboard& getClipboard() override { return clipboard; }
 
     void drawTexture(std::shared_ptr<ITexture>&, const Rect&) override {}
 

@@ -63,6 +63,8 @@ SDLRenderer::~SDLRenderer() {
 
 ITextEngine& SDLRenderer::getTextEngine() { return *textEngine; }
 
+IClipboard& SDLRenderer::getClipboard() { return clipboard; }
+
 void SDLRenderer::setCursor(CursorType type) {
     if (currentCursorType == type && SDL_GetCursor() != nullptr) return;
     SDL_SetCursor(getSystemCursor(type));

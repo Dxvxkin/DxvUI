@@ -36,7 +36,7 @@ target_sources(DxvUI PRIVATE
         src/renderers/SDLRenderer.cpp
         src/renderers/SDLTextEngine.cpp
         src/renderers/SDLTextEditorView.cpp
-        src/text/TextEditor.cpp
+        src/sources/SDLClipboard.cpp
         src/sources/SDLEventSource.cpp
         src/style/Color.cpp
         src/style/StyleManager.cpp
