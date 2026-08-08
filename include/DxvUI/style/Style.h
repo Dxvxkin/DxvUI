@@ -14,11 +14,11 @@
 
 namespace DxvUI {
 
-enum class WidgetState { Normal, Hovered, Pressed, Disabled };
+enum class WidgetState { Normal, Hovered, Pressed, Focused, Disabled };
 
 // The number of states in WidgetState; keeps the per-node storage a fixed-size
 // array instead of a map.
-inline constexpr size_t kWidgetStateCount = 4;
+inline constexpr size_t kWidgetStateCount = 5;
 
 /**
  * @brief Converts a WidgetState to a contiguous array index.
@@ -44,6 +44,8 @@ inline constexpr size_t kWidgetStateCount = 4;
             return "Hovered";
         case WidgetState::Pressed:
             return "Pressed";
+        case WidgetState::Focused:
+            return "Focused";
         case WidgetState::Disabled:
             return "Disabled";
     }
