@@ -41,6 +41,7 @@ target_sources(DxvUI PRIVATE
         src/style/Color.cpp
         src/style/StyleManager.cpp
         src/style/Theme.cpp
+        src/text/TextEditor.cpp
 
 )
 

@@ -90,11 +90,28 @@ void Label::drawContent(IRenderer& renderer) {
     if (!font) {
         return;
     }
-    auto textTexture = engine.rasterize(*font, text, computedAppearance.textColor);
+
+    const Rect contentRect = LayoutManager::contentRect(*this, getGlobalBounds());
+
+    // Обрезаем текст до видимого префикса, который помещается в ширину контент-бокса,
+    // чтобы не пытаться создать текстуру больше ширины лейбла и не превысить лимит SDL (16384px).
+    std::string drawText = text;
+    if (contentRect.width > 0) {
+        const size_t fitBytes = engine.charIndexAtX(*font, text, contentRect.width);
+        if (fitBytes > 0 && fitBytes < text.size()) {
+            drawText = text.substr(0, fitBytes);
+        } else if (fitBytes == 0) {
+            drawText.clear();
+        }
+    }
+
+    if (drawText.empty()) {
+        return;
+    }
+
+    auto textTexture = engine.rasterize(*font, drawText, computedAppearance.textColor);
 
     if (textTexture) {
-        const Rect contentRect = LayoutManager::contentRect(*this, getGlobalBounds());
-
         // Рисуем текстуру в натуральном размере, центрируя в контент-боксе.
         // Увеличение не применяется (иначе текст размывается); если бокс меньше
         // текстуры, она уменьшается, чтобы влезть.
