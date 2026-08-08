@@ -62,6 +62,7 @@ void EventManager::onNodeRemoved(const std::shared_ptr<SceneNode>& node) {
 
     if (auto focused = focusedNode.lock()) {
         if (focused == node || node->isAncestorOf(focused)) {
+            focused->setFocused(false);
             focusedNode.reset();
             DxvEvent e;
             e.type = EventType::FocusLost;
@@ -196,6 +197,7 @@ void EventManager::handleMouseDown(DxvEvent& event) {
     auto oldFocused = focusedNode.lock();
     if (oldFocused != targetNode) {
         if (oldFocused) {
+            oldFocused->setFocused(false);
             DxvEvent e;
             e.type = EventType::FocusLost;
             e.target = oldFocused;
@@ -203,6 +205,7 @@ void EventManager::handleMouseDown(DxvEvent& event) {
         }
 
         if (targetNode) {
+            targetNode->setFocused(true);
             DxvEvent e;
             e.type = EventType::FocusGained;
             e.target = targetNode;
