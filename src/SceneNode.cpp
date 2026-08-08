@@ -75,10 +75,10 @@ void SceneNode::detach() {
     }
 }
 
-void SceneNode::detachAllChildren() {
+void SceneNode::detachSubtree() {
     auto childrenCopy = children;
     for (const auto& child : childrenCopy) {
-        child->detachAllChildren();
+        child->detachSubtree();
     }
     detach();
 }
@@ -268,6 +268,7 @@ const Size& SceneNode::getLastMeasureConstraints() const {
 
 WidgetState SceneNode::getCurrentState() const {
     if (isPressed) return WidgetState::Pressed;
+    if (isFocused) return WidgetState::Focused;
     if (isHovered) return WidgetState::Hovered;
     return WidgetState::Normal;
 }
@@ -298,6 +299,13 @@ void SceneNode::setHovered(bool hovered) {
 void SceneNode::setPressed(bool pressed) {
     if (isPressed != pressed) {
         isPressed = pressed;
+        markLayoutDirty();
+    }
+}
+
+void SceneNode::setFocused(bool focused) {
+    if (isFocused != focused) {
+        isFocused = focused;
         markLayoutDirty();
     }
 }
@@ -478,8 +486,8 @@ void SceneNode::bind(const std::shared_ptr<UIBinding>& binding) {
     connection_.reset();
     binding_ = binding;
     if (binding_) {
-        connection_ = binding_->subscribe(
-            [this](const UIBinding& value) { this->onBindingChange(std::move(value)); });
+        connection_ =
+            binding_->subscribe([this](const UIBinding& value) { this->onBindingChange(value); });
     }
 }
 
@@ -489,7 +497,7 @@ void SceneNode::onBindingChange(const UIBinding& binding) {
     DxvEvent event;
     event.target = weak_from_this();
     event.type = EventType::Change;
-    onChange(std::move(binding));
+    onChange(binding);
     dispatchEvent(event);
 }
 

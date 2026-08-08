@@ -66,9 +66,14 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     void detach();
 
     /**
-     * @brief Removes all child nodes from this node.
+     * @brief Detaches this node and every descendant from their parents.
+     *
+     * The whole subtree is detached recursively: children are removed from this
+     * node, grandchildren from their parents, and this node from its parent.
+     * Detaching does not destroy nodes; they stay alive as long as the
+     * application still holds a reference to them.
      */
-    void detachAllChildren();
+    void detachSubtree();
 
     /**
      * @brief Sets the scene this node belongs to.
@@ -122,7 +127,10 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     void setId(const std::string& newId);
 
     /**
-     * @brief Finds a node by its ID within the subtree of this node.
+     * @brief Finds a node by its ID anywhere in the scene.
+     *
+     * The search is scene-wide (Scene::findNodeById), not limited to this node's
+     * subtree. Returns nullptr if this node is not attached to a scene.
      * @param searchId The ID of the node to find.
      * @return A shared pointer to the found node, or nullptr if not found.
      */
@@ -327,6 +335,17 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     void setPressed(bool pressed);
 
     /**
+     * @brief Sets the focused state of the node.
+     *
+     * Focus is driven by the event manager (a mouse-down or a node removal
+     * changes which node owns the keyboard focus); widgets do not normally call
+     * this directly. Like setHovered()/setPressed(), it invalidates the layout
+     * so a state-specific style rule is picked up.
+     * @param focused True to set as focused, false otherwise.
+     */
+    void setFocused(bool focused);
+
+    /**
      * @brief Checks if the node is currently visible.
      * @return True if visible, false otherwise.
      */
@@ -461,7 +480,7 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     ///@}
 
     //----------------------------------------------------------------
-    // @name Framework Internals & Public Members
+    // @name Framework Internals
     //----------------------------------------------------------------
     ///@{
     /**
@@ -469,8 +488,6 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
      * @return The total node count.
      */
     static int getNodeCount();
-
-    std::weak_ptr<Scene> scene;
 
     ///@}
     ///
@@ -561,8 +578,10 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     // the whole tree is culled against it in O(visible) instead of O(all nodes).
     void drawImpl(IRenderer& renderer, const Rect& viewportRect);
 
+    std::weak_ptr<Scene> scene;
     bool isHovered = false;
     bool isPressed = false;
+    bool isFocused = false;
     bool visible = true;
     static int nodeCount;
     int zIndex = 0;

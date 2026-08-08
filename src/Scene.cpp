@@ -17,7 +17,7 @@ void Scene::shutdown() {
     }
 
     Log::trace("Scene shutdown requested.");
-    root->detachAllChildren();
+    root->detachSubtree();
     root->setScene(nullptr);
     root.reset();
 
