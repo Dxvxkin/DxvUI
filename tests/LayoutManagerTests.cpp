@@ -219,6 +219,24 @@ TEST(LayoutManagerTest, ShrinkRectMatchesContentRect) {
     EXPECT_EQ(viaHelper.height, 54);
 }
 
+TEST(LayoutManagerTest, ContentRectIncludesBorder) {
+    LayoutFixture f;
+    const Thickness padding = {.top = 2, .right = 3, .bottom = 4, .left = 5};
+    f.root->setStyle({.padding = padding, .borderThickness = 2}, WidgetState::Normal);
+    f.styleManager.resolveDirtyStyles(f.root);
+
+    const Rect outer = {10, 20, 100, 60};
+    const Rect content = LayoutManager::contentRect(*f.root, outer);
+
+    // Padding (5,2,3,4) + Border (2,2,2,2) = Total Inset (7,4,5,6)
+    // x = 10+7 = 17, y = 20+4 = 24
+    // width = 100 - (7+5) = 88, height = 60 - (4+6) = 50
+    EXPECT_EQ(content.x, 17);
+    EXPECT_EQ(content.y, 24);
+    EXPECT_EQ(content.width, 88);
+    EXPECT_EQ(content.height, 50);
+}
+
 TEST(LayoutManagerTest, HorizontalContainerSubtractsPaddingBeforeMeasuringChildren) {
     const Thickness padding = {.top = 2, .right = 3, .bottom = 4, .left = 5};
 

@@ -14,6 +14,7 @@
 #include "core.h"
 
 // Interfaces
+#include "interfaces/IClipboard.h"
 #include "interfaces/IEventSource.h"
 #include "interfaces/IRenderer.h"
 #include "interfaces/ITexture.h"
@@ -39,6 +40,7 @@
 #include "layout/LayoutManager.h"
 
 // Sources
+#include "sources/SDLClipboard.h"
 #include "sources/SDLEventSource.h"
 
 // Renderers
