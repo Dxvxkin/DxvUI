@@ -34,6 +34,9 @@ class SDLTextEditorView : public TextEditorView {
     // period, hidden for the next.
     static constexpr uint32_t kCaretBlinkMs = 530;
 
+    // Current horizontal scroll position in pixels.
+    int scrollOffsetX_ = 0;
+
     static bool isCaretVisible();
 };
 
