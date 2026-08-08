@@ -41,9 +41,9 @@ std::shared_ptr<SceneNode> EventManager::hitTest(int x, int y) {
 void EventManager::onNodeRemoved(const std::shared_ptr<SceneNode>& node) {
     if (!node) return;
 
-    if (auto hovered = hitTestCache.node.lock()) {
+    if (auto hovered = hoveredNode.lock()) {
         if (hovered == node || node->isAncestorOf(hovered)) {
-            hitTestCache.node.reset();
+            hoveredNode.reset();
             hitTestCache.valid = false;
             hovered->setHovered(false);
             DxvEvent e;
@@ -133,27 +133,8 @@ void EventManager::handleMouseMove(DxvEvent& event) {
         pressedNodes.clear();
     }
 
-    auto oldNode = hitTestCache.node.lock();
     auto newNode = hitTest(event.mouse.x, event.mouse.y);
-    // hitTest() owns the cache: it either reused a valid entry (which still
-    // reflects this point) or rebuilt it from the fresh scan that just ran.
-
-    if (oldNode != newNode) {
-        if (oldNode && !oldNode->isRoot()) {
-            oldNode->setHovered(false);
-            DxvEvent e;
-            e.type = EventType::HoverLeave;
-            e.target = oldNode;
-            oldNode->dispatchEvent(e);
-        }
-        if (newNode && !newNode->isRoot()) {
-            newNode->setHovered(true);
-            DxvEvent e;
-            e.type = EventType::HoverEnter;
-            e.target = newNode;
-            newNode->dispatchEvent(e);
-        }
-    }
+    setHovered(newNode);
 
     if (auto renderer = ownerScene.getRenderer()) {
         if (newNode) {
@@ -186,6 +167,7 @@ void EventManager::handleMouseDown(DxvEvent& event) {
     lastMousePosition = {event.mouse.x, event.mouse.y};
     const MouseButton button = event.mouse.button;
     auto targetNode = hitTest(event.mouse.x, event.mouse.y);
+    setHovered(targetNode);
 
     // A press on a different node (or empty space) with the same button replaces
     // a previous press whose button-up was missed, so no widget stays stuck in
@@ -217,6 +199,7 @@ void EventManager::handleMouseDown(DxvEvent& event) {
 void EventManager::handleMouseUp(DxvEvent& event) {
     const MouseButton button = event.mouse.button;
     auto targetNodeOnUp = hitTest(event.mouse.x, event.mouse.y);
+    setHovered(targetNodeOnUp);
 
     auto pressedIt = pressedNodes.find(button);
     if (pressedIt != pressedNodes.end()) {
@@ -256,6 +239,29 @@ void EventManager::handleMouseUp(DxvEvent& event) {
     } else if (targetNodeOnUp) {
         event.target = targetNodeOnUp;
         targetNodeOnUp->dispatchEvent(event);
+    }
+}
+
+void EventManager::setHovered(const std::shared_ptr<SceneNode>& node) {
+    // Root nodes never receive a Hovered state: only the deepest node the cursor
+    // physically covers is hovered, so both null and root mean "no hover".
+    const std::shared_ptr<SceneNode> effective = (node && !node->isRoot()) ? node : nullptr;
+    if (auto oldHovered = hoveredNode.lock(); oldHovered != effective) {
+        if (oldHovered) {
+            oldHovered->setHovered(false);
+            DxvEvent e;
+            e.type = EventType::HoverLeave;
+            e.target = oldHovered;
+            oldHovered->dispatchEvent(e);
+        }
+        if (effective) {
+            effective->setHovered(true);
+            DxvEvent e;
+            e.type = EventType::HoverEnter;
+            e.target = effective;
+            effective->dispatchEvent(e);
+        }
+        hoveredNode = effective;
     }
 }
 

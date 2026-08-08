@@ -69,6 +69,20 @@ class EventManager {
     void changeFocus(const std::shared_ptr<SceneNode>& newNode);
 
     /**
+     * @brief Sets the node the cursor physically covers as hovered.
+     *
+     * Clears the previous hovered node (setHovered(false) + HoverLeave) and
+     * marks the new one (setHovered(true) + HoverEnter), mirroring the hover
+     * state to the hit-test result on every mouse event. A null or root node
+     * means "no hover". The hovered node is tracked independently of the hit-test
+     * cache: a cache hit resolves the deepest descendant without refreshing the
+     * cache entry, so deriving hover from the cache (as before) could leave a
+     * stale node stuck in the Hovered state.
+     * @param node The node under the cursor, or nullptr/root for empty space.
+     */
+    void setHovered(const std::shared_ptr<SceneNode>& node);
+
+    /**
      * @brief Finds the topmost node at the given coordinates, using the hovered
      * node as a cache.
      *
@@ -119,6 +133,7 @@ class EventManager {
     static constexpr int dragThreshold = 5;
     std::map<MouseButton, PressRecord> pressedNodes;
     std::weak_ptr<SceneNode> focusedNode;
+    std::weak_ptr<SceneNode> hoveredNode;
     PointI lastMousePosition;
 };
 

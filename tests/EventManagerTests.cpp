@@ -80,6 +80,33 @@ struct EventFixture {
 
 }  // namespace
 
+TEST(EventManagerTest, HoveredDescendantIsClearedWhenCursorLeaves) {
+    EventFixture f;
+    // Hover empty space first: the fresh scan caches the root, not a button.
+    f.moveTo(400, 400, MouseButton::None);
+
+    // The cache-hit path resolves the descendant without refreshing the cache
+    // entry, so hover must be tracked independently of the cache.
+    f.moveTo(50, 25, MouseButton::None);
+    EXPECT_EQ(f.buttonA->getCurrentState(), WidgetState::Hovered);
+
+    // Leaving the button must clear the hover even though the cache still
+    // references the root hit by the earlier empty-space scan.
+    f.moveTo(400, 400, MouseButton::None);
+    EXPECT_EQ(f.buttonA->getCurrentState(), WidgetState::Normal);
+}
+
+TEST(EventManagerTest, MouseDownDoesNotOrphanHoveredButton) {
+    EventFixture f;
+    f.moveTo(50, 25, MouseButton::None);  // hover button A
+    EXPECT_EQ(f.buttonA->getCurrentState(), WidgetState::Hovered);
+
+    // Pressing in empty space refreshes the hit-test cache to the root; the
+    // previously hovered button must not stay stuck in the Hovered state.
+    f.pressAt(400, 400);
+    EXPECT_EQ(f.buttonA->getCurrentState(), WidgetState::Normal);
+}
+
 TEST(EventManagerTest, ButtonUpMissedPressIsClearedOnButtonlessMove) {
     EventFixture f;
     f.pressAt(50, 25);
