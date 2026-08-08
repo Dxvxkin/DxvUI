@@ -59,6 +59,16 @@ std::shared_ptr<SceneNode> Scene::findNodeById(std::string id) {
     return root ? root->findNodeById(id) : nullptr;
 }
 
+std::shared_ptr<SceneNode> Scene::getFocusedNode() const {
+    return eventManager ? eventManager->getFocusedNode() : nullptr;
+}
+
+void Scene::setFocus(const std::shared_ptr<SceneNode>& node) {
+    if (eventManager) {
+        eventManager->setFocus(node);
+    }
+}
+
 void Scene::processEvent(const DxvEvent& event) { eventManager->processRawEvent(event); }
 
 void Scene::onNodeRemoved(const std::shared_ptr<SceneNode>& node) {

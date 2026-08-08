@@ -9,6 +9,7 @@
 #include "Scene.h"
 #include "SceneNode.h"
 #include "UIBinding.h"
+#include "UIContext.h"
 #include "Utils.h"
 #include "core.h"
 

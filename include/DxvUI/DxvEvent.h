@@ -9,6 +9,7 @@
 namespace DxvUI {
 
 class SceneNode;  // Forward declaration
+class UIContext;  // Forward declaration
 
 // --- Enums ---
 enum class EventType {
@@ -85,7 +86,7 @@ struct DxvEvent {
     [[nodiscard]] std::string getTargetId() const;
 };
 
-using ActionCallback = std::function<void(DxvEvent&)>;
+using ActionCallback = std::function<void(DxvEvent&, const UIContext&)>;
 
 }  // namespace DxvUI
 

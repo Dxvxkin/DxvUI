@@ -2,6 +2,7 @@
 #include <DxvUI/FpsCounter.h>
 #include <DxvUI/Log.h>
 #include <DxvUI/Scene.h>
+#include <DxvUI/UIContext.h>
 #include <DxvUI/containers/AbsoluteContainer.h>
 #include <DxvUI/containers/HorizontalContainer.h>
 #include <DxvUI/core.h>
@@ -130,7 +131,7 @@ AlignmentDemoNodes buildAlignmentDemoUI(
                            DxvUI::WidgetState::Normal);
     rowEnd->updateStyle({.verticalAlignment = DxvUI::Alignment::End}, DxvUI::WidgetState::Normal);
 
-    const auto cycleVerticalAlignment = [](DxvUI::DxvEvent& event) {
+    const auto cycleVerticalAlignment = [](DxvUI::DxvEvent& event, const DxvUI::UIContext& ui) {
         if (auto target = event.getTarget()) {
             const auto& layout = target->getComputedLayout(DxvUI::WidgetState::Normal);
             const auto oldAlignment = layout.verticalAlignment;
@@ -147,9 +148,7 @@ AlignmentDemoNodes buildAlignmentDemoUI(
                     break;
             }
             target->updateStyle(rule, DxvUI::WidgetState::Normal);
-            if (auto scene = target->getScene()) {
-                scene->updateLayout();
-            }
+            ui.updateLayout();
             const DxvUI::Rect bounds = target->getGlobalBounds();
             DxvUI::Log::info("{} verticalAlignment {} -> {} bounds=({}, {}, {}, {})",
                              target->getId(), alignmentToString(oldAlignment),

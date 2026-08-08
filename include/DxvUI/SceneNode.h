@@ -307,8 +307,12 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     ///@{
 
     /**
-     * @brief Checks if this node is the root of the scene.
-     * @return True if the node is the root, false otherwise.
+     * @brief Checks whether the node is at the top of its subtree (has no parent).
+     *
+     * Within an attached tree this is equivalent to being the scene's root node.
+     * A detached subtree reports true as well, since root-ness here is purely
+     * structural and does not depend on the scene.
+     * @return True if the node has no parent, false otherwise.
      */
     bool isRoot() const;
 

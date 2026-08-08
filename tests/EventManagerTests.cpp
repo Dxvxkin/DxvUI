@@ -176,7 +176,8 @@ TEST(EventManagerTest, RemovedHoveredNodeClearsHoverAndFiresHoverLeave) {
     EXPECT_EQ(f.buttonA->getCurrentState(), WidgetState::Hovered);
 
     bool left = false;
-    auto conn = f.buttonA->on(EventType::HoverLeave, [&](DxvEvent&) { left = true; });
+    auto conn =
+        f.buttonA->on(EventType::HoverLeave, [&](DxvEvent&, const UIContext&) { left = true; });
 
     f.root->removeChild(f.buttonA);
     EXPECT_EQ(f.buttonA->getCurrentState(), WidgetState::Normal);
@@ -195,7 +196,8 @@ TEST(EventManagerTest, RemovedPressedNodeClearsPress) {
 TEST(EventManagerTest, RemovedFocusedNodeFiresFocusLost) {
     EventFixture f;
     bool lost = false;
-    auto conn = f.buttonA->on(EventType::FocusLost, [&](DxvEvent&) { lost = true; });
+    auto conn =
+        f.buttonA->on(EventType::FocusLost, [&](DxvEvent&, const UIContext&) { lost = true; });
 
     f.pressAt(50, 25);  // button A gains focus
     f.root->removeChild(f.buttonA);
@@ -228,7 +230,7 @@ TEST(EventManagerTest, FocusMovesToNewlyPressedNode) {
 TEST(EventManagerTest, DestroyingConnectionUnsubscribesHandler) {
     EventFixture f;
     int clicks = 0;
-    auto conn = f.buttonA->on(EventType::Click, [&](DxvEvent&) { clicks++; });
+    auto conn = f.buttonA->on(EventType::Click, [&](DxvEvent&, const UIContext&) { clicks++; });
 
     f.pressAt(50, 25);
     f.releaseAt(50, 25);
@@ -245,10 +247,11 @@ TEST(EventManagerTest, RegisteringHandlerFromHandlerIsSafe) {
     int firstCalls = 0;
     int secondCalls = 0;
     std::unique_ptr<SceneNode::Connection> second;
-    auto first = f.buttonA->on(EventType::Click, [&](DxvEvent&) {
+    auto first = f.buttonA->on(EventType::Click, [&](DxvEvent&, const UIContext&) {
         firstCalls++;
         if (!second) {
-            second = f.buttonA->on(EventType::Click, [&](DxvEvent&) { secondCalls++; });
+            second = f.buttonA->on(EventType::Click,
+                                   [&](DxvEvent&, const UIContext&) { secondCalls++; });
         }
     });
 
@@ -269,11 +272,14 @@ TEST(EventManagerTest, HandlerCannotRedirectEventTypeOnBubble) {
     EventFixture f;
     bool rootClick = false;
     bool rootChange = false;
-    auto connClick = f.root->on(EventType::Click, [&](DxvEvent&) { rootClick = true; });
-    auto connChange = f.root->on(EventType::Change, [&](DxvEvent&) { rootChange = true; });
+    auto connClick =
+        f.root->on(EventType::Click, [&](DxvEvent&, const UIContext&) { rootClick = true; });
+    auto connChange =
+        f.root->on(EventType::Change, [&](DxvEvent&, const UIContext&) { rootChange = true; });
     // A's Click handler mutates event.type; the parent must still dispatch the
     // event that was actually raised (Click), not the mutated type (Change).
-    auto connA = f.buttonA->on(EventType::Click, [&](DxvEvent& e) { e.type = EventType::Change; });
+    auto connA = f.buttonA->on(EventType::Click,
+                               [&](DxvEvent& e, const UIContext&) { e.type = EventType::Change; });
 
     f.pressAt(50, 25);
     f.releaseAt(50, 25);
@@ -284,7 +290,7 @@ TEST(EventManagerTest, HandlerCannotRedirectEventTypeOnBubble) {
 TEST(EventManagerTest, ClickRequiresReleaseWithinDragThreshold) {
     EventFixture f;
     int clicks = 0;
-    auto conn = f.buttonA->on(EventType::Click, [&](DxvEvent&) { clicks++; });
+    auto conn = f.buttonA->on(EventType::Click, [&](DxvEvent&, const UIContext&) { clicks++; });
 
     // Release far from the press point (still inside the button): no click.
     f.pressAt(50, 25);
@@ -340,7 +346,8 @@ TEST(EventManagerTest, DxvEventTargetAccessorsExpired) {
 TEST(EventManagerTest, DxvEventCurrentTargetTracksDispatchNode) {
     EventFixture f;
     std::shared_ptr<SceneNode> captured;
-    auto conn = f.root->on(EventType::Click, [&](DxvEvent& e) { captured = e.getCurrentTarget(); });
+    auto conn = f.root->on(EventType::Click,
+                           [&](DxvEvent& e, const UIContext&) { captured = e.getCurrentTarget(); });
     f.pressAt(50, 25);
     f.releaseAt(50, 25);
     EXPECT_EQ(captured, f.root);

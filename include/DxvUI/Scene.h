@@ -36,6 +36,21 @@ class Scene : public std::enable_shared_from_this<Scene> {
      */
     std::shared_ptr<SceneNode> findNodeById(std::string id);
 
+    /**
+     * @brief Gets the node that currently owns keyboard focus.
+     * @return The focused node, or nullptr when nothing is focused.
+     */
+    std::shared_ptr<SceneNode> getFocusedNode() const;
+
+    /**
+     * @brief Moves keyboard focus to the given node.
+     *
+     * Dispatches FocusLost to the previously focused node and FocusGained to the
+     * new one; passing nullptr clears the focus.
+     * @param node The node to focus, or nullptr to unfocus.
+     */
+    void setFocus(const std::shared_ptr<SceneNode>& node);
+
     void processEvent(const DxvEvent& event);
     void update(float deltaTime);
     void updateLayout();

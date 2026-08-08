@@ -6,6 +6,7 @@
 
 #include "DxvUI/Log.h"
 #include "DxvUI/Scene.h"
+#include "DxvUI/UIContext.h"
 #include "DxvUI/Utils.h"
 #include "DxvUI/layout/LayoutManager.h"
 
@@ -259,12 +260,7 @@ WidgetState SceneNode::getCurrentState() const {
     return WidgetState::Normal;
 }
 
-bool SceneNode::isRoot() const {
-    if (auto s = scene.lock()) {
-        return s->getRoot().get() == this;
-    }
-    return false;
-}
+bool SceneNode::isRoot() const { return parent.expired(); }
 
 bool SceneNode::isAncestorOf(const std::shared_ptr<SceneNode>& descendant) const {
     for (auto n = descendant ? descendant->parent.lock() : nullptr; n; n = n->parent.lock()) {
@@ -353,9 +349,10 @@ void SceneNode::dispatchEvent(DxvEvent& event) {
         // Snapshot the handlers so a handler registering or removing handlers
         // during dispatch cannot invalidate the iteration.
         const auto handlers = eventHandlers.at(eventType);
+        const UIContext ctx(getScene().get());
         for (const auto& [id, callback] : handlers) {
             if (callback) {
-                callback(event);
+                callback(event, ctx);
                 if (event.handled) {
                     return;
                 }

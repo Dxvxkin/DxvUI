@@ -19,6 +19,22 @@ class EventManager {
     void processRawEvent(const DxvEvent& event);
 
     /**
+     * @brief Gets the node that currently owns keyboard focus.
+     * @return The focused node, or nullptr when nothing is focused.
+     */
+    std::shared_ptr<SceneNode> getFocusedNode() const;
+
+    /**
+     * @brief Moves keyboard focus to the given node.
+     *
+     * Dispatches FocusLost to the previously focused node and FocusGained to the
+     * new one; passing nullptr clears the focus. Used by the scene's public
+     * API (e.g. via UIContext) so application code can drive focus directly.
+     * @param node The node to focus, or nullptr to unfocus.
+     */
+    void setFocus(const std::shared_ptr<SceneNode>& node);
+
+    /**
      * @brief Marks the cached hovered node as untrustworthy.
      *
      * Called by Scene when a relayout or hierarchy mutation could have moved a
@@ -44,6 +60,13 @@ class EventManager {
     void handleMouseMove(DxvEvent& event);
     void handleMouseDown(DxvEvent& event);
     void handleMouseUp(DxvEvent& event);
+
+    /**
+     * @brief Moves keyboard focus to the given node, dispatching FocusLost and
+     * FocusGained to the old and new nodes.
+     * @param newNode The node to focus, or nullptr to clear the focus.
+     */
+    void changeFocus(const std::shared_ptr<SceneNode>& newNode);
 
     /**
      * @brief Finds the topmost node at the given coordinates, using the hovered

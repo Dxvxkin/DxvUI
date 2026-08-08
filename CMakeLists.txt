@@ -27,6 +27,7 @@ target_sources(DxvUI PRIVATE
         src/Scene.cpp
         src/SceneNode.cpp
         src/UIBinding.cpp
+        src/UIContext.cpp
         src/widgets/Button.cpp
         src/widgets/Label.cpp
         src/containers/CenterContainer.cpp
@@ -94,6 +95,7 @@ add_executable(DxvUITests
         tests/StyleManagerTests.cpp
         tests/WidgetTests.cpp
         tests/UIBindingTests.cpp
+        tests/UIContextTests.cpp
 
 )
 target_link_libraries(DxvUITests PRIVATE

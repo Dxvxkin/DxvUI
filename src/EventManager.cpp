@@ -8,6 +8,10 @@ namespace DxvUI {
 
 EventManager::EventManager(Scene& scene) : ownerScene(scene) {}
 
+std::shared_ptr<SceneNode> EventManager::getFocusedNode() const { return focusedNode.lock(); }
+
+void EventManager::setFocus(const std::shared_ptr<SceneNode>& node) { changeFocus(node); }
+
 std::shared_ptr<SceneNode> EventManager::hitTest(int x, int y) {
     // The hovered node is a strong hint for a stationary mouse: while the cache
     // is valid (no relayout or hierarchy mutation since it was set), the node is
@@ -196,22 +200,7 @@ void EventManager::handleMouseDown(DxvEvent& event) {
 
     auto oldFocused = focusedNode.lock();
     if (oldFocused != targetNode) {
-        if (oldFocused) {
-            oldFocused->setFocused(false);
-            DxvEvent e;
-            e.type = EventType::FocusLost;
-            e.target = oldFocused;
-            oldFocused->dispatchEvent(e);
-        }
-
-        if (targetNode) {
-            targetNode->setFocused(true);
-            DxvEvent e;
-            e.type = EventType::FocusGained;
-            e.target = targetNode;
-            targetNode->dispatchEvent(e);
-        }
-        focusedNode = targetNode;
+        changeFocus(targetNode);
     }
 
     if (targetNode) {
@@ -267,6 +256,27 @@ void EventManager::handleMouseUp(DxvEvent& event) {
     } else if (targetNodeOnUp) {
         event.target = targetNodeOnUp;
         targetNodeOnUp->dispatchEvent(event);
+    }
+}
+
+void EventManager::changeFocus(const std::shared_ptr<SceneNode>& newNode) {
+    if (auto oldFocused = focusedNode.lock(); oldFocused != newNode) {
+        if (oldFocused) {
+            oldFocused->setFocused(false);
+            DxvEvent e;
+            e.type = EventType::FocusLost;
+            e.target = oldFocused;
+            oldFocused->dispatchEvent(e);
+        }
+
+        if (newNode) {
+            newNode->setFocused(true);
+            DxvEvent e;
+            e.type = EventType::FocusGained;
+            e.target = newNode;
+            newNode->dispatchEvent(e);
+        }
+        focusedNode = newNode;
     }
 }
 
