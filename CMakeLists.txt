@@ -35,6 +35,7 @@ target_sources(DxvUI PRIVATE
         src/containers/HorizontalContainer.cpp
         src/layout/LayoutManager.cpp
         src/renderers/SDLRenderer.cpp
+        src/renderers/SDLTextEngine.cpp
         src/sources/SDLEventSource.cpp
         src/style/Color.cpp
         src/style/StyleManager.cpp
@@ -45,6 +46,12 @@ target_sources(DxvUI PRIVATE
 target_include_directories(DxvUI PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
+)
+
+# Internal headers (e.g. renderers/SDLTexture.h) reachable by the library's own
+# sources via the public-style include path, but not installed or exposed.
+target_include_directories(DxvUI PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
 target_link_libraries(DxvUI PUBLIC
@@ -94,6 +101,7 @@ add_executable(DxvUITests
         tests/LogTests.cpp
         tests/StyleManagerTests.cpp
         tests/WidgetTests.cpp
+        tests/TextEngineTests.cpp
         tests/UIBindingTests.cpp
         tests/UIContextTests.cpp
 

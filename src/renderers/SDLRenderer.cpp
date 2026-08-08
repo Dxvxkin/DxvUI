@@ -2,81 +2,35 @@
 
 #include <SDL.h>
 #include <SDL2_gfxPrimitives.h>
-#include <SDL_ttf.h>
 
-#include <iostream>
-#include <mutex>
 #include <stdexcept>
 #include <vector>
 
 #include "DxvUI/Log.h"
 #include "DxvUI/core.h"
+#include "DxvUI/renderers/SDLTextEngine.h"
+#include "renderers/SDLTexture.h"
 
 namespace DxvUI {
-
-class SDLTexture : public ITexture {
-   public:
-    explicit SDLTexture(SDL_Texture* texture) : _texture(texture), width(0), height(0) {
-        if (_texture) {
-            SDL_QueryTexture(texture, nullptr, nullptr, &width, &height);
-        }
-    }
-    ~SDLTexture() override {
-        if (_texture) {
-            SDL_DestroyTexture(_texture);
-        }
-    }
-    int getWidth() const override { return width; }
-    int getHeight() const override { return height; }
-    SDL_Texture* _texture;
-
-   private:
-    int width, height;
-};
-
-int SDLRenderer::ttf_ref_count = 0;
-std::mutex SDLRenderer::ttf_mutex;
-
-void SDLRenderer::initTTF() {
-    std::lock_guard<std::mutex> lock(ttf_mutex);
-    if (ttf_ref_count == 0) {
-        if (TTF_Init() == -1)
-            throw std::runtime_error(std::string("TTF_Init Error: ") + TTF_GetError());
-    }
-    ttf_ref_count++;
-}
-
-void SDLRenderer::quitTTF() {
-    std::lock_guard<std::mutex> lock(ttf_mutex);
-    if (ttf_ref_count > 0) {
-        ttf_ref_count--;
-        if (ttf_ref_count == 0 && TTF_WasInit()) {
-            TTF_Quit();
-        }
-    }
-}
 
 SDLRenderer::SDLRenderer(const char* title, int width, int height) : ownsResources(true) {
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
     if (SDL_Init(SDL_INIT_VIDEO) != 0)
         throw std::runtime_error(std::string("SDL_Init Error: ") + SDL_GetError());
-    initTTF();
     window = SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height,
                               SDL_WINDOW_SHOWN);
     if (!window) {
-        quitTTF();
         SDL_Quit();
         throw std::runtime_error(std::string("SDL_CreateWindow Error: ") + SDL_GetError());
     }
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (!renderer) {
         SDL_DestroyWindow(window);
-        quitTTF();
         SDL_Quit();
         throw std::runtime_error(std::string("SDL_CreateRenderer Error: ") + SDL_GetError());
     }
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-    setFont(getDefaultFontPath(), 24);
+    textEngine = std::make_unique<SDLTextEngine>(renderer);
     setCursor(CursorType::Arrow);
 }
 
@@ -84,29 +38,30 @@ SDLRenderer::SDLRenderer(SDL_Renderer* externalRenderer)
     : window(nullptr), renderer(externalRenderer), ownsResources(false) {
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
     if (!renderer) throw std::invalid_argument("externalRenderer cannot be null.");
-    initTTF();
-    setFont(getDefaultFontPath(), 24);
+    textEngine = std::make_unique<SDLTextEngine>(renderer);
     setCursor(CursorType::Arrow);
 }
 
 SDLRenderer::~SDLRenderer() {
-    for (auto& pair : fontCache) {
-        if (pair.second) TTF_CloseFont(pair.second);
+    // Cached text textures reference the SDL renderer, so they must be freed
+    // before the renderer itself is destroyed.
+    if (textEngine) {
+        textEngine->clearCaches();
     }
-    fontCache.clear();
 
     for (auto& pair : cursorCache) {
         if (pair.second) SDL_FreeCursor(pair.second);
     }
     cursorCache.clear();
 
-    quitTTF();
     if (ownsResources) {
         if (renderer) SDL_DestroyRenderer(renderer);
         if (window) SDL_DestroyWindow(window);
         SDL_Quit();
     }
 }
+
+ITextEngine& SDLRenderer::getTextEngine() { return *textEngine; }
 
 void SDLRenderer::setCursor(CursorType type) {
     if (currentCursorType == type && SDL_GetCursor() != nullptr) return;
@@ -193,25 +148,6 @@ SDL_Cursor* SDLRenderer::getSystemCursor(CursorType type) {
     return cursor;
 }
 
-TTF_Font* SDLRenderer::getFont(const std::string& path, int size) {
-    if (path.empty() || size <= 0) return nullptr;
-    std::string fontKey = path + ":" + std::to_string(size);
-    auto it = fontCache.find(fontKey);
-    if (it == fontCache.end()) {
-        TTF_Font* font = TTF_OpenFont(path.c_str(), size);
-        if (!font) {
-            std::cerr << "TTF_OpenFont Error: " << TTF_GetError() << " for font " << path
-                      << std::endl;
-            fontCache[fontKey] = nullptr;
-        } else {
-            TTF_SetFontHinting(font, TTF_HINTING_LIGHT);
-            fontCache[fontKey] = font;
-        }
-        return font;
-    }
-    return it->second;
-}
-
 void SDLRenderer::clear(const Color& color) {
     setDrawColor(color);
     SDL_RenderClear(renderer);
@@ -224,50 +160,10 @@ Size SDLRenderer::getViewportSize() const {
     return {(float)w, (float)h};
 }
 
-std::shared_ptr<ITexture> SDLRenderer::createTextTexture(const std::string& text) {
-    if (text.empty()) {
-        return nullptr;
-    }
-
-    auto font = getFont(currentFontPath, currentFontSize);
-    if (!font) {
-        return nullptr;
-    }
-
-    auto surf = TTF_RenderUTF8_Blended(
-        font, text.c_str(), {currentColor.r, currentColor.g, currentColor.b, currentColor.a});
-    if (!surf) {
-        Log::error("TTF_RenderUTF8_Blended Error: {}", TTF_GetError());
-
-        return nullptr;
-    }
-
-    auto texture = SDL_CreateTextureFromSurface(renderer, surf);
-    SDL_FreeSurface(surf);
-
-    if (!texture) {
-        Log::error("SDL_CreateTextureFromSurface Error: {}", SDL_GetError());
-        return nullptr;
-    }
-
-    return std::make_shared<SDLTexture>(texture);
-}
-
 void SDLRenderer::drawTexture(std::shared_ptr<ITexture>& texture, const Rect& dstRect) {
     if (!texture) return;
     SDL_Rect dst = {dstRect.x, dstRect.y, dstRect.width, dstRect.height};
     SDL_RenderCopy(renderer, dynamic_cast<SDLTexture*>(texture.get())->_texture, nullptr, &dst);
-}
-
-Rect SDLRenderer::measureText(const std::string& text, const std::string& fontPath, int fontSize) {
-    TTF_Font* font = getFont(fontPath, fontSize);
-    if (!font) return {0, 0, 0, 0};
-    int w, h;
-    if (TTF_SizeUTF8(font, text.c_str(), &w, &h) != 0) {
-        std::cerr << "TTF_SizeText Error: " << TTF_GetError() << std::endl;
-        return {0, 0, 0, 0};
-    }
-    return {0, 0, w, h};
 }
 
 void SDLRenderer::setDrawColor(const Color& color) {
@@ -275,11 +171,6 @@ void SDLRenderer::setDrawColor(const Color& color) {
     SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
 }
 Color SDLRenderer::getDrawColor() const { return currentColor; }
-void SDLRenderer::setFont(const std::string& fontPath, int fontSize) {
-    currentFontPath = fontPath;
-    currentFontSize = fontSize;
-    getFont(currentFontPath, currentFontSize);
-}
 
 void SDLRenderer::drawRect(const Rect& rect) {
     SDL_Rect r = {rect.x, rect.y, rect.width, rect.height};
@@ -426,16 +317,5 @@ void SDLRenderer::drawPolygon(const std::vector<PointI>& p, const Border& b) {
 void SDLRenderer::fillPolygon(const std::vector<PointI>& p, const Color& f, const Border& b) {
     fillPolygon(p, f);
     drawPolygon(p, b);
-}
-void SDLRenderer::drawText(const std::string& text, int x, int y) {
-    if (currentFontPath.empty() || currentFontSize <= 0) {
-        std::cerr << "drawText Error: Font not set." << std::endl;
-        return;
-    }
-    auto texture = createTextTexture(text);
-    if (texture) {
-        Rect dst = {x, y, texture->getWidth(), texture->getHeight()};
-        drawTexture(texture, dst);
-    }
 }
 }  // namespace DxvUI

@@ -109,6 +109,19 @@ class CountingLabel : public Label {
     }
 };
 
+// A stub text engine so FakeRenderer satisfies IRenderer. Text is never
+// measured/rasterized in these tests (the Scene has no renderer), so all
+// methods return inert values.
+class FakeTextEngine : public ITextEngine {
+   public:
+    std::shared_ptr<IFont> getFont(const std::string&, int) override { return nullptr; }
+    TextMetrics measure(const IFont&, const std::string&) override { return {0, 0}; }
+    LineMetrics lineMetrics(const IFont&) override { return {0, 0, 0}; }
+    std::shared_ptr<ITexture> rasterize(const IFont&, const std::string&, const Color&) override {
+        return nullptr;
+    }
+};
+
 // A renderer stub that records clip operations instead of drawing, so the
 // SceneNode draw template can be exercised without a real SDL backend.
 class FakeRenderer : public IRenderer {
@@ -126,13 +139,12 @@ class FakeRenderer : public IRenderer {
     void pushClipRect(const Rect& rect) override { clipPushes.push_back(rect); }
     void popClipRect() override { clipPops++; }
 
-    std::shared_ptr<ITexture> createTextTexture(const std::string&) override { return nullptr; }
-    Rect measureText(const std::string&, const std::string&, int) override { return {}; }
+    ITextEngine& getTextEngine() override { return textEngine; }
+
     void drawTexture(std::shared_ptr<ITexture>&, const Rect&) override {}
 
     void setDrawColor(const Color&) override {}
     Color getDrawColor() const override { return {}; }
-    void setFont(const std::string&, int) override {}
 
     void drawRect(const Rect&) override {}
     void fillRect(const Rect&) override {}
@@ -169,7 +181,7 @@ class FakeRenderer : public IRenderer {
     void drawPolygon(const std::vector<PointI>&, const Border&) override {}
     void fillPolygon(const std::vector<PointI>&, const Color&, const Border&) override {}
 
-    void drawText(const std::string&, int, int) override {}
+    FakeTextEngine textEngine;
 };
 
 TEST(ButtonTest, SetTextRelayoutsViaBoundLabel) {

@@ -18,6 +18,9 @@
 #include "interfaces/IRenderer.h"
 #include "interfaces/ITexture.h"
 
+// Text
+#include "text/ITextEngine.h"
+
 // Containers
 #include "containers/AbsoluteContainer.h"
 #include "containers/CenterContainer.h"
@@ -37,6 +40,7 @@
 
 // Renderers
 #include "renderers/SDLRenderer.h"
+#include "renderers/SDLTextEngine.h"
 
 // Style
 #include "style/Color.h"

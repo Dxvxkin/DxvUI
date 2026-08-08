@@ -331,25 +331,28 @@ void microbenchmarks(SDLRenderer& renderer) {
     std::printf("fillRect        : %.3f ms/1000\n", fillRect);
     std::printf("fillRoundRect r=5: %.3f ms/1000\n", fillRoundRect);
 
-    t0 = Clock::now();
-    for (int i = 0; i < 10000; ++i) {
-        renderer.measureText("Hello DxvUI", getDefaultFontPath(), 18);
-    }
-    std::printf("measureText     : %.3f ms/1000\n", msSince(t0) / 10.0);
-
-    renderer.setFont(getDefaultFontPath(), 18);
-    renderer.setDrawColor(Colors::Black);
-    t0 = Clock::now();
-    for (int i = 0; i < 10000; ++i) {
-        renderer.createTextTexture("Hello DxvUI");
-    }
-    std::printf("createTextTexture (per call): %.3f ms/1000\n", msSince(t0) / 10.0);
+    auto& engine = renderer.getTextEngine();
+    auto textFont = engine.getFont(getDefaultFontPath(), 18);
 
     t0 = Clock::now();
     for (int i = 0; i < 10000; ++i) {
-        renderer.drawText("Hello DxvUI", 10, 10);
+        engine.measure(*textFont, "Hello DxvUI");
     }
-    std::printf("drawText primitive (texture per call): %.3f ms/1000\n", msSince(t0) / 10.0);
+    std::printf("text: measure   (cached)  : %.3f ms/1000\n", msSince(t0) / 10.0);
+
+    t0 = Clock::now();
+    for (int i = 0; i < 10000; ++i) {
+        engine.rasterize(*textFont, "Hello DxvUI", Colors::Black);
+    }
+    std::printf("text: rasterize (cached)  : %.3f ms/1000\n", msSince(t0) / 10.0);
+
+    auto textTexture = engine.rasterize(*textFont, "Hello DxvUI", Colors::Black);
+    t0 = Clock::now();
+    for (int i = 0; i < 10000; ++i) {
+        renderer.drawTexture(textTexture,
+                             {10, 10, textTexture->getWidth(), textTexture->getHeight()});
+    }
+    std::printf("text: drawTexture         : %.3f ms/1000\n", msSince(t0) / 10.0);
 }
 
 }  // namespace

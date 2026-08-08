@@ -5,7 +5,6 @@
 #include <string>
 
 #include "DxvUI/SceneNode.h"
-#include "DxvUI/interfaces/ITexture.h"
 
 namespace DxvUI {
 
@@ -27,12 +26,6 @@ class Label : public SceneNode {
    protected:
     Size onMeasure(const Size& availableSize) override;
     void drawContent(IRenderer& renderer) override;
-
-   private:
-    std::shared_ptr<ITexture> textTexture;
-    std::string cachedText;
-    // The computed appearance the current texture was rasterized with.
-    ComputedAppearanceStyle cachedAppearance;
 };
 
 }  // namespace DxvUI

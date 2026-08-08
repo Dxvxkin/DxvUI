@@ -62,9 +62,13 @@ Size Label::onMeasure(const Size& availableSize) {
 
     auto scene = getScene();
     if (scene && scene->getRenderer()) {
+        auto& engine = scene->getRenderer()->getTextEngine();
+        auto font = engine.getFont(computedAppearance.fontPath, computedAppearance.fontSize);
+        if (!font) {
+            return {0, 0};
+        }
         auto text = getText();
-        Rect measured = scene->getRenderer()->measureText(text, computedAppearance.fontPath,
-                                                          computedAppearance.fontSize);
+        auto measured = engine.measure(*font, text);
         return LayoutManager::addPadding(
             {static_cast<float>(measured.width), static_cast<float>(measured.height)}, padding);
     }
@@ -74,26 +78,19 @@ Size Label::onMeasure(const Size& availableSize) {
 void Label::drawContent(IRenderer& renderer) {
     const auto& computedAppearance = getComputedAppearance();
 
-    // Определяем, нужно ли пересоздавать текстуру.
-    // Это нужно, только если изменился текст или параметры, влияющие на
-    // отрисовку текста (шрифт, размер, цвет). SDLRenderer "запекает" цвет в
-    // текстуру, поэтому сравнение идёт по влияющим на текст полям: если
-    // textColor/fontSize/fontPath или текст изменились, текстура пересоздаётся.
     auto text = getText();
-    const bool needsTextureUpdate = !textTexture || cachedText != text ||
-                                    cachedAppearance.textColor != computedAppearance.textColor ||
-                                    cachedAppearance.fontSize != computedAppearance.fontSize ||
-                                    cachedAppearance.fontPath != computedAppearance.fontPath;
-
-    if (needsTextureUpdate) {
-        cachedText = text;
-        cachedAppearance = computedAppearance;
-
-        renderer.setFont(computedAppearance.fontPath, computedAppearance.fontSize);
-        renderer.setDrawColor(computedAppearance.textColor);
-
-        textTexture = renderer.createTextTexture(cachedText);
+    if (text.empty()) {
+        return;
     }
+
+    // Текстура текста кешируется внутри текстового движка по ключу
+    // (шрифт, текст, цвет), поэтому виджету не нужно собственное кеширование.
+    auto& engine = renderer.getTextEngine();
+    auto font = engine.getFont(computedAppearance.fontPath, computedAppearance.fontSize);
+    if (!font) {
+        return;
+    }
+    auto textTexture = engine.rasterize(*font, text, computedAppearance.textColor);
 
     if (textTexture) {
         const Rect contentRect = LayoutManager::contentRect(*this, getGlobalBounds());
@@ -106,7 +103,6 @@ void Label::drawContent(IRenderer& renderer) {
         const Rect dstRect = {contentRect.x + (contentRect.width - drawW) / 2,
                               contentRect.y + (contentRect.height - drawH) / 2, drawW, drawH};
         renderer.drawTexture(textTexture, dstRect);
-        // Эта функция не принимает цвет, т.к. он уже в текстуре
     }
 }
 

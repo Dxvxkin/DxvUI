@@ -7,6 +7,7 @@
 
 #include "DxvUI/core.h"
 #include "DxvUI/interfaces/ITexture.h"
+#include "DxvUI/text/ITextEngine.h"
 
 namespace DxvUI {
 
@@ -18,6 +19,15 @@ class IRenderer {
     virtual void present() = 0;
     virtual Size getViewportSize() const = 0;
 
+    /**
+     * @brief Gets the backend-neutral text engine owned by this renderer.
+     *
+     * Fonts, text measurement and text rasterization live behind the
+     * ITextEngine interface instead of the renderer itself, so the renderer
+     * never exposes implicit "current font/color" state to widgets.
+     */
+    virtual ITextEngine& getTextEngine() = 0;
+
     // Cursor
     virtual void setCursor(CursorType type) = 0;
     virtual CursorType getCursor() const = 0;
@@ -26,16 +36,12 @@ class IRenderer {
     virtual void pushClipRect(const Rect& rect) = 0;
     virtual void popClipRect() = 0;
 
-    // Text Rendering
-    virtual std::shared_ptr<ITexture> createTextTexture(const std::string& text) = 0;
-    virtual Rect measureText(const std::string& text, const std::string& fontPath,
-                             int fontSize) = 0;
+    // Texture Rendering
     virtual void drawTexture(std::shared_ptr<ITexture>& texture, const Rect& dstRect) = 0;
 
     // State Management
     virtual void setDrawColor(const Color& color) = 0;
     virtual Color getDrawColor() const = 0;
-    virtual void setFont(const std::string& fontPath, int fontSize) = 0;
 
     // Primitives
     virtual void drawRect(const Rect& rect) = 0;
@@ -78,8 +84,6 @@ class IRenderer {
     virtual void drawPolygon(const std::vector<PointI>& points, const Border& border) = 0;
     virtual void fillPolygon(const std::vector<PointI>& points, const Color& fillColor,
                              const Border& border) = 0;
-
-    virtual void drawText(const std::string& text, int x, int y) = 0;
 };
 
 }  // namespace DxvUI
