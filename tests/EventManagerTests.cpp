@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include "DxvUI/DxvEvent.h"
 #include "DxvUI/Log.h"
 #include "DxvUI/Scene.h"
 #include "DxvUI/SceneNode.h"
@@ -282,4 +283,40 @@ TEST(EventManagerTest, PerButtonPressTracking) {
     f.releaseAt(250, 25, MouseButton::Right);
     EXPECT_EQ(f.buttonA->getCurrentState(), WidgetState::Pressed);
     EXPECT_EQ(f.buttonB->getCurrentState(), WidgetState::Normal);
+}
+
+TEST(EventManagerTest, DxvEventTargetAccessors) {
+    EventFixture f;
+    DxvEvent e;
+    e.target = f.buttonA;
+    e.currentTarget = f.root;
+    e.relatedNode = f.buttonB;
+
+    ASSERT_NE(e.getTarget(), nullptr);
+    EXPECT_EQ(e.getTarget(), f.buttonA);
+    EXPECT_EQ(e.getTargetId(), "btn_a");
+    EXPECT_EQ(e.getCurrentTarget(), f.root);
+    EXPECT_EQ(e.getRelatedNode(), f.buttonB);
+}
+
+TEST(EventManagerTest, DxvEventTargetAccessorsExpired) {
+    EventFixture f;
+    DxvEvent e;
+    {
+        auto node = std::make_shared<SceneNode>("temp");
+        e.target = node;
+        e.relatedNode = node;
+    }
+    EXPECT_EQ(e.getTarget(), nullptr);
+    EXPECT_TRUE(e.getTargetId().empty());
+    EXPECT_EQ(e.getRelatedNode(), nullptr);
+}
+
+TEST(EventManagerTest, DxvEventCurrentTargetTracksDispatchNode) {
+    EventFixture f;
+    std::shared_ptr<SceneNode> captured;
+    auto conn = f.root->on(EventType::Click, [&](DxvEvent& e) { captured = e.getCurrentTarget(); });
+    f.pressAt(50, 25);
+    f.releaseAt(50, 25);
+    EXPECT_EQ(captured, f.root);
 }
