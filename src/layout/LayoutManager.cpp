@@ -109,8 +109,14 @@ void LayoutManager::arrangeNode(SceneNode& node, const Rect& finalRect) {
 }
 
 Rect LayoutManager::contentRect(const SceneNode& node, const Rect& outerRect) {
-    const auto& padding = node.getComputedLayout(node.getCurrentState()).padding;
-    return shrinkRect(outerRect, padding);
+    const auto& computed = node.getComputedLayout(node.getCurrentState());
+    const int border = node.getComputedAppearance(node.getCurrentState()).borderThickness;
+    Thickness inset = computed.padding;
+    inset.left += border;
+    inset.top += border;
+    inset.right += border;
+    inset.bottom += border;
+    return shrinkRect(outerRect, inset);
 }
 
 Size LayoutManager::addPadding(const Size& size, const Thickness& padding) {
@@ -123,9 +129,10 @@ Size LayoutManager::subtractPadding(const Size& size, const Thickness& padding) 
 }
 
 Rect LayoutManager::shrinkRect(const Rect& rect, const Thickness& padding) {
+    const int dx = static_cast<int>(padding.left + padding.right);
+    const int dy = static_cast<int>(padding.top + padding.bottom);
     return {rect.x + static_cast<int>(padding.left), rect.y + static_cast<int>(padding.top),
-            rect.width - static_cast<int>(padding.left + padding.right),
-            rect.height - static_cast<int>(padding.top + padding.bottom)};
+            std::max(0, rect.width - dx), std::max(0, rect.height - dy)};
 }
 
 Size LayoutManager::measureChild(SceneNode& child, const Size& availableSize) {
