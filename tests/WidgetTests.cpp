@@ -116,6 +116,8 @@ class FakeTextEngine : public ITextEngine {
    public:
     std::shared_ptr<IFont> getFont(const std::string&, int) override { return nullptr; }
     TextMetrics measure(const IFont&, const std::string&) override { return {0, 0}; }
+    int measurePrefix(const IFont&, const std::string&, size_t) override { return 0; }
+    size_t charIndexAtX(const IFont&, const std::string&, int) override { return 0; }
     LineMetrics lineMetrics(const IFont&) override { return {0, 0, 0}; }
     std::shared_ptr<ITexture> rasterize(const IFont&, const std::string&, const Color&) override {
         return nullptr;

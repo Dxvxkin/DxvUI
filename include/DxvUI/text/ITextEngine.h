@@ -82,6 +82,34 @@ class ITextEngine {
     virtual LineMetrics lineMetrics(const IFont& font) = 0;
 
     /**
+     * @brief Measures the width of a prefix of a text.
+     *
+     * The prefix is text[0, byteCount), i.e. the bytes before the caret when
+     * the caret sits at byteOffset = byteCount. Used to place a caret at an
+     * exact x position. Results are cached like measure().
+     * @param font A font obtained from getFont().
+     * @param text The UTF-8 text.
+     * @param byteCount Number of leading bytes to measure (clamped to the text
+     * length).
+     * @return The width in pixels of the prefix (zero on failure).
+     */
+    virtual int measurePrefix(const IFont& font, const std::string& text, size_t byteCount) = 0;
+
+    /**
+     * @brief Returns how many whole UTF-8 code points of a text fit in a
+     * given width.
+     *
+     * This is the inverse of measurePrefix(): hit-testing a click on a line of
+     * text asks "which character did I click on". It never splits a code point
+     * and stops before the text would overflow the width.
+     * @param font A font obtained from getFont().
+     * @param text The UTF-8 text.
+     * @param maxWidth The available width in pixels.
+     * @return The byte offset of the last whole code point that fits.
+     */
+    virtual size_t charIndexAtX(const IFont& font, const std::string& text, int maxWidth) = 0;
+
+    /**
      * @brief Rasterizes text into a cached texture.
      *
      * The texture is cached per (font, text, color), so repeated calls with the

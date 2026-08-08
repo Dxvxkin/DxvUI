@@ -2,8 +2,11 @@
 
 #include <SDL.h>
 
+#include <algorithm>
+#include <cstddef>
 #include <iostream>
 #include <stdexcept>
+#include <vector>
 
 #include "DxvUI/Log.h"
 #include "renderers/SDLTexture.h"
@@ -96,6 +99,55 @@ TextMetrics SDLTextEngine::measure(const IFont& font, const std::string& text) {
 
 LineMetrics SDLTextEngine::lineMetrics(const IFont& font) {
     return static_cast<const SDLFont*>(&font)->metrics;
+}
+
+int SDLTextEngine::measurePrefix(const IFont& font, const std::string& text, size_t byteCount) {
+    const size_t count = std::min(byteCount, text.size());
+    // Reuses the cached measure() path: each distinct prefix is cached as a
+    // regular measurement, so typing re-measures only the new prefixes.
+    return measure(font, text.substr(0, count)).width;
+}
+
+namespace {
+// Byte offset of the start of the code point following the one at `start`.
+size_t nextCodePointOffset(const std::string& text, size_t start) {
+    const size_t len = text.size();
+    if (start >= len) return len;
+    size_t i = start + 1;
+    while (i < len && (static_cast<unsigned char>(text[i]) & 0xC0) == 0x80) {
+        ++i;
+    }
+    return i;
+}
+}  // namespace
+
+size_t SDLTextEngine::charIndexAtX(const IFont& font, const std::string& text, int maxWidth) {
+    if (text.empty() || maxWidth <= 0) return 0;
+
+    // Collect code point boundaries so the answer is always a valid caret
+    // position (never a split multi-byte code point). Text is short (single
+    // line), so the linear scan is cheap and robust for every Unicode range.
+    std::vector<size_t> boundaries;
+    for (size_t i = 0; i < text.size();) {
+        boundaries.push_back(i);
+        i = nextCodePointOffset(text, i);
+    }
+    boundaries.push_back(text.size());
+
+    // Binary search for the last boundary whose prefix still fits. After the
+    // loop lo is the first index that does not fit; the previous one fits.
+    size_t lo = 0;
+    size_t hi = boundaries.size();
+    while (lo < hi) {
+        const size_t mid = lo + (hi - lo) / 2;
+        if (measurePrefix(font, text, boundaries[mid]) <= maxWidth) {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+    // boundaries[0] == 0 always fits, so lo is never 0 here.
+    return boundaries[lo - 1];
 }
 
 std::shared_ptr<ITexture> SDLTextEngine::rasterize(const IFont& font, const std::string& text,

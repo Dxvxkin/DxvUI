@@ -30,6 +30,7 @@ static void translateKeyboardEvent(DxvEvent& dxvEvent, const SDL_KeyboardEvent& 
     dxvEvent.key.sym = sdlKeyEvent.keysym.sym;
     dxvEvent.key.scancode = sdlKeyEvent.keysym.scancode;
     dxvEvent.key.mod = sdlKeyEvent.keysym.mod;
+    dxvEvent.key.repeat = sdlKeyEvent.repeat;
 }
 
 bool SDLEventSource::pollEvent(DxvEvent& event) {

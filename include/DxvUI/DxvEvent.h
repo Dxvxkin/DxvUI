@@ -70,6 +70,11 @@ struct DxvEvent {
         int sym = 0;
         int scancode = 0;
         uint16_t mod = 0;
+        // Non-zero when the OS key autorepeat is delivering a held-down key
+        // (SDL_KeyboardEvent.repeat). Needed so editors can hold Backspace or
+        // the arrow keys to repeat an action instead of doing one step per
+        // physical press.
+        uint8_t repeat = 0;
     } key;
 
     std::string text;

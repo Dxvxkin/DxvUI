@@ -4,8 +4,6 @@ project(DxvUI)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
 # --- Find Dependencies via vcpkg ---
 #find_package(nlohmann_json CONFIG REQUIRED)
 find_package(SDL2 REQUIRED)
@@ -30,12 +28,15 @@ target_sources(DxvUI PRIVATE
         src/UIContext.cpp
         src/widgets/Button.cpp
         src/widgets/Label.cpp
+        src/widgets/TextEdit.cpp
         src/containers/CenterContainer.cpp
         src/containers/AbsoluteContainer.cpp
         src/containers/HorizontalContainer.cpp
         src/layout/LayoutManager.cpp
         src/renderers/SDLRenderer.cpp
         src/renderers/SDLTextEngine.cpp
+        src/renderers/SDLTextEditorView.cpp
+        src/text/TextEditor.cpp
         src/sources/SDLEventSource.cpp
         src/style/Color.cpp
         src/style/StyleManager.cpp
@@ -83,6 +84,13 @@ target_link_libraries(DxvUIEventsExample PRIVATE
         SDL2::SDL2main
 )
 
+# --- TextEdit example ---
+add_executable(DxvUITextEditExample examples/textedit.cpp)
+target_link_libraries(DxvUITextEditExample PRIVATE
+        DxvUI
+        SDL2::SDL2main
+)
+
 # --- Benchmark ---
 add_executable(DxvUIBenchmark examples/benchmark.cpp)
 target_link_libraries(DxvUIBenchmark PRIVATE
@@ -101,6 +109,7 @@ add_executable(DxvUITests
         tests/LogTests.cpp
         tests/StyleManagerTests.cpp
         tests/WidgetTests.cpp
+        tests/TextEditorTests.cpp
         tests/TextEngineTests.cpp
         tests/UIBindingTests.cpp
         tests/UIContextTests.cpp

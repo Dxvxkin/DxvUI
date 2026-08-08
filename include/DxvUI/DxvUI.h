@@ -20,6 +20,8 @@
 
 // Text
 #include "text/ITextEngine.h"
+#include "text/TextEditor.h"
+#include "text/TextEditorView.h"
 
 // Containers
 #include "containers/AbsoluteContainer.h"
@@ -30,6 +32,7 @@
 // Widgets
 #include "widgets/Button.h"
 #include "widgets/Label.h"
+#include "widgets/TextEdit.h"
 
 // Layout
 #include "layout/LayoutData.h"
@@ -40,6 +43,7 @@
 
 // Renderers
 #include "renderers/SDLRenderer.h"
+#include "renderers/SDLTextEditorView.h"
 #include "renderers/SDLTextEngine.h"
 
 // Style

@@ -36,6 +36,8 @@ class SDLTextEngine : public ITextEngine {
     std::shared_ptr<IFont> getFont(const std::string& path, int size) override;
     TextMetrics measure(const IFont& font, const std::string& text) override;
     LineMetrics lineMetrics(const IFont& font) override;
+    int measurePrefix(const IFont& font, const std::string& text, size_t byteCount) override;
+    size_t charIndexAtX(const IFont& font, const std::string& text, int maxWidth) override;
     std::shared_ptr<ITexture> rasterize(const IFont& font, const std::string& text,
                                         const Color& color) override;
 
