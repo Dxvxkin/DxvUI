@@ -1,3 +1,4 @@
+#include <DxvUI/DxvEvent.h>
 #include <DxvUI/FpsCounter.h>
 #include <DxvUI/Log.h>
 #include <DxvUI/Scene.h>
@@ -130,7 +131,7 @@ AlignmentDemoNodes buildAlignmentDemoUI(
     rowEnd->updateStyle({.verticalAlignment = DxvUI::Alignment::End}, DxvUI::WidgetState::Normal);
 
     const auto cycleVerticalAlignment = [](DxvUI::DxvEvent& event) {
-        if (auto target = event.target.lock()) {
+        if (auto target = event.getTarget()) {
             const auto& layout = target->getComputedLayout(DxvUI::WidgetState::Normal);
             const auto oldAlignment = layout.verticalAlignment;
             DxvUI::StyleRule rule;

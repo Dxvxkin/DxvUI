@@ -1,3 +1,4 @@
+#include <DxvUI/DxvEvent.h>
 #include <DxvUI/FpsCounter.h>
 #include <DxvUI/Log.h>
 #include <DxvUI/Scene.h>
@@ -67,22 +68,22 @@ void buildEventsDemoUI(const std::shared_ptr<DxvUI::Scene>& scene,
     // через event.handled = true). Регистрируются ДО создания виджетов, чтобы
     // поймать их Attach.
     connections.push_back(root->on(DxvUI::EventType::Click, [](DxvUI::DxvEvent& e) {
-        const auto target = e.target.lock();
-        const auto current = e.currentTarget.lock();
+        const auto target = e.getTarget();
+        const auto current = e.getCurrentTarget();
         DxvUI::Log::info("[root] Click всплыл от '{}' (currentTarget={})", target->getId(),
                          current ? current->getId() : "<root>");
     }));
 
     connections.push_back(root->on(DxvUI::EventType::Change, [](DxvUI::DxvEvent& e) {
-        DxvUI::Log::info("[root] Change от '{}'", e.target.lock()->getId());
+        DxvUI::Log::info("[root] Change от '{}'", e.getTargetId());
     }));
 
     connections.push_back(root->on(DxvUI::EventType::Attach, [](DxvUI::DxvEvent& e) {
-        DxvUI::Log::info("[root] Attach: '{}' добавлен в сцену", e.target.lock()->getId());
+        DxvUI::Log::info("[root] Attach: '{}' добавлен в сцену", e.getTargetId());
     }));
 
     connections.push_back(root->on(DxvUI::EventType::Detach, [](DxvUI::DxvEvent& e) {
-        DxvUI::Log::info("[root] Detach: '{}' ушёл из сцены", e.target.lock()->getId());
+        DxvUI::Log::info("[root] Detach: '{}' ушёл из сцены", e.getTargetId());
     }));
 
     // FPS-лейбл (обновляется в главном цикле).
@@ -106,13 +107,13 @@ void buildEventsDemoUI(const std::shared_ptr<DxvUI::Scene>& scene,
     root->addChild(labelCount);
     connections.push_back(labelCount->on(DxvUI::EventType::Change, [](DxvUI::DxvEvent& e) {
         DxvUI::Log::info("[label_count] Change: '{}'",
-                         e.target.lock()->getBinding()->getString().value_or(""));
+                         e.getTarget()->getBinding()->getString().value_or(""));
     }));
 
     connections.push_back(
         btnClick->on(DxvUI::EventType::Click, [state, labelCount](DxvUI::DxvEvent& e) {
             DxvUI::Log::info("[btn_click] Click в ({}, {}) по '{}'", e.mouse.x, e.mouse.y,
-                             e.target.lock()->getId());
+                             e.getTargetId());
             ++state->clickCount;
             // Смена текста порождает Change на лейбле (и всплывает до корня).
             labelCount->setText(std::format("Кликов: {}", state->clickCount));
@@ -123,8 +124,7 @@ void buildEventsDemoUI(const std::shared_ptr<DxvUI::Scene>& scene,
     // --- Click без handled: событие всплывает до корня (см. подписку root).
     auto btnBubble = makeButton("btn_bubble", "Клик (bubble)", 290, 90, 220, 40);
     connections.push_back(btnBubble->on(DxvUI::EventType::Click, [](DxvUI::DxvEvent& e) {
-        DxvUI::Log::info("[btn_bubble] Click по '{}' (handled не ставим)",
-                         e.target.lock()->getId());
+        DxvUI::Log::info("[btn_bubble] Click по '{}' (handled не ставим)", e.getTargetId());
     }));
     // Фокус: после MouseDown фокус получает нажатая кнопка; клавиши уходят в неё.
     // Текстовый ввод (TextInput) потребовал бы SDL_StartTextInput().
@@ -151,7 +151,7 @@ void buildEventsDemoUI(const std::shared_ptr<DxvUI::Scene>& scene,
             if (!state->extraConn) {
                 state->extraConn = btnBubble->on(DxvUI::EventType::Click, [](DxvUI::DxvEvent& e) {
                     DxvUI::Log::info("[btn_bubble] ДОП. обработчик (подписка с btn_toggle) по '{}'",
-                                     e.target.lock()->getId());
+                                     e.getTargetId());
                 });
                 DxvUI::Log::info("[btn_toggle] подписка на btn_bubble подключена");
             } else {
@@ -179,7 +179,7 @@ void buildEventsDemoUI(const std::shared_ptr<DxvUI::Scene>& scene,
 
     auto boxDrop = makeButton("box_drop", "Приёмник", 300, 270, 150, 80);
     connections.push_back(boxDrop->on(DxvUI::EventType::Drop, [](DxvUI::DxvEvent& e) {
-        const auto from = e.relatedNode.lock();
+        const auto from = e.getRelatedNode();
         DxvUI::Log::info("[box_drop] Drop из '{}' в ({}, {})", from ? from->getId() : "<none>",
                          e.mouse.x, e.mouse.y);
     }));
@@ -193,7 +193,7 @@ void buildEventsDemoUI(const std::shared_ptr<DxvUI::Scene>& scene,
             DxvUI::Log::info("[btn_self] клик {}/3", state->selfClicks);
             return;
         }
-        auto target = e.target.lock();
+        auto target = e.getTarget();
         DxvUI::Log::info("[btn_self] третий клик: удаляюсь из сцены");
         if (auto parent = target->getParent().lock()) {
             parent->removeChild(target);  // → Detach на 'btn_self'
