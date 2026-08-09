@@ -45,18 +45,19 @@ void buildTextEditDemoUI(const std::shared_ptr<DxvUI::Scene>& scene,
     auto caption = DxvUI::Label::create("caption",
                                         "TextEdit: кликни в поле, набери текст. Enter — submit, "
                                         "Ctrl+Z — undo, Ctrl+A+печать — замена.");
-    caption->setStyle({.left = 50, .top = 40}, DxvUI::WidgetState::Normal);
+    caption->setStyle({.left = 5, .top = 40}, DxvUI::WidgetState::Normal);
     root->addChild(caption);
 
     // --- Поле ввода: фиксированная ширина, лишний текст обрезается (clipContent). ---
     auto field = DxvUI::TextEdit::create("name_field", "Введите имя");
     field->setStyle({.left = 50, .top = 80, .width = 400, .height = 32},
                     DxvUI::WidgetState::Normal);
+    field->updateStyle({.padding = DxvUI::Thickness(2, 5, 2, 5)});
     root->addChild(field);
 
     // Живое эхо: модель TextEditor уведомляет о каждом изменении буфера.
     auto echo = DxvUI::Label::create("echo_label", "Ввод: (пока пусто)");
-    echo->setStyle({.left = 50, .top = 200}, DxvUI::WidgetState::Normal);
+    echo->setStyle({.left = 5, .top = 200}, DxvUI::WidgetState::Normal);
     root->addChild(echo);
 
     field->getEditor().setChangeCallback([echo, field] {
@@ -68,6 +69,7 @@ void buildTextEditDemoUI(const std::shared_ptr<DxvUI::Scene>& scene,
     connections.push_back(
         field->on(DxvUI::EventType::KeyDown,
                   [state, field, echo](DxvUI::DxvEvent& e, const DxvUI::UIContext&) {
+                      DxvUI::Log::info("Enter pressed");
                       if (e.key.sym == DxvUI::KeyCode::Enter) {
                           ++state->submits;
                           const std::string text = field->getText();
