@@ -379,3 +379,153 @@ TEST(EventManagerTest, DxvEventCurrentTargetTracksDispatchNode) {
     f.releaseAt(50, 25);
     EXPECT_EQ(captured, f.root);
 }
+
+// --- Default action (onEvent) semantics ---
+namespace {
+
+// Test node whose onEvent() records whether it ran and what type it saw. Used to
+// verify the DOM-style interplay between user listeners and the widget default.
+struct EventProbeNode : SceneNode {
+    using SceneNode::SceneNode;
+    bool defaultActionRan = false;
+    EventType defaultActionType = EventType::None;
+    bool stopInDefault = false;
+
+    void onEvent(DxvEvent& event) override {
+        // Only the tests' Click event counts: the Attach dispatch triggered by
+        // addChild() must not pollute the recorded flag.
+        if (event.type != EventType::Click) {
+            return;
+        }
+        defaultActionRan = true;
+        defaultActionType = event.type;
+        if (stopInDefault) {
+            event.stopPropagation();
+        }
+    }
+};
+
+void addProbe(EventFixture& f, const std::shared_ptr<EventProbeNode>& node) {
+    f.root->addChild(node);
+    f.manager.resolveDirtyStyles(f.root);
+}
+
+}  // namespace
+
+TEST(EventManagerTest, DefaultActionRunsAfterUserListeners) {
+    EventFixture f;
+    auto node = std::make_shared<EventProbeNode>("probe");
+    addProbe(f, node);
+    int userCalls = 0;
+    auto conn = node->on(EventType::Click, [&](DxvEvent&, const UIContext&) { userCalls++; });
+
+    DxvEvent e;
+    e.type = EventType::Click;
+    e.target = node;
+    node->dispatchEvent(e);
+
+    EXPECT_EQ(userCalls, 1);
+    EXPECT_TRUE(node->defaultActionRan);
+}
+
+TEST(EventManagerTest, PreventDefaultSkipsDefaultAction) {
+    EventFixture f;
+    auto node = std::make_shared<EventProbeNode>("probe");
+    addProbe(f, node);
+    auto conn =
+        node->on(EventType::Click, [&](DxvEvent& e, const UIContext&) { e.preventDefault(); });
+
+    DxvEvent e;
+    e.type = EventType::Click;
+    e.target = node;
+    node->dispatchEvent(e);
+
+    EXPECT_FALSE(node->defaultActionRan);
+    EXPECT_TRUE(e.isDefaultPrevented());
+}
+
+TEST(EventManagerTest, StopPropagationKeepsDefaultActionAndBlocksParent) {
+    EventFixture f;
+    auto node = std::make_shared<EventProbeNode>("probe");
+    addProbe(f, node);
+    bool parentSeen = false;
+    auto parentConn =
+        f.root->on(EventType::Click, [&](DxvEvent&, const UIContext&) { parentSeen = true; });
+    auto conn =
+        node->on(EventType::Click, [&](DxvEvent& e, const UIContext&) { e.stopPropagation(); });
+
+    DxvEvent e;
+    e.type = EventType::Click;
+    e.target = node;
+    node->dispatchEvent(e);
+
+    EXPECT_TRUE(node->defaultActionRan);
+    EXPECT_FALSE(parentSeen);
+    EXPECT_TRUE(e.isPropagationStopped());
+}
+
+TEST(EventManagerTest, StopImmediatePropagationBlocksSiblingListenersAndParent) {
+    EventFixture f;
+    auto node = std::make_shared<EventProbeNode>("probe");
+    addProbe(f, node);
+    bool firstRan = false;
+    bool secondRan = false;
+    bool parentSeen = false;
+    auto conn1 = node->on(EventType::Click, [&](DxvEvent& e, const UIContext&) {
+        firstRan = true;
+        e.stopImmediatePropagation();
+    });
+    auto conn2 = node->on(EventType::Click, [&](DxvEvent&, const UIContext&) { secondRan = true; });
+    auto parentConn =
+        f.root->on(EventType::Click, [&](DxvEvent&, const UIContext&) { parentSeen = true; });
+
+    DxvEvent e;
+    e.type = EventType::Click;
+    e.target = node;
+    node->dispatchEvent(e);
+
+    EXPECT_TRUE(firstRan);
+    EXPECT_FALSE(secondRan);
+    // DOM semantics: stopImmediatePropagation cancels neither the default action
+    // nor other listeners' effects after the stopping one, but it does stop the
+    // propagation chain.
+    EXPECT_TRUE(node->defaultActionRan);
+    EXPECT_FALSE(parentSeen);
+    EXPECT_TRUE(e.isImmediatePropagationStopped());
+}
+
+TEST(EventManagerTest, DefaultActionCanStopPropagation) {
+    EventFixture f;
+    auto node = std::make_shared<EventProbeNode>("probe");
+    node->stopInDefault = true;
+    addProbe(f, node);
+    bool parentSeen = false;
+    auto parentConn =
+        f.root->on(EventType::Click, [&](DxvEvent&, const UIContext&) { parentSeen = true; });
+
+    DxvEvent e;
+    e.type = EventType::Click;
+    e.target = node;
+    node->dispatchEvent(e);
+
+    // A widget that consumes the event in its default action stops the bubble,
+    // exactly like TextEdit's editing keys.
+    EXPECT_TRUE(node->defaultActionRan);
+    EXPECT_FALSE(parentSeen);
+}
+
+TEST(EventManagerTest, DefaultActionSeesOriginalEventType) {
+    EventFixture f;
+    auto node = std::make_shared<EventProbeNode>("probe");
+    addProbe(f, node);
+    auto conn = node->on(EventType::Click,
+                         [&](DxvEvent& e, const UIContext&) { e.type = EventType::Change; });
+
+    DxvEvent e;
+    e.type = EventType::Click;
+    e.target = node;
+    node->dispatchEvent(e);
+
+    EXPECT_TRUE(node->defaultActionRan);
+    EXPECT_EQ(node->defaultActionType, EventType::Click);
+}
