@@ -66,16 +66,18 @@ void buildTextEditDemoUI(const std::shared_ptr<DxvUI::Scene>& scene,
     });
 
     // Submit: Enter в поле. Пример: зафиксировать текст и вывести в лейбл.
+    // Пользовательский слушатель выполняется до дефолтного действия TextEdit:
+    // preventDefault отменяет его, stopPropagation не даёт событию всплыть.
     connections.push_back(
         field->on(DxvUI::EventType::KeyDown,
                   [state, field, echo](DxvUI::DxvEvent& e, const DxvUI::UIContext&) {
-                      DxvUI::Log::info("Enter pressed");
                       if (e.key.sym == DxvUI::KeyCode::Enter) {
                           ++state->submits;
                           const std::string text = field->getText();
                           DxvUI::Log::info("[demo] submit #{}: '{}'", state->submits, text);
                           echo->setText(std::format("Отправлено ({}): '{}'", state->submits, text));
-                          e.handled = true;  // не даём событию всплыть дальше
+                          e.preventDefault();
+                          e.stopPropagation();
                       }
                   }));
 

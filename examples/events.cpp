@@ -65,8 +65,8 @@ void buildEventsDemoUI(const std::shared_ptr<DxvUI::Scene>& scene,
 
     // --- Подписки на корне: события всплывают снизу вверх, поэтому корень видит
     // событие любого потомка (пока ни один обработчик не остановил всплытие
-    // через event.handled = true). Регистрируются ДО создания виджетов, чтобы
-    // поймать их Attach.
+    // через stopPropagation/stopImmediatePropagation). Регистрируются ДО создания
+    // виджетов, чтобы поймать их Attach.
     connections.push_back(
         root->on(DxvUI::EventType::Click, [](DxvUI::DxvEvent& e, const DxvUI::UIContext&) {
             const auto target = e.getTarget();
@@ -98,8 +98,8 @@ void buildEventsDemoUI(const std::shared_ptr<DxvUI::Scene>& scene,
     root->addChild(makeLabel(
         "caption", "События: клики, hover, drag&drop, клавиши. Логи — в консоли.", 50, 40));
 
-    // --- Click: обработчик кнопки ставит handled=true → корень его не увидит.
-    auto btnClick = makeButton("btn_click", "Клик (handled=true)", 50, 90, 220, 40);
+    // --- Click: обработчик кнопки ставит stopImmediatePropagation → корень его не увидит.
+    auto btnClick = makeButton("btn_click", "Клик (stop)", 50, 90, 220, 40);
     connections.push_back(
         btnClick->on(DxvUI::EventType::HoverEnter, [](DxvUI::DxvEvent&, const DxvUI::UIContext&) {
             DxvUI::Log::info("[btn_click] HoverEnter");
@@ -123,15 +123,15 @@ void buildEventsDemoUI(const std::shared_ptr<DxvUI::Scene>& scene,
             ++state->clickCount;
             // Смена текста порождает Change на лейбле (и всплывает до корня).
             labelCount->setText(std::format("Кликов: {}", state->clickCount));
-            e.handled = true;  // корневая подписка Click не сработает
+            e.stopImmediatePropagation();  // корневая подписка Click не сработает
         }));
     root->addChild(btnClick);
 
-    // --- Click без handled: событие всплывает до корня (см. подписку root).
+    // --- Click без stopPropagation: событие всплывает до корня (см. подписку root).
     auto btnBubble = makeButton("btn_bubble", "Клик (bubble)", 290, 90, 220, 40);
     connections.push_back(
         btnBubble->on(DxvUI::EventType::Click, [](DxvUI::DxvEvent& e, const DxvUI::UIContext&) {
-            DxvUI::Log::info("[btn_bubble] Click по '{}' (handled не ставим)", e.getTargetId());
+            DxvUI::Log::info("[btn_bubble] Click по '{}' (stop не ставим)", e.getTargetId());
         }));
     // Фокус: после MouseDown фокус получает нажатая кнопка; клавиши уходят в неё.
     // Текстовый ввод (TextInput) потребовал бы SDL_StartTextInput().
@@ -257,7 +257,7 @@ void runScriptedEvents(const std::shared_ptr<DxvUI::Scene>& scene,
 
     DxvUI::Log::info("=== Scripted demo (headless) ===");
 
-    // Hover + Click с handled=true.
+    // Hover + Click с stopImmediatePropagation.
     move(160, 110, DxvUI::MouseButton::None);
     move(160, 110, DxvUI::MouseButton::None);  // повторное движение — hit-test кэш
     clickAt(160, 110);  // btn_click: Click + Change, корневой Click не увидит
