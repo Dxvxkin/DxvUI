@@ -222,7 +222,7 @@ TEST(LayoutManagerTest, ShrinkRectMatchesContentRect) {
 TEST(LayoutManagerTest, ContentRectIncludesBorder) {
     LayoutFixture f;
     const Thickness padding = {.top = 2, .right = 3, .bottom = 4, .left = 5};
-    f.root->setStyle({.padding = padding, .borderThickness = 2}, WidgetState::Normal);
+    f.root->setStyle({.borderThickness = 2, .padding = padding }, WidgetState::Normal);
     f.styleManager.resolveDirtyStyles(f.root);
 
     const Rect outer = {10, 20, 100, 60};
