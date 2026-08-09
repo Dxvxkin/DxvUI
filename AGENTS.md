@@ -22,6 +22,47 @@ ctest --test-dir cmake-build-debug
 ./cmake-build-debug/DxvUITests.exe
 ```
 
+## Release build (for performance work)
+
+`cmake-build-release/` is a second, separate build dir. Configure it once, then
+reuse `cmake --build` like the debug dir:
+
+```powershell
+cmake -S . -B cmake-build-release -G Ninja `
+  -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
+  -DVCPKG_TARGET_TRIPLET=x64-mingw-dynamic -DCMAKE_BUILD_TYPE=Release
+cmake --build cmake-build-release
+```
+
+## Performance evaluation
+
+Benchmark: `examples/benchmark.cpp` → `DxvUIBenchmark.exe` (both build dirs).
+
+- **Use the Release build.** Debug numbers are meaningless (a 100–1000x
+  slowdown hides real regressions). Debug A/B is only for confirming *direction*.
+- Benchmark protocol:
+  - close all other apps, power plan **High Performance**;
+  - run `DxvUIBenchmark.exe --repeats 3` (each scenario reports
+    mean/median/min/p95 over all repeats);
+  - vsync is **off** by default in the benchmark so frame-phase timing is not
+    quantized to the display rate (`--vsync` opts back in);
+  - compare **medians**, not means; treat `>= 10%` on a metric as a regression.
+- Automated A/B: `scripts/compare.ps1` runs two builds with `--json`, prints a
+  delta table and exits 1 if any metric regressed >= 10%:
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File scripts/compare.ps1 `
+    -Baseline cmake-build-debug\DxvUIBenchmark.exe `
+    -New cmake-build-release\DxvUIBenchmark.exe -Repeats 3
+  ```
+- Scenario filter: `--scenario=frames,scroll,hit,text,clip,micro` (comma-separated
+  prefixes). `text` = dynamic labels (uncached rasterization + texture-cache
+  growth), `clip` = nested `clipContent`, `micro` = raw primitives
+  (incl. uncached `rasterize`). `getTextureCacheCount()` exposes the cache size
+  for growth checks — the cache has no eviction, so growth is linear in unique
+  (font, text, color) keys.
+- JSON: `--json` prints a `---JSON---{...}---JSON---` block at the end (all
+  metrics, mean/median/min/max/p95/n), which `compare.ps1` parses.
+
 ## Gotchas
 
 - **No source globbing.** Every `.cpp` is explicitly listed in `CMakeLists.txt` `target_sources` (lib `DxvUI`, test exe `DxvUITests`). Adding a source file without editing CMakeLists means it silently won't build.

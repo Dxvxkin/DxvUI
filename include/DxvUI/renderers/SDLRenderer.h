@@ -20,7 +20,7 @@ class SDLTextEngine;
 
 class SDLRenderer : public IRenderer {
    public:
-    SDLRenderer(const char* title, int width, int height);
+    SDLRenderer(const char* title, int width, int height, bool vsync = true);
     explicit SDLRenderer(SDL_Renderer* externalRenderer);
     ~SDLRenderer() override;
 

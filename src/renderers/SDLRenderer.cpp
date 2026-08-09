@@ -13,7 +13,8 @@
 
 namespace DxvUI {
 
-SDLRenderer::SDLRenderer(const char* title, int width, int height) : ownsResources(true) {
+SDLRenderer::SDLRenderer(const char* title, int width, int height, bool vsync)
+    : ownsResources(true) {
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
     if (SDL_Init(SDL_INIT_VIDEO) != 0)
         throw std::runtime_error(std::string("SDL_Init Error: ") + SDL_GetError());
@@ -23,7 +24,9 @@ SDLRenderer::SDLRenderer(const char* title, int width, int height) : ownsResourc
         SDL_Quit();
         throw std::runtime_error(std::string("SDL_CreateWindow Error: ") + SDL_GetError());
     }
-    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    renderer =
+        SDL_CreateRenderer(window, -1,
+                           SDL_RENDERER_ACCELERATED | (vsync ? SDL_RENDERER_PRESENTVSYNC : 0));
     if (!renderer) {
         SDL_DestroyWindow(window);
         SDL_Quit();

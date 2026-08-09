@@ -122,6 +122,15 @@ class ITextEngine {
      */
     virtual std::shared_ptr<ITexture> rasterize(const IFont& font, const std::string& text,
                                                 const Color& color) = 0;
+
+    /**
+     * @brief Gets the number of cached rasterized textures.
+     *
+     * The texture cache has no eviction, so a UI that changes text or colors
+     * continuously grows it. Exposed for benchmarks to track memory growth
+     * (each entry is one unique (font, text, color) triple).
+     */
+    virtual size_t getTextureCacheCount() const = 0;
 };
 
 }  // namespace DxvUI

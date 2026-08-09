@@ -40,6 +40,7 @@ class SDLTextEngine : public ITextEngine {
     size_t charIndexAtX(const IFont& font, const std::string& text, int maxWidth) override;
     std::shared_ptr<ITexture> rasterize(const IFont& font, const std::string& text,
                                         const Color& color) override;
+    size_t getTextureCacheCount() const override;
 
     /**
      * @brief Drops every cached font, measurement and texture.

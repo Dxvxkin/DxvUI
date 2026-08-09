@@ -122,6 +122,7 @@ class FakeTextEngine : public ITextEngine {
     std::shared_ptr<ITexture> rasterize(const IFont&, const std::string&, const Color&) override {
         return nullptr;
     }
+    size_t getTextureCacheCount() const override { return 0; }
 };
 
 class FakeClipboard : public IClipboard {

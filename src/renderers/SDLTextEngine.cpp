@@ -190,4 +190,6 @@ void SDLTextEngine::clearCaches() {
     fonts.clear();
 }
 
+size_t SDLTextEngine::getTextureCacheCount() const { return textures.size(); }
+
 }  // namespace DxvUI

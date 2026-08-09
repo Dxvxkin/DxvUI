@@ -92,6 +92,8 @@ class FakeTextEngine : public ITextEngine {
         return texture;
     }
 
+    size_t getTextureCacheCount() const override { return textures.size(); }
+
    private:
     std::map<std::string, std::shared_ptr<IFont>> fonts;
     std::map<std::tuple<const IFont*, std::string, uint32_t>, std::shared_ptr<ITexture>> textures;
@@ -225,6 +227,30 @@ TEST(LabelTextEngineTest, EmptyTextSkipsRasterization) {
     f.label->setText("");
     f.root->draw(f.renderer);
     EXPECT_EQ(f.renderer.engine.rasterCount, 0);
+}
+
+TEST(TextEngineCacheCountTest, TracksDistinctRasterizations) {
+    FakeTextEngine engine;
+    auto font = engine.getFont("fake.ttf", 16);
+    ASSERT_NE(font, nullptr);
+
+    auto texA = engine.rasterize(*font, "One", Colors::Black);
+    auto texB = engine.rasterize(*font, "Two", Colors::Black);
+    EXPECT_EQ(engine.getTextureCacheCount(), 2u);
+
+    // A cache hit does not grow the cache.
+    engine.rasterize(*font, "One", Colors::Black);
+    EXPECT_EQ(engine.getTextureCacheCount(), 2u);
+
+    // A different color is a different cache key.
+    engine.rasterize(*font, "One", Colors::White);
+    EXPECT_EQ(engine.getTextureCacheCount(), 3u);
+
+    // Empty text is never cached.
+    engine.rasterize(*font, "", Colors::Black);
+    EXPECT_EQ(engine.getTextureCacheCount(), 3u);
+    EXPECT_NE(texA, nullptr);
+    EXPECT_NE(texB, nullptr);
 }
 
 TEST(LabelTextEngineTest, MissingFontMeasuresZero) {
