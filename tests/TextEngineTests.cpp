@@ -97,15 +97,27 @@ class FakeTextEngine : public ITextEngine {
     std::map<std::tuple<const IFont*, std::string, uint32_t>, std::shared_ptr<ITexture>> textures;
 };
 
-    // Minimal IRenderer so Label::onMeasure and Label::drawContent can be exercised
-    // without an SDL backend or a real font file.
-    class FakeRenderer : public IRenderer {
-       public:
-        FakeTextEngine engine;
-        FakeClipboard clipboard;
+// Backend-neutral clipboard stub so FakeRenderer satisfies IRenderer. These
+// tests never touch the clipboard; the member only exists for the interface.
+class FakeClipboard : public IClipboard {
+   public:
+    std::string text;
+    std::string getText() override { return text; }
+    bool setText(const std::string& t) override {
+        text = t;
+        return true;
+    }
+};
 
-        ITextEngine& getTextEngine() override { return engine; }
-        IClipboard& getClipboard() override { return clipboard; }
+// Minimal IRenderer so Label::onMeasure and Label::drawContent can be exercised
+// without an SDL backend or a real font file.
+class FakeRenderer : public IRenderer {
+   public:
+    FakeTextEngine engine;
+    FakeClipboard clipboard;
+
+    ITextEngine& getTextEngine() override { return engine; }
+    IClipboard& getClipboard() override { return clipboard; }
 
     void clear(const Color&) override {}
     void present() override {}
@@ -156,12 +168,6 @@ class FakeTextEngine : public ITextEngine {
     void fillPolygon(const std::vector<PointI>&, const Color&) override {}
     void drawPolygon(const std::vector<PointI>&, const Border&) override {}
     void fillPolygon(const std::vector<PointI>&, const Color&, const Border&) override {}
-
-    FakeTextEngine engine;
-    FakeClipboard clipboard;
-
-    ITextEngine& getTextEngine() override { return engine; }
-    IClipboard& getClipboard() override { return clipboard; }
 };
 
 struct LabelFixture {
