@@ -363,20 +363,32 @@ void SceneNode::dispatchEvent(DxvEvent& event) {
             const auto callbackIt = handlerIt->second.find(id);
             if (callbackIt != handlerIt->second.end() && callbackIt->second) {
                 callbackIt->second(event, ctx);
-                if (event.handled) {
-                    return;
+                // stopImmediatePropagation skips the remaining listeners of the
+                // current node, but (DOM semantics) not the default action.
+                if (event.isImmediatePropagationStopped()) {
+                    break;
                 }
             }
         }
     }
 
-    if (!event.handled) {
-        event.type = eventType;
+    // Default action: the widget's own behavior. It runs after the user
+    // listeners and is only cancelled by preventDefault() (DOM semantics:
+    // stopPropagation/stopImmediatePropagation do not cancel it). The type is
+    // restored first so the hook always sees the originally raised event.
+    event.type = eventType;
+    if (!event.isDefaultPrevented()) {
+        onEvent(event);
+    }
+
+    if (!event.isPropagationStopped() && !event.isImmediatePropagationStopped()) {
         if (const auto p = parent.lock()) {
             p->dispatchEvent(event);
         }
     }
 }
+
+void SceneNode::onEvent(DxvEvent& /*event*/) {}
 
 void SceneNode::onAttach() {}
 

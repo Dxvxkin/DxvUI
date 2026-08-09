@@ -131,7 +131,6 @@ struct DxvEvent {
     std::weak_ptr<SceneNode> target;
     std::weak_ptr<SceneNode> currentTarget;
     std::weak_ptr<SceneNode> relatedNode;
-    bool handled = false;
 
     struct {
         int x = 0;
@@ -152,6 +151,27 @@ struct DxvEvent {
 
     std::string text;
 
+    // --- Event flow control (DOM-style) ---
+    // Events are single-use: the event manager builds a fresh DxvEvent per
+    // dispatch, so the flags are never reset between bubble levels.
+    //
+    //   preventDefault()        cancels the widget's default action (onEvent)
+    //   stopPropagation()       stops bubbling to parent nodes
+    //   stopImmediatePropagation()  stops the remaining listeners on the current
+    //                          node and bubbling; the default action still runs
+    void stopPropagation() { propagationStopped_ = true; }
+    void stopImmediatePropagation() {
+        immediatePropagationStopped_ = true;
+        propagationStopped_ = true;
+    }
+    void preventDefault() { defaultPrevented_ = true; }
+
+    [[nodiscard]] bool isPropagationStopped() const { return propagationStopped_; }
+    [[nodiscard]] bool isImmediatePropagationStopped() const {
+        return immediatePropagationStopped_;
+    }
+    [[nodiscard]] bool isDefaultPrevented() const { return defaultPrevented_; }
+
     // --- Convenience Accessors ---
     // Return nullptr when the referenced node has been destroyed.
     [[nodiscard]] std::shared_ptr<SceneNode> getTarget() const { return target.lock(); }
@@ -162,6 +182,11 @@ struct DxvEvent {
 
     // Logging helper: returns "" instead of a dangling dereference.
     [[nodiscard]] std::string getTargetId() const;
+
+   private:
+    bool propagationStopped_ = false;
+    bool immediatePropagationStopped_ = false;
+    bool defaultPrevented_ = false;
 };
 
 using ActionCallback = std::function<void(DxvEvent&, const UIContext&)>;

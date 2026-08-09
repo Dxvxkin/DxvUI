@@ -535,6 +535,19 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     void onBindingChange(const UIBinding& binding);
 
     /**
+     * @brief Default-action hook: the widget's own behavior for a dispatched
+     * event.
+     *
+     * dispatchEvent() runs the user listeners registered through on() first,
+     * then calls this hook with the same event. The hook is skipped when a
+     * listener called preventDefault(). A widget that consumes the event (so it
+     * must not reach its parents) calls event.stopPropagation() inside the hook.
+     * Override instead of overriding dispatchEvent(); the default is a no-op.
+     * @param event The event being dispatched (type is the original, non-mutated one).
+     */
+    virtual void onEvent(DxvEvent& event);
+
+    /**
      * @brief Computes the intrinsic desired size of the node.
      *
      * Override this in widgets and containers instead of measure(); the base
