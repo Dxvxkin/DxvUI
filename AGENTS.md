@@ -58,8 +58,9 @@ Benchmark: `examples/benchmark.cpp` → `DxvUIBenchmark.exe` (both build dirs).
   prefixes). `text` = dynamic labels (uncached rasterization + texture-cache
   growth), `clip` = nested `clipContent`, `micro` = raw primitives
   (incl. uncached `rasterize`). `getTextureCacheCount()` exposes the cache size
-  for growth checks — the cache has no eviction, so growth is linear in unique
-  (font, text, color) keys.
+  for growth checks — the texture cache is LRU-bounded (default 1024 entries),
+  so in the `text`/`micro` scenarios growth plateaus at the cap instead of
+  growing linearly in unique (font, text, color) keys.
 - JSON: `--json` prints a `---JSON---{...}---JSON---` block at the end (all
   metrics, mean/median/min/max/p95/n), which `compare.ps1` parses.
 

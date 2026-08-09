@@ -162,7 +162,9 @@ std::shared_ptr<ITexture> SDLTextEngine::rasterize(const IFont& font, const std:
         (static_cast<uint32_t>(color.b) << 16) | (static_cast<uint32_t>(color.a) << 24);
     const auto key = std::make_tuple(static_cast<const IFont*>(&font), text, colorKey);
     if (auto it = textures.find(key); it != textures.end()) {
-        return it->second;
+        // Cache hit: move the key to the front of the recency list.
+        textureLru.splice(textureLru.begin(), textureLru, it->second.second);
+        return it->second.first;
     }
 
     auto surf =
@@ -180,12 +182,21 @@ std::shared_ptr<ITexture> SDLTextEngine::rasterize(const IFont& font, const std:
     }
 
     auto handle = std::make_shared<SDLTexture>(texture);
-    textures[key] = handle;
+    textureLru.push_front(key);
+    textures.emplace(key, std::make_pair(handle, textureLru.begin()));
+    // Bound the cache: drop the least-recently-used entry. The shared_ptr the
+    // caller just received (and any label holding it) keeps the texture alive.
+    if (textures.size() > kMaxTextureCacheEntries) {
+        const auto& victim = textureLru.back();
+        textures.erase(victim);
+        textureLru.pop_back();
+    }
     return handle;
 }
 
 void SDLTextEngine::clearCaches() {
     textures.clear();
+    textureLru.clear();
     measures.clear();
     fonts.clear();
 }

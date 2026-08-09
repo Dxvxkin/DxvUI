@@ -3,6 +3,7 @@
 
 #include <SDL_ttf.h>
 
+#include <list>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -66,7 +67,16 @@ class SDLTextEngine : public ITextEngine {
     SDL_Renderer* renderer;
     std::map<std::string, std::shared_ptr<SDLFont>> fonts;
     std::map<std::pair<const IFont*, std::string>, TextMetrics> measures;
-    std::map<std::tuple<const IFont*, std::string, uint32_t>, std::shared_ptr<ITexture>> textures;
+    using TextureKey = std::tuple<const IFont*, std::string, uint32_t>;
+    // Texture cache with LRU eviction: each entry stores the texture plus the
+    // key's position in the recency list. The cap bounds GPU memory for
+    // dynamic UIs (scrolling lists, chat, live labels) that otherwise keep
+    // every rasterized string forever. Evicting only drops the cache
+    // reference; labels still holding the shared_ptr keep the texture alive.
+    static constexpr size_t kMaxTextureCacheEntries = 1024;
+    std::map<TextureKey, std::pair<std::shared_ptr<ITexture>, std::list<TextureKey>::iterator>>
+        textures;
+    std::list<TextureKey> textureLru;
 
     static int ttf_ref_count;
     static std::mutex ttf_mutex;
