@@ -61,6 +61,7 @@ class TextEdit : public SceneNode {
    protected:
     Size onMeasure(const Size& availableSize) override;
     void drawContent(IRenderer& renderer) override;
+    void onEvent(DxvEvent& event) override;
 
    private:
     // --- Event handling ---

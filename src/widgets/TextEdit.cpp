@@ -43,14 +43,31 @@ std::shared_ptr<TextEdit> TextEdit::create(std::string id, std::string text) {
 TextEdit::TextEdit(std::string id, std::string text)
     : SceneNode(std::move(id)), editor_(std::move(text)) {
     view_ = std::make_unique<SDLTextEditorView>();
+}
 
-    // Keyboard events reach the widget only while it owns focus; mouse events
-    // are routed to it as the deepest node under the cursor.
-    on(EventType::KeyDown, [this](DxvEvent& e, const UIContext&) { handleKeyDown(e); });
-    on(EventType::TextInput, [this](DxvEvent& e, const UIContext&) { handleTextInput(e); });
-    on(EventType::MouseDown, [this](DxvEvent& e, const UIContext&) { handleMouseDown(e); });
-    on(EventType::Drag, [this](DxvEvent& e, const UIContext&) { handleMouseDrag(e); });
-    on(EventType::FocusLost, [this](DxvEvent&, const UIContext&) { editor_.clearSelection(); });
+void TextEdit::onEvent(DxvEvent& event) {
+    // Default action of the field, run by SceneNode::dispatchEvent() after the
+    // user listeners (and skipped when one called preventDefault()). The
+    // consumed events stop propagating here so parents never see editing keys.
+    switch (event.type) {
+        case EventType::KeyDown:
+            handleKeyDown(event);
+            break;
+        case EventType::TextInput:
+            handleTextInput(event);
+            break;
+        case EventType::MouseDown:
+            handleMouseDown(event);
+            break;
+        case EventType::Drag:
+            handleMouseDrag(event);
+            break;
+        case EventType::FocusLost:
+            editor_.clearSelection();
+            break;
+        default:
+            break;
+    }
 }
 
 const char* TextEdit::getNodeType() const noexcept { return "TextEdit"; }
@@ -127,40 +144,40 @@ void TextEdit::handleKeyDown(DxvEvent& event) {
     switch (event.key.sym) {
         case KeyCode::Left:
             moveCaretBy(-1, shift);
-            event.handled = true;
+            event.stopPropagation();
             break;
         case KeyCode::Right:
             moveCaretBy(+1, shift);
-            event.handled = true;
+            event.stopPropagation();
             break;
         case KeyCode::Home:
             moveCaretToBoundary(0, shift);
-            event.handled = true;
+            event.stopPropagation();
             break;
         case KeyCode::End:
             moveCaretToBoundary(editor_.length(), shift);
-            event.handled = true;
+            event.stopPropagation();
             break;
         case KeyCode::Backspace:
             editor_.backspace();
             markLayoutDirty();
-            event.handled = true;
+            event.stopPropagation();
             break;
         case KeyCode::Delete:
             editor_.deleteForward();
             markLayoutDirty();
-            event.handled = true;
+            event.stopPropagation();
             break;
         case KeyCode::Enter:
             if (onSubmit_) {
                 onSubmit_(editor_.getText());
             }
-            event.handled = true;
+            event.stopPropagation();
             break;
         case KeyCode::A:
             if (ctrl) {
                 editor_.selectAll();
-                event.handled = true;
+                event.stopPropagation();
             }
             break;
         case KeyCode::Z:
@@ -171,14 +188,14 @@ void TextEdit::handleKeyDown(DxvEvent& event) {
                     editor_.undo();
                 }
                 markLayoutDirty();
-                event.handled = true;
+                event.stopPropagation();
             }
             break;
         case KeyCode::Y:
             if (ctrl) {
                 editor_.redo();
                 markLayoutDirty();
-                event.handled = true;
+                event.stopPropagation();
             }
             break;
         case KeyCode::C:
@@ -186,7 +203,7 @@ void TextEdit::handleKeyDown(DxvEvent& event) {
                 if (auto* clipboard = getClipboard()) {
                     clipboard->setText(editor_.selectedText());
                 }
-                event.handled = true;
+                event.stopPropagation();
             }
             break;
         case KeyCode::X:
@@ -196,7 +213,7 @@ void TextEdit::handleKeyDown(DxvEvent& event) {
                 }
                 editor_.deleteSelection();
                 markLayoutDirty();
-                event.handled = true;
+                event.stopPropagation();
             }
             break;
         case KeyCode::V:
@@ -208,7 +225,7 @@ void TextEdit::handleKeyDown(DxvEvent& event) {
                         markLayoutDirty();
                     }
                 }
-                event.handled = true;
+                event.stopPropagation();
             }
             break;
         default:
@@ -222,7 +239,7 @@ void TextEdit::handleTextInput(DxvEvent& event) {
     }
     editor_.insertText(event.text);
     markLayoutDirty();
-    event.handled = true;
+    event.stopPropagation();
 }
 
 void TextEdit::handleMouseDown(DxvEvent& event) {
