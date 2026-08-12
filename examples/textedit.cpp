@@ -35,7 +35,7 @@ void buildTextEditDemoUI(const std::shared_ptr<DxvUI::Scene>& scene,
 
     root->setStyle({.textColor = DxvUI::Colors::DarkGray,
                     .fontSize = 18,
-                    .fontPath = DxvUI::getDefaultFontPath(),
+                    .fontFamily = "Sans",
                     .width = SCREEN_WIDTH,
                     .height = SCREEN_HEIGHT},
                    DxvUI::WidgetState::Normal);
@@ -50,9 +50,12 @@ void buildTextEditDemoUI(const std::shared_ptr<DxvUI::Scene>& scene,
 
     // --- Поле ввода: фиксированная ширина, лишний текст обрезается (clipContent). ---
     auto field = DxvUI::TextEdit::create("name_field", "Введите имя");
-    field->setStyle({.left = 50, .top = 80, .width = 400, .height = 32},
+    field->setStyle({.left = 50,
+                     .top = 80,
+                     .width = 400,
+                     .height = 32,
+                     .padding = DxvUI::Thickness(10, 10, 5, 5)},
                     DxvUI::WidgetState::Normal);
-    field->updateStyle({.padding = DxvUI::Thickness(2, 5, 2, 5)});
     root->addChild(field);
 
     // Живое эхо: модель TextEditor уведомляет о каждом изменении буфера.

@@ -63,7 +63,8 @@ Size Label::onMeasure(const Size& availableSize) {
     auto scene = getScene();
     if (scene && scene->getRenderer()) {
         auto& engine = scene->getRenderer()->getTextEngine();
-        auto font = engine.getFont(computedAppearance.fontPath, computedAppearance.fontSize);
+        auto font =
+            engine.getFontForFamily(computedAppearance.fontFamily, computedAppearance.fontSize);
         if (!font) {
             return {0, 0};
         }
@@ -86,7 +87,7 @@ void Label::drawContent(IRenderer& renderer) {
     // Текстура текста кешируется внутри текстового движка по ключу
     // (шрифт, текст, цвет), поэтому виджету не нужно собственное кеширование.
     auto& engine = renderer.getTextEngine();
-    auto font = engine.getFont(computedAppearance.fontPath, computedAppearance.fontSize);
+    auto font = engine.getFontForFamily(computedAppearance.fontFamily, computedAppearance.fontSize);
     if (!font) {
         return;
     }

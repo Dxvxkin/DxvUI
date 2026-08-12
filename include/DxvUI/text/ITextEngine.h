@@ -67,6 +67,32 @@ class ITextEngine {
     virtual std::shared_ptr<IFont> getFont(const std::string& path, int size) = 0;
 
     /**
+     * @brief Gets (or loads and caches) the font for the given font family and
+     * size.
+     *
+     * Family names are resolved to font files by the engine (see
+     * getDefaultFontFamilyPath() for the built-in defaults, extended per engine
+     * via registerFontFamily()). An empty or unknown family falls back to the
+     * platform default font, so a widget without an explicit family still gets
+     * a loadable font.
+     * @param family The logical family name (e.g. "Sans", "Serif", "Mono").
+     * @param size Pixel size of the font.
+     * @return A font handle, or nullptr when the size is invalid or the
+     * resolved font file could not be loaded.
+     */
+    virtual std::shared_ptr<IFont> getFontForFamily(const std::string& family, int size) = 0;
+
+    /**
+     * @brief Registers a custom family name mapping for this engine.
+     *
+     * Overrides the built-in default for the name; subsequent
+     * getFontForFamily() calls with that name resolve to the given file.
+     * @param family The family name to register.
+     * @param path The font file path for the family.
+     */
+    virtual void registerFontFamily(const std::string& family, const std::string& path) = 0;
+
+    /**
      * @brief Measures a single line of text with the given font.
      * @param font A font obtained from getFont().
      * @param text UTF-8 text to measure.
@@ -126,8 +152,9 @@ class ITextEngine {
     /**
      * @brief Gets the number of cached rasterized textures.
      *
-     * The texture cache has no eviction, so a UI that changes text or colors
-     * continuously grows it. Exposed for benchmarks to track memory growth
+     * The texture cache is LRU-bounded (see SDLTextEngine), so a UI that
+     * changes text or colors continuously evicts older entries instead of
+     * growing without limit. Exposed for benchmarks to track cache growth
      * (each entry is one unique (font, text, color) triple).
      */
     virtual size_t getTextureCacheCount() const = 0;

@@ -35,6 +35,8 @@ class SDLTextEngine : public ITextEngine {
     SDLTextEngine& operator=(const SDLTextEngine&) = delete;
 
     std::shared_ptr<IFont> getFont(const std::string& path, int size) override;
+    std::shared_ptr<IFont> getFontForFamily(const std::string& family, int size) override;
+    void registerFontFamily(const std::string& family, const std::string& path) override;
     TextMetrics measure(const IFont& font, const std::string& text) override;
     LineMetrics lineMetrics(const IFont& font) override;
     int measurePrefix(const IFont& font, const std::string& text, size_t byteCount) override;
@@ -66,6 +68,10 @@ class SDLTextEngine : public ITextEngine {
 
     SDL_Renderer* renderer;
     std::map<std::string, std::shared_ptr<SDLFont>> fonts;
+    // Instance font-family registry. Seeded lazily from the core.h defaults:
+    // a family missing here falls back to getDefaultFontFamilyPath(), and
+    // registerFontFamily() inserts custom mappings.
+    std::map<std::string, std::string> families;
     std::map<std::pair<const IFont*, std::string>, TextMetrics> measures;
     using TextureKey = std::tuple<const IFont*, std::string, uint32_t>;
     // Texture cache with LRU eviction: each entry stores the texture plus the

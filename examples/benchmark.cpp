@@ -171,7 +171,7 @@ constexpr int kHitTestEvents = 300;
 std::shared_ptr<Scene> buildScene(int buttonCount) {
     auto scene = Scene::create();
     auto root = scene->getRoot();
-    root->setStyle({.fontSize = 18, .fontPath = getDefaultFontPath()}, WidgetState::Normal);
+    root->setStyle({.fontSize = 18, .fontFamily = "Sans"}, WidgetState::Normal);
 
     for (int i = 0; i < buttonCount; ++i) {
         int col = i % kGridCols;
@@ -500,7 +500,7 @@ TextSamples runTextDynamic(SDLRenderer& renderer, int repeats) {
 
     auto scene = Scene::create();
     auto root = scene->getRoot();
-    root->setStyle({.fontSize = 18, .fontPath = getDefaultFontPath()}, WidgetState::Normal);
+    root->setStyle({.fontSize = 18, .fontFamily = "Sans"}, WidgetState::Normal);
 
     std::vector<std::shared_ptr<Label>> labels;
     for (int i = 0; i < kLabels; ++i) {
@@ -557,7 +557,7 @@ ClipSamples runClips(SDLRenderer& renderer, int repeats) {
 
     auto scene = Scene::create();
     auto root = scene->getRoot();
-    root->setStyle({.fontSize = 14, .fontPath = getDefaultFontPath()}, WidgetState::Normal);
+    root->setStyle({.fontSize = 14, .fontFamily = "Sans"}, WidgetState::Normal);
 
     // Deep chain: pushes a clip per nesting level on every draw.
     auto parent = root;

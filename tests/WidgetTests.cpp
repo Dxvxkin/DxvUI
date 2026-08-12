@@ -115,6 +115,8 @@ class CountingLabel : public Label {
 class FakeTextEngine : public ITextEngine {
    public:
     std::shared_ptr<IFont> getFont(const std::string&, int) override { return nullptr; }
+    std::shared_ptr<IFont> getFontForFamily(const std::string&, int) override { return nullptr; }
+    void registerFontFamily(const std::string&, const std::string&) override {}
     TextMetrics measure(const IFont&, const std::string&) override { return {0, 0}; }
     int measurePrefix(const IFont&, const std::string&, size_t) override { return 0; }
     size_t charIndexAtX(const IFont&, const std::string&, int) override { return 0; }

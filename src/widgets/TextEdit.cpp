@@ -120,7 +120,7 @@ bool TextEdit::getEditContext(ITextEngine** engine, const IFont** font) {
     }
     auto& textEngine = scene->getRenderer()->getTextEngine();
     const auto& appearance = getComputedAppearance();
-    auto fontHandle = textEngine.getFont(appearance.fontPath, appearance.fontSize);
+    auto fontHandle = textEngine.getFontForFamily(appearance.fontFamily, appearance.fontSize);
     if (!fontHandle) {
         return false;
     }

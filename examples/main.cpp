@@ -57,7 +57,7 @@ void buildUI(const std::shared_ptr<DxvUI::Scene>& scene,
     // children.
     root->setStyle({.textColor = DxvUI::Colors::DarkGray,
                     .fontSize = 18,
-                    .fontPath = DxvUI::getDefaultFontPath(),
+                    .fontFamily = "Sans",
                     .width = SCREEN_WIDTH,
                     .height = SCREEN_HEIGHT},
                    DxvUI::WidgetState::Normal);

@@ -166,9 +166,9 @@ void SceneNode::setStyle(const StyleRule& rule, WidgetState state) {
     style.set(rule, state);
     markStyleDirty();
     if (textMetricsChanged) {
-        // fontSize/fontPath are inherited, so a change re-measures this node and
-        // every text-bearing descendant; a plain markLayoutDirty() would leave
-        // clean child subtrees pruned out of the layout pass.
+        // fontSize/fontFamily are inherited, so a change re-measures this node
+        // and every text-bearing descendant; a plain markLayoutDirty() would
+        // leave clean child subtrees pruned out of the layout pass.
         markLayoutDirtyRecursive();
     } else if (layoutChanged) {
         markLayoutDirty();

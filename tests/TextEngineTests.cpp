@@ -64,6 +64,13 @@ class FakeTextEngine : public ITextEngine {
         return font;
     }
 
+    std::shared_ptr<IFont> getFontForFamily(const std::string& family, int size) override {
+        if (family.empty() || size <= 0) return nullptr;
+        return getFont("family:" + family, size);
+    }
+
+    void registerFontFamily(const std::string&, const std::string&) override {}
+
     TextMetrics measure(const IFont&, const std::string& text) override {
         return {static_cast<int>(text.size()) * 8, 16};
     }
@@ -181,7 +188,7 @@ struct LabelFixture {
     FakeRenderer renderer;
 
     LabelFixture() {
-        root->setStyle({.fontSize = 16, .fontPath = "fake.ttf"}, WidgetState::Normal);
+        root->setStyle({.fontSize = 16, .fontFamily = "Sans"}, WidgetState::Normal);
         root->addChild(label);
         // The label measures text through the renderer's engine, so the
         // renderer must be attached before the tree is measured.
@@ -254,13 +261,27 @@ TEST(TextEngineCacheCountTest, TracksDistinctRasterizations) {
 }
 
 TEST(LabelTextEngineTest, MissingFontMeasuresZero) {
+    // The fake engine resolves an empty family to no font; a Label must then
+    // degrade gracefully to a zero-size box instead of drawing garbage.
     LabelFixture f;
-    f.label->setStyle({.fontPath = ""}, WidgetState::Normal);
+    f.label->setStyle({.fontFamily = ""}, WidgetState::Normal);
     f.manager.resolveDirtyStyles(f.root);
     f.root->measure({800, 600});
     f.root->arrange({0, 0, 800, 600});
     EXPECT_FLOAT_EQ(f.label->getGlobalBounds().width, 0);
     EXPECT_FLOAT_EQ(f.label->getGlobalBounds().height, 0);
+}
+
+TEST(TextEngineFamilyTest, FamilyResolvesToFont) {
+    FakeTextEngine engine;
+    // Empty family and invalid size resolve to no font.
+    EXPECT_EQ(engine.getFontForFamily("", 16), nullptr);
+    EXPECT_EQ(engine.getFontForFamily("Sans", 0), nullptr);
+    // A non-empty family always yields a fake font handle.
+    auto font = engine.getFontForFamily("Sans", 16);
+    ASSERT_NE(font, nullptr);
+    // The same family and size is cached like the path-based API.
+    EXPECT_EQ(engine.getFontForFamily("Sans", 16), font);
 }
 
 namespace {
@@ -319,7 +340,7 @@ struct TextEditFixture {
     FakeRenderer renderer;
 
     TextEditFixture() {
-        root->setStyle({.fontSize = 16, .fontPath = "fake.ttf"}, WidgetState::Normal);
+        root->setStyle({.fontSize = 16, .fontFamily = "Sans"}, WidgetState::Normal);
         root->addChild(field);
         // The field measures and hit-tests through the renderer's engine, so the
         // renderer must be attached before the tree is measured.

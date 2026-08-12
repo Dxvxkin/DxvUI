@@ -67,7 +67,7 @@ struct StyleRule {
 
     // Text Properties
     std::optional<int> fontSize;
-    std::optional<std::string> fontPath;
+    std::optional<std::string> fontFamily;
 
     // Layout Properties (Absolute Positioning)
     std::optional<float> left, top, right, bottom;
@@ -117,14 +117,14 @@ struct ComputedAppearanceStyle {
     CursorType cursor;
     bool clipContent = false;
     int fontSize;
-    std::string fontPath;
+    std::string fontFamily;
 
     bool operator==(const ComputedAppearanceStyle& other) const {
         return backgroundColor == other.backgroundColor && textColor == other.textColor &&
                borderColor == other.borderColor && borderThickness == other.borderThickness &&
                borderRadius == other.borderRadius && cursor == other.cursor &&
                clipContent == other.clipContent && fontSize == other.fontSize &&
-               fontPath == other.fontPath;
+               fontFamily == other.fontFamily;
     }
 };
 
@@ -163,9 +163,9 @@ struct AppearanceProp {
     Src StyleRule::* src;
     Dst ComputedAppearanceStyle::* dst;
     bool inheritable = false;
-    // True for text-metric properties (fontSize/fontPath): they are resolved by
-    // the style system but change the measured size of text widgets, so a change
-    // must invalidate the layout as well.
+    // True for text-metric properties (fontSize/fontFamily): they are resolved
+    // by the style system but change the measured size of text widgets, so a
+    // change must invalidate the layout as well.
     bool affectsLayout = false;
 };
 
@@ -235,8 +235,8 @@ constexpr bool equalLayoutProp(const StyleRule& a, const StyleRule& b,
 // The complete appearance property list. Each entry wires one StyleRule member
 // to its ComputedAppearanceStyle counterpart; 'inheritable' marks text
 // properties that are inherited from the parent's Normal state, and
-// 'affectsLayout' marks text-metric properties (fontSize/fontPath) that change
-// the measured size and therefore must also invalidate the layout.
+// 'affectsLayout' marks text-metric properties (fontSize/fontFamily) that
+// change the measured size and therefore must also invalidate the layout.
 inline constexpr auto appearanceProps = std::tuple{
     AppearanceProp<std::optional<Color>, Color>{&StyleRule::backgroundColor,
                                                 &ComputedAppearanceStyle::backgroundColor},
@@ -255,7 +255,7 @@ inline constexpr auto appearanceProps = std::tuple{
     AppearanceProp<std::optional<int>, int>{&StyleRule::fontSize,
                                             &ComputedAppearanceStyle::fontSize, true, true},
     AppearanceProp<std::optional<std::string>, std::string>{
-        &StyleRule::fontPath, &ComputedAppearanceStyle::fontPath, true, true},
+        &StyleRule::fontFamily, &ComputedAppearanceStyle::fontFamily, true, true},
 };
 
 // The complete layout property list. left/top/right/bottom and min/max sizes
@@ -324,8 +324,8 @@ constexpr bool appearancePropIsSet(const StyleRule& rule, const AppearanceProp<S
 /**
  * @brief Checks whether two rules differ in any text-metric property.
  *
- * fontSize/fontPath change the measured size of text widgets even though they
- * are appearance properties, so they must also invalidate the layout.
+ * fontSize/fontFamily change the measured size of text widgets even though
+ * they are appearance properties, so they must also invalidate the layout.
  */
 inline bool textMetricsPropsDiffer(const StyleRule& a, const StyleRule& b) {
     return !std::apply(

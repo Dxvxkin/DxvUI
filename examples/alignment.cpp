@@ -96,7 +96,7 @@ AlignmentDemoNodes buildAlignmentDemoUI(
 
     root->setStyle({.textColor = DxvUI::Colors::DarkGray,
                     .fontSize = 16,
-                    .fontPath = DxvUI::getDefaultFontPath(),
+                    .fontFamily = "Sans",
                     .width = SCREEN_WIDTH,
                     .height = SCREEN_HEIGHT},
                    DxvUI::WidgetState::Normal);

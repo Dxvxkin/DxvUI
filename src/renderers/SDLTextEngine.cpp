@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "DxvUI/Log.h"
+#include "DxvUI/core.h"
 #include "renderers/SDLTexture.h"
 
 namespace DxvUI {
@@ -75,6 +76,24 @@ std::shared_ptr<IFont> SDLTextEngine::getFont(const std::string& path, int size)
     auto handle = std::make_shared<SDLFont>(font, path, size);
     fonts[fontKey] = handle;
     return handle;
+}
+
+std::shared_ptr<IFont> SDLTextEngine::getFontForFamily(const std::string& family, int size) {
+    if (size <= 0) return nullptr;
+    // A registered family wins; anything else (including an empty name) falls
+    // back to the built-in platform default, so a widget without an explicit
+    // family still resolves to a loadable font.
+    std::string path;
+    if (auto it = families.find(family); it != families.end()) {
+        path = it->second;
+    } else {
+        path = getDefaultFontFamilyPath(family);
+    }
+    return getFont(path, size);
+}
+
+void SDLTextEngine::registerFontFamily(const std::string& family, const std::string& path) {
+    families[family] = path;
 }
 
 TextMetrics SDLTextEngine::measure(const IFont& font, const std::string& text) {

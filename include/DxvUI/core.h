@@ -1,6 +1,9 @@
 #ifndef DXVUI_CORE_H
 #define DXVUI_CORE_H
 
+#include <map>
+#include <string>
+
 #include "DxvUI/style/Color.h"
 
 namespace DxvUI {
@@ -82,6 +85,40 @@ inline const char* getDefaultFontPath() {
 #else
     return "";
 #endif
+}
+
+/**
+ * @brief Resolves a logical font family name to a font file path.
+ *
+ * The built-in map covers the common families on the current platform; unknown
+ * or empty names fall back to getDefaultFontPath(), so the result is always a
+ * loadable file on the supported platforms. This is the *default* registry:
+ * text engines consult it as the fallback for families not registered via
+ * ITextEngine::registerFontFamily().
+ * @param family The family name (e.g. "Sans", "Serif", "Mono", "System").
+ * @return A font file path; never empty on supported platforms.
+ */
+inline const char* getDefaultFontFamilyPath(const std::string& family) {
+    static const std::map<std::string, const char*> defaults = {
+#if defined(_WIN32) || defined(_WIN64)
+        {"Sans", "C:/Windows/Fonts/Arial.ttf"},
+        {"Serif", "C:/Windows/Fonts/Times.ttf"},
+        {"Mono", "C:/Windows/Fonts/Consola.ttf"},
+        {"System", "C:/Windows/Fonts/segoeui.ttf"},
+#elif defined(__APPLE__)
+        {"Sans", "/System/Library/Fonts/Supplemental/Arial.ttf"},
+        {"Serif", "/System/Library/Fonts/Supplemental/Times New Roman.ttf"},
+        {"Mono", "/System/Library/Fonts/Supplemental/Courier New.ttf"},
+        {"System", "/System/Library/Fonts/Supplemental/Arial.ttf"},
+#elif defined(__linux__)
+        {"Sans", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"},
+        {"Serif", "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf"},
+        {"Mono", "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"},
+        {"System", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"},
+#endif
+    };
+    auto it = defaults.find(family);
+    return it != defaults.end() ? it->second : getDefaultFontPath();
 }
 
 }  // namespace DxvUI

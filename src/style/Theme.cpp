@@ -10,7 +10,7 @@ namespace DxvUI {
 namespace {
 
 // Whether any rule in the map sets a layout-affecting property (a layout
-// property or a text metric such as fontSize/fontPath, which change the
+// property or a text metric such as fontSize/fontFamily, which change the
 // measured size of text widgets).
 bool stateMapHasLayoutAffectingProps(const Theme::StateStyleMap& styles) {
     for (const auto& [state, rule] : styles) {

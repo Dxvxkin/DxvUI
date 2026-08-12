@@ -20,7 +20,7 @@ const ComputedAppearanceStyle FRAMEWORK_DEFAULT_APPEARANCE = {
     .cursor = CursorType::Arrow,
     .clipContent = false,
     .fontSize = 14,
-    .fontPath = ""  // Let renderer decide
+    .fontFamily = ""  // Resolves to the platform default font
 };
 
 const ComputedLayoutStyle FRAMEWORK_DEFAULT_LAYOUT = {.width = 0,
