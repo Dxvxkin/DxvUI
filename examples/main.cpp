@@ -211,6 +211,8 @@ extern "C" int SDL_main(int /*argc*/, char* /*argv*/[]) {
     SDL_Event sdl_event;
 
     DxvUI::FpsCounter fps;
+    DxvUI::FpsCounter updateMs;
+    DxvUI::FpsCounter drawMs;
     auto fpsLabel = scene->findNodeById("fps_label")->as<DxvUI::Label>();
 
     // Optional headless run for profiling: when DXVUI_FRAMES is set, the loop
@@ -230,15 +232,24 @@ extern "C" int SDL_main(int /*argc*/, char* /*argv*/[]) {
             }
         }
 
+        const auto tUpdate = std::chrono::steady_clock::now();
         scene->update();
+        updateMs.recordMs(
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tUpdate)
+                .count());
 
+        const auto tDraw = std::chrono::steady_clock::now();
         dxv_renderer.clear(DxvUI::Colors::White);
         scene->draw();
+        drawMs.recordMs(
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tDraw)
+                .count());
+
         dxv_renderer.present();
 
         fps.tick();
-        fpsLabel->setText(
-            std::format("FPS: {:.0f} ({:.1f} ms)", fps.getFps(), fps.getFrameTimeMs()));
+        fpsLabel->setText(std::format("FPS: {:.0f} (up {:.2f} ms · draw {:.2f} ms)", fps.getFps(),
+                                      updateMs.getFrameTimeMs(), drawMs.getFrameTimeMs()));
 
         frame_count++;
         if (frame_cap > 0 && frame_count >= frame_cap) {

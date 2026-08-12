@@ -46,15 +46,27 @@ class FpsCounter {
      */
     void tick() noexcept {
         const auto now = Clock::now();
-        if (first_) {
-            first_ = false;
-        } else {
-            const double ms = std::chrono::duration<double, std::milli>(now - last_).count();
-            frameTimes_[writeIndex_] = ms;
-            writeIndex_ = (writeIndex_ + 1) % frameTimes_.size();
-            count_ = std::min(count_ + 1, frameTimes_.size());
+        if (!first_) {
+            recordMs(std::chrono::duration<double, std::milli>(now - last_).count());
         }
+        first_ = false;
         last_ = now;
+    }
+
+    /**
+     * @brief Records an explicit sample into the averaging window.
+     *
+     * Unlike tick(), which measures the wall time since the previous tick(),
+     * this pushes a caller-supplied duration directly. Use it to measure
+     * sub-frame phases (e.g. update or draw time) computed from now()
+     * deltas around that phase.
+     * @param ms The duration of the measured phase, in milliseconds.
+     * @exceptionGuarantee No-throw guarantee.
+     */
+    void recordMs(double ms) noexcept {
+        frameTimes_[writeIndex_] = ms;
+        writeIndex_ = (writeIndex_ + 1) % frameTimes_.size();
+        count_ = std::min(count_ + 1, frameTimes_.size());
     }
 
     /**

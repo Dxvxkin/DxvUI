@@ -81,3 +81,25 @@ TEST(FpsCounterTest, ResetClearsAllSamples) {
     counter.tick();
     EXPECT_NEAR(counter.getFps(), 100.0f, 0.5f);
 }
+
+TEST(FpsCounterTest, RecordMsAveragesExplicitSamples) {
+    FpsCounter<> counter;
+
+    counter.recordMs(5.0);
+    counter.recordMs(15.0);
+    EXPECT_NEAR(counter.getFrameTimeMs(), 10.0f, 0.01f);
+}
+
+TEST(FpsCounterTest, RecordMsInteractsWithReset) {
+    FpsCounter<> counter;
+
+    counter.recordMs(4.0);
+    counter.recordMs(8.0);
+    EXPECT_NEAR(counter.getFrameTimeMs(), 6.0f, 0.01f);
+
+    counter.reset();
+    EXPECT_FLOAT_EQ(counter.getFrameTimeMs(), 0.0f);
+
+    counter.recordMs(20.0);
+    EXPECT_NEAR(counter.getFrameTimeMs(), 20.0f, 0.01f);
+}
