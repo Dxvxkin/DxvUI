@@ -411,6 +411,34 @@ TEST(TextEditTest, SetTextAndGetText) {
     EXPECT_EQ(f.field->getEditor().getText(), "World!");
 }
 
+TEST(TextEditTest, PlaceholderShownWhileEmptyAndUnfocused) {
+    TextEditFixture f;
+    f.field->setText("");
+    f.field->setPlaceholder("Hint");
+    f.root->draw(f.renderer);
+    // Empty buffer: only the placeholder is rasterized.
+    EXPECT_EQ(f.renderer.engine.rasterCount, 1);
+}
+
+TEST(TextEditTest, PlaceholderHiddenWhenFocused) {
+    TextEditFixture f;
+    f.field->setText("");
+    f.field->setPlaceholder("Hint");
+    f.press(10, 10);
+    f.release(10, 10);
+    f.root->draw(f.renderer);
+    // Focused empty field: the placeholder disappears (only the caret blinks).
+    EXPECT_EQ(f.renderer.engine.rasterCount, 0);
+}
+
+TEST(TextEditTest, PlaceholderHiddenWhenTextPresent) {
+    TextEditFixture f;
+    f.field->setPlaceholder("Hint");
+    f.root->draw(f.renderer);
+    // Non-empty buffer: the text is rasterized, the placeholder is not.
+    EXPECT_EQ(f.renderer.engine.rasterCount, 1);
+}
+
 TEST(TextEditTest, MouseDownPlacesCaretAndFocuses) {
     TextEditFixture f;
     // Click the middle of "Hello" (padding 4px + 20px of text) -> caret 2.

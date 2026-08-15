@@ -119,7 +119,14 @@ void TextEdit::drawContent(IRenderer& renderer) {
     TextEditorView::Options options;
     options.textColor = getComputedAppearance().textColor;
     options.horizontalAlign = getComputedAppearance().textAlign;
-    options.showCaret = getCurrentState() == WidgetState::Focused;
+    const bool focused = getCurrentState() == WidgetState::Focused;
+    options.showCaret = focused;
+    // HTML-конвенция: плейсхолдер виден только пока поле пустое и не в фокусе;
+    // при фокусе исчезает (остаётся только каретка).
+    if (editor_.empty() && !focused) {
+        options.placeholder = placeholder_;
+        options.placeholderColor = Colors::Gray;
+    }
     view_->draw(renderer, *engine, *font, editor_, contentRect, options);
 }
 

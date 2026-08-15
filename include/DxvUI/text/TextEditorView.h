@@ -2,6 +2,7 @@
 #define DXVUI_TEXTEDITORVIEW_H
 
 #include <cstddef>
+#include <string>
 
 #include "DxvUI/core.h"
 
@@ -35,6 +36,10 @@ class TextEditorView {
         Color selectionColor{120, 160, 255, 140};
         Color caretColor{0, 0, 0, 255};
         Color compositionColor{0, 0, 0, 255};
+        // Shown while the buffer is empty. The widget hides it (e.g. while it
+        // owns focus) by not passing it; an empty string means "no placeholder".
+        std::string placeholder;
+        Color placeholderColor{160, 160, 160, 255};
         // Horizontal alignment of the text inside the content rect. Only matters
         // when the text is narrower than the rect (no horizontal scroll); a
         // Start value keeps the current left-aligned behavior.

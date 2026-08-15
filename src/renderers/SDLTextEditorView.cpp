@@ -18,9 +18,19 @@ void SDLTextEditorView::draw(IRenderer& renderer, ITextEngine& engine, const IFo
     const std::string text = editor.getText();
     const std::string composition = editor.getComposition();
 
-    const TextMetrics textMetrics = engine.measure(font, text + composition);
-    if (textMetrics.height <= 0) {
-        return;
+    TextMetrics textMetrics = engine.measure(font, text + composition);
+    // Empty buffer (no composition): render the placeholder instead, if one was
+    // provided. Its metrics drive the same alignment/scrolling the text would
+    // get, so an empty focused field still shows the caret in the right spot.
+    const bool showPlaceholder = text.empty() && composition.empty();
+    if (showPlaceholder) {
+        if (options.placeholder.empty()) {
+            return;
+        }
+        textMetrics = engine.measure(font, options.placeholder);
+        if (textMetrics.height <= 0) {
+            return;
+        }
     }
     const int textY = contentRect.y + std::max(0, (contentRect.height - textMetrics.height) / 2);
 
@@ -79,6 +89,15 @@ void SDLTextEditorView::draw(IRenderer& renderer, ITextEngine& engine, const IFo
         if (auto texture = engine.rasterize(font, visibleText, options.textColor)) {
             renderer.drawTexture(texture,
                                  Rect{sliceX, textY, texture->getWidth(), texture->getHeight()});
+        }
+    }
+
+    // Empty buffer: draw the placeholder in its muted color at the same
+    // position the text would occupy. The caret is still drawn while focused.
+    if (showPlaceholder) {
+        if (auto texture = engine.rasterize(font, options.placeholder, options.placeholderColor)) {
+            renderer.drawTexture(texture, Rect{textAreaX - scrollOffsetX_, textY,
+                                               texture->getWidth(), texture->getHeight()});
         }
     }
 

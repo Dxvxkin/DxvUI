@@ -48,8 +48,10 @@ void buildTextEditDemoUI(const std::shared_ptr<DxvUI::Scene>& scene,
     caption->setStyle({.left = 5, .top = 40}, DxvUI::WidgetState::Normal);
     root->addChild(caption);
 
-    // --- Поле ввода: фиксированная ширина, лишний текст обрезается (clipContent). ---
-    auto field = DxvUI::TextEdit::create("name_field", "Введите имя");
+    // --- Поле ввода: фиксированная ширина, лишний текст обрезается (clipContent).
+    // Плейсхолдер виден, пока поле пустое и не в фокусе. ---
+    auto field = DxvUI::TextEdit::create("name_field");
+    field->setPlaceholder("Введите имя");
     field->setStyle({.left = 50, .top = 80, .width = 400, .height = 32},
                     DxvUI::WidgetState::Normal);
     root->addChild(field);

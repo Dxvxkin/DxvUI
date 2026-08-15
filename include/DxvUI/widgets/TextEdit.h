@@ -46,6 +46,12 @@ class TextEdit : public SceneNode {
     std::string getText() const;
     void setText(std::string text);
 
+    // --- Placeholder ---
+    // A hint shown while the buffer is empty and the field does not own focus.
+    // It disappears as soon as the field is focused (HTML convention).
+    void setPlaceholder(std::string placeholder) { placeholder_ = std::move(placeholder); }
+    std::string getPlaceholder() const { return placeholder_; }
+
     /**
      * @brief Gets the underlying editor model (for tests / advanced usage).
      */
@@ -85,6 +91,8 @@ class TextEdit : public SceneNode {
     SubmitCallback onSubmit_;
     // Selection anchor for shift+arrows and mouse dragging.
     size_t selectionAnchor_ = 0;
+    // Hint text shown while the buffer is empty and the field is not focused.
+    std::string placeholder_;
 };
 
 }  // namespace DxvUI
