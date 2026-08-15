@@ -66,6 +66,15 @@ class Scene : public std::enable_shared_from_this<Scene> {
     void onNodeRemoved(const std::shared_ptr<SceneNode>& node);
 
     /**
+     * @brief Notifies the event manager that a node was disabled.
+     *
+     * Called by SceneNode::setEnabled(false): the disabled node (or a descendant
+     * of it) may be the hovered, pressed or focused node, whose state must be
+     * cleared even though the node stays in the tree.
+     */
+    void onNodeDisabled(const std::shared_ptr<SceneNode>& node);
+
+    /**
      * @brief Discards the event manager's hit-test cache.
      *
      * Called whenever a relayout or hierarchy mutation may have moved a node

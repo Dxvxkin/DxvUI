@@ -56,6 +56,18 @@ class EventManager {
      */
     void onNodeRemoved(const std::shared_ptr<SceneNode>& node);
 
+    /**
+     * @brief Clears hover/pressed/focus state tied to a disabled node.
+     *
+     * Called by SceneNode::setEnabled(false). The disabled node (or a descendant
+     * of it) may be the hovered, pressed or focused node; those must be cleared
+     * even though the node stays in the tree, so a disabled widget stops
+     * receiving interaction events immediately. HoverLeave and FocusLost are
+     * dispatched before the state is dropped, like onNodeRemoved().
+     * @param node The node that was disabled.
+     */
+    void onNodeDisabled(const std::shared_ptr<SceneNode>& node);
+
    private:
     void handleMouseMove(DxvEvent& event);
     void handleMouseDown(DxvEvent& event);
@@ -67,6 +79,17 @@ class EventManager {
      * @param newNode The node to focus, or nullptr to clear the focus.
      */
     void changeFocus(const std::shared_ptr<SceneNode>& newNode);
+
+    /**
+     * @brief Clears hover/press/focus state held by a node or any descendant.
+     *
+     * Shared by onNodeRemoved() and onNodeDisabled(): HoverLeave/FocusLost are
+     * dispatched to the affected nodes and their state flags are dropped, so a
+     * detached or disabled widget stops receiving interaction events. Assumes
+     * @p node is not null.
+     * @param node The node whose interaction state must be cleared.
+     */
+    void clearInteraction(const std::shared_ptr<SceneNode>& node);
 
     /**
      * @brief Sets the node the cursor physically covers as hovered.

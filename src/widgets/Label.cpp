@@ -113,14 +113,38 @@ void Label::drawContent(IRenderer& renderer) {
     auto textTexture = engine.rasterize(*font, drawText, computedAppearance.textColor);
 
     if (textTexture) {
-        // Рисуем текстуру в натуральном размере, центрируя в контент-боксе.
-        // Увеличение не применяется (иначе текст размывается); если бокс меньше
-        // текстуры, она уменьшается, чтобы влезть.
+        // Рисуем текстуру в натуральном размере, выравнивая в контент-боксе по
+        // style.textAlign/textAlignVertical. Увеличение не применяется (иначе
+        // текст размывается); если бокс меньше текстуры, она уменьшается.
         const int drawW = std::min(textTexture->getWidth(), contentRect.width);
         const int drawH = std::min(textTexture->getHeight(), contentRect.height);
-        const Rect dstRect = {contentRect.x + (contentRect.width - drawW) / 2,
-                              contentRect.y + (contentRect.height - drawH) / 2, drawW, drawH};
-        renderer.drawTexture(textTexture, dstRect);
+
+        int drawX = contentRect.x;
+        int drawY = contentRect.y;
+        switch (computedAppearance.textAlign) {
+            case Alignment::Center:
+                drawX += (contentRect.width - drawW) / 2;
+                break;
+            case Alignment::End:
+                drawX += contentRect.width - drawW;
+                break;
+            case Alignment::Start:
+            case Alignment::Stretch:
+                break;
+        }
+        switch (computedAppearance.textAlignVertical) {
+            case Alignment::Center:
+                drawY += (contentRect.height - drawH) / 2;
+                break;
+            case Alignment::End:
+                drawY += contentRect.height - drawH;
+                break;
+            case Alignment::Start:
+            case Alignment::Stretch:
+                break;
+        }
+
+        renderer.drawTexture(textTexture, {drawX, drawY, drawW, drawH});
     }
 }
 

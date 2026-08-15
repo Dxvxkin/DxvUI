@@ -222,7 +222,7 @@ TEST(LayoutManagerTest, ShrinkRectMatchesContentRect) {
 TEST(LayoutManagerTest, ContentRectIncludesBorder) {
     LayoutFixture f;
     const Thickness padding = {.top = 2, .right = 3, .bottom = 4, .left = 5};
-    f.root->setStyle({.borderThickness = 2, .padding = padding }, WidgetState::Normal);
+    f.root->setStyle({.borderThickness = 2, .padding = padding}, WidgetState::Normal);
     f.styleManager.resolveDirtyStyles(f.root);
 
     const Rect outer = {10, 20, 100, 60};
@@ -318,6 +318,33 @@ TEST(LayoutManagerTest, MarginExpandsAndOffsetsHorizontalContainer) {
     const Rect boundsB = childB->getGlobalBounds();
     EXPECT_EQ(boundsB.x, outerWidthA + 3);
     EXPECT_EQ(boundsB.y, 0);
+    EXPECT_EQ(boundsB.width, 10);
+}
+
+TEST(LayoutManagerTest, StyleGapSpacesHorizontalContainerChildren) {
+    auto root = std::make_shared<AbsoluteContainer>("root");
+    auto row = std::make_shared<HorizontalContainer>("row");
+    auto childA = std::make_shared<SizeRecordingWidget>("childA");
+    auto childB = std::make_shared<SizeRecordingWidget>("childB");
+    row->addChild(childA);
+    row->addChild(childB);
+    root->addChild(row);
+
+    // The gap comes from the style, not a container member: setSpacing() is just
+    // a convenience wrapper over updateStyle({.gap = ...}).
+    row->setStyle({.gap = 7}, WidgetState::Normal);
+
+    Theme theme;
+    StyleManager styleManager{theme};
+    LayoutManager layout;
+    styleManager.resolveDirtyStyles(root);
+    layout.layout(root, {800, 600});
+
+    const Rect rowBounds = row->getGlobalBounds();
+    EXPECT_EQ(rowBounds.width, 10 + 7 + 10);
+
+    const Rect boundsB = childB->getGlobalBounds();
+    EXPECT_EQ(boundsB.x, 10 + 7);
     EXPECT_EQ(boundsB.width, 10);
 }
 

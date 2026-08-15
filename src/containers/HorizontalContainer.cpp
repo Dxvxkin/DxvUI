@@ -7,18 +7,14 @@
 
 namespace DxvUI {
 
-void HorizontalContainer::setSpacing(float spacing) {
-    if (spacing_ != spacing) {
-        spacing_ = spacing;
-        markLayoutDirty();
-    }
-}
+void HorizontalContainer::setSpacing(float spacing) { updateStyle(StyleRule{.gap = spacing}); }
 
-float HorizontalContainer::getSpacing() const { return spacing_; }
+float HorizontalContainer::getSpacing() const { return getComputedLayout().gap; }
 
 Size HorizontalContainer::onMeasure(const Size& availableSize) {
     const auto& computedLayout = getComputedLayout();
     const auto& padding = computedLayout.padding;
+    const float gap = computedLayout.gap;
 
     const Size contentAvailableSize = LayoutManager::subtractPadding(availableSize, padding);
 
@@ -31,7 +27,7 @@ Size HorizontalContainer::onMeasure(const Size& availableSize) {
 
         // Add spacing before the element (but not for the first one)
         if (!firstVisibleChild) {
-            totalWidth += spacing_;
+            totalWidth += gap;
         }
 
         const Size childOuterSize = LayoutManager::measureChild(*child, contentAvailableSize);
@@ -48,6 +44,7 @@ void HorizontalContainer::onArrange(const Rect& finalRect) {
     const auto& computedLayout = getComputedLayout();
 
     const auto& padding = computedLayout.padding;
+    const float gap = computedLayout.gap;
     const Rect content = LayoutManager::contentRect(*this, finalRect);
 
     float currentX = static_cast<float>(content.x);
@@ -77,7 +74,7 @@ void HorizontalContainer::onArrange(const Rect& finalRect) {
 
         child->arrange(childFinalRect);
 
-        currentX += margin.left + finalWidth + margin.right + spacing_;  // Use finalWidth here
+        currentX += margin.left + finalWidth + margin.right + gap;  // Use finalWidth here
     }
 }
 

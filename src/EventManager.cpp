@@ -40,7 +40,18 @@ std::shared_ptr<SceneNode> EventManager::hitTest(int x, int y) {
 
 void EventManager::onNodeRemoved(const std::shared_ptr<SceneNode>& node) {
     if (!node) return;
+    clearInteraction(node);
+}
 
+void EventManager::onNodeDisabled(const std::shared_ptr<SceneNode>& node) {
+    if (!node) return;
+    clearInteraction(node);
+    // A disabled node no longer claims interaction: the node under the cursor
+    // may change, so the hit-test cache must not short-circuit on it.
+    hitTestCache.valid = false;
+}
+
+void EventManager::clearInteraction(const std::shared_ptr<SceneNode>& node) {
     if (auto hovered = hoveredNode.lock()) {
         if (hovered == node || node->isAncestorOf(hovered)) {
             hoveredNode.reset();
@@ -137,7 +148,7 @@ void EventManager::handleMouseMove(DxvEvent& event) {
     setHovered(newNode);
 
     if (auto renderer = ownerScene.getRenderer()) {
-        if (newNode) {
+        if (newNode && newNode->isEnabled()) {
             renderer->setCursor(newNode->getComputedAppearance().cursor);
         } else {
             renderer->setCursor(root->getComputedAppearance().cursor);
@@ -167,6 +178,12 @@ void EventManager::handleMouseDown(DxvEvent& event) {
     lastMousePosition = {event.mouse.x, event.mouse.y};
     const MouseButton button = event.mouse.button;
     auto targetNode = hitTest(event.mouse.x, event.mouse.y);
+    // A disabled node is not interactive: it behaves like empty space for the
+    // purpose of press/focus/click, so clicking it never starts a press or grabs
+    // the keyboard focus (and an existing focus is released like a click-outside).
+    if (targetNode && !targetNode->isEnabled()) {
+        targetNode = nullptr;
+    }
     setHovered(targetNode);
 
     // A press on a different node (or empty space) with the same button replaces
@@ -199,6 +216,11 @@ void EventManager::handleMouseDown(DxvEvent& event) {
 void EventManager::handleMouseUp(DxvEvent& event) {
     const MouseButton button = event.mouse.button;
     auto targetNodeOnUp = hitTest(event.mouse.x, event.mouse.y);
+    // A node that became disabled while the pointer sat on it must not receive
+    // a click or hover on release.
+    if (targetNodeOnUp && !targetNodeOnUp->isEnabled()) {
+        targetNodeOnUp = nullptr;
+    }
     setHovered(targetNodeOnUp);
 
     auto pressedIt = pressedNodes.find(button);
@@ -245,7 +267,9 @@ void EventManager::handleMouseUp(DxvEvent& event) {
 void EventManager::setHovered(const std::shared_ptr<SceneNode>& node) {
     // Root nodes never receive a Hovered state: only the deepest node the cursor
     // physically covers is hovered, so both null and root mean "no hover".
-    const std::shared_ptr<SceneNode> effective = (node && !node->isRoot()) ? node : nullptr;
+    // Disabled nodes are not interactive, so they never hover either.
+    const std::shared_ptr<SceneNode> effective =
+        (node && !node->isRoot() && node->isEnabled()) ? node : nullptr;
     if (auto oldHovered = hoveredNode.lock(); oldHovered != effective) {
         if (oldHovered) {
             oldHovered->setHovered(false);
@@ -266,7 +290,11 @@ void EventManager::setHovered(const std::shared_ptr<SceneNode>& node) {
 }
 
 void EventManager::changeFocus(const std::shared_ptr<SceneNode>& newNode) {
-    if (auto oldFocused = focusedNode.lock(); oldFocused != newNode) {
+    // A disabled node can never own keyboard focus: focusing one clears the
+    // current focus instead.
+    const std::shared_ptr<SceneNode> effective =
+        (newNode && newNode->isEnabled()) ? newNode : nullptr;
+    if (auto oldFocused = focusedNode.lock(); oldFocused != effective) {
         if (oldFocused) {
             oldFocused->setFocused(false);
             DxvEvent e;
@@ -275,14 +303,14 @@ void EventManager::changeFocus(const std::shared_ptr<SceneNode>& newNode) {
             oldFocused->dispatchEvent(e);
         }
 
-        if (newNode) {
-            newNode->setFocused(true);
+        if (effective) {
+            effective->setFocused(true);
             DxvEvent e;
             e.type = EventType::FocusGained;
-            e.target = newNode;
-            newNode->dispatchEvent(e);
+            e.target = effective;
+            effective->dispatchEvent(e);
         }
-        focusedNode = newNode;
+        focusedNode = effective;
     }
 }
 

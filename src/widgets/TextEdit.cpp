@@ -18,18 +18,25 @@ namespace {
 struct TextEditStyleRegistrar {
     TextEditStyleRegistrar() {
         Theme::registerDefaultStyle(
-            "TextEdit", {{WidgetState::Normal,
-                          {.backgroundColor = Colors::White,
-                           .textColor = Colors::Black,
-                           .borderColor = Colors::Gray,
-                           .borderThickness = 1,
-                           .cursor = CursorType::IBeam,
-                           // Overflowing text is clipped to the
-                           // field instead of drawing over siblings.
-                           .clipContent = true,
-                           .padding = {{2, 4, 2, 4}}}},
-                         {WidgetState::Focused,
-                          {.borderColor = Colors::CornflowerBlue, .borderThickness = 2}}});
+            "TextEdit",
+            {{WidgetState::Normal,
+              {.backgroundColor = Colors::White,
+               .textColor = Colors::Black,
+               .borderColor = Colors::Gray,
+               .borderThickness = 1,
+               .cursor = CursorType::IBeam,
+               // Overflowing text is clipped to the
+               // field instead of drawing over siblings.
+               .clipContent = true,
+               .textAlign = Alignment::Start,
+               .padding = {{2, 4, 2, 4}}}},
+             {WidgetState::Focused, {.borderColor = Colors::CornflowerBlue, .borderThickness = 2}},
+             {WidgetState::Disabled,
+              {
+                  .textColor = Colors::Gray,
+                  .borderColor = Colors::LightGray,
+                  .cursor = CursorType::Arrow,
+              }}});
     }
 };
 
@@ -107,6 +114,7 @@ void TextEdit::drawContent(IRenderer& renderer) {
     const Rect contentRect = LayoutManager::contentRect(*this, getGlobalBounds());
     TextEditorView::Options options;
     options.textColor = getComputedAppearance().textColor;
+    options.horizontalAlign = getComputedAppearance().textAlign;
     options.showCaret = getCurrentState() == WidgetState::Focused;
     view_->draw(renderer, *engine, *font, editor_, contentRect, options);
 }
@@ -249,7 +257,8 @@ void TextEdit::handleMouseDown(DxvEvent& event) {
         return;
     }
     const Rect contentRect = LayoutManager::contentRect(*this, getGlobalBounds());
-    const size_t index = view_->hitTestAt(*engine, *font, editor_, contentRect, event.mouse.x);
+    const size_t index = view_->hitTestAt(*engine, *font, editor_, contentRect, event.mouse.x,
+                                          getComputedAppearance().textAlign);
     selectionAnchor_ = index;
     editor_.setCaret(index);
     editor_.clearSelection();
@@ -264,7 +273,8 @@ void TextEdit::handleMouseDrag(DxvEvent& event) {
         return;
     }
     const Rect contentRect = LayoutManager::contentRect(*this, getGlobalBounds());
-    const size_t index = view_->hitTestAt(*engine, *font, editor_, contentRect, event.mouse.x);
+    const size_t index = view_->hitTestAt(*engine, *font, editor_, contentRect, event.mouse.x,
+                                          getComputedAppearance().textAlign);
     editor_.setCaret(index);
     editor_.setSelection(selectionAnchor_, index);
 }

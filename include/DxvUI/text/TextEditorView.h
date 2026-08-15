@@ -35,6 +35,10 @@ class TextEditorView {
         Color selectionColor{120, 160, 255, 140};
         Color caretColor{0, 0, 0, 255};
         Color compositionColor{0, 0, 0, 255};
+        // Horizontal alignment of the text inside the content rect. Only matters
+        // when the text is narrower than the rect (no horizontal scroll); a
+        // Start value keeps the current left-aligned behavior.
+        Alignment horizontalAlign = Alignment::Start;
         // Set false while the widget does not own keyboard focus so the caret
         // stays hidden (blinking is handled inside the view).
         bool showCaret = true;
@@ -71,10 +75,13 @@ class TextEditorView {
      * @param editor The model being clicked.
      * @param contentRect The box (after padding) the editor occupies.
      * @param globalX The click's x in the same coordinate space as contentRect.
+     * @param horizontalAlign The same alignment value passed to draw(), so the
+     * hit test maps the click to the same text position the renderer used.
      * @return The caret byte offset for the click.
      */
     virtual size_t hitTestAt(ITextEngine& engine, const IFont& font, const TextEditor& editor,
-                             const Rect& contentRect, int globalX) = 0;
+                             const Rect& contentRect, int globalX,
+                             Alignment horizontalAlign = Alignment::Start) = 0;
 };
 
 }  // namespace DxvUI

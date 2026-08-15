@@ -27,7 +27,8 @@ class SDLTextEditorView : public TextEditorView {
               const Rect& contentRect, const Options& options) override;
 
     size_t hitTestAt(ITextEngine& engine, const IFont& font, const TextEditor& editor,
-                     const Rect& contentRect, int globalX) override;
+                     const Rect& contentRect, int globalX,
+                     Alignment horizontalAlign = Alignment::Start) override;
 
    private:
     // Half-period of the caret blink in ms; the caret is visible for one

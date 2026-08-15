@@ -77,6 +77,13 @@ void Scene::onNodeRemoved(const std::shared_ptr<SceneNode>& node) {
     }
 }
 
+void Scene::onNodeDisabled(const std::shared_ptr<SceneNode>& node) {
+    if (eventManager) {
+        eventManager->onNodeDisabled(node);
+        eventManager->invalidateHitTestCache();
+    }
+}
+
 void Scene::update() {
     if (root) {
         // Resolve dirty styles and re-lay-out the tree if needed.

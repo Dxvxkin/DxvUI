@@ -256,6 +256,7 @@ const Size& SceneNode::getLastMeasureConstraints() const {
 const LayoutData& SceneNode::getLayoutData() const { return layoutData; }
 
 WidgetState SceneNode::getCurrentState() const {
+    if (!isEnabled_) return WidgetState::Disabled;
     if (isPressed) return WidgetState::Pressed;
     if (isFocused) return WidgetState::Focused;
     if (isHovered) return WidgetState::Hovered;
@@ -300,6 +301,21 @@ void SceneNode::setVisible(bool newVisible) {
     if (visible != newVisible) {
         visible = newVisible;
         markLayoutDirty();
+    }
+}
+
+bool SceneNode::isEnabled() const { return isEnabled_; }
+
+void SceneNode::setEnabled(bool enabled) {
+    if (isEnabled_ == enabled) return;
+    isEnabled_ = enabled;
+    markLayoutDirty();
+    if (!enabled) {
+        // A disabled node (or its focused descendant) must stop holding
+        // hover/press/focus and stop receiving interaction events right away.
+        if (auto s = scene.lock()) {
+            s->onNodeDisabled(shared_from_this());
+        }
     }
 }
 

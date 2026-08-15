@@ -27,6 +27,12 @@ struct ButtonStyleRegistrar {
                                                {WidgetState::Pressed,
                                                 {
                                                     .backgroundColor = Colors::MidnightBlue,
+                                                }},
+                                               {WidgetState::Disabled,
+                                                {
+                                                    .backgroundColor = Colors::LightGray,
+                                                    .textColor = Colors::DarkGray,
+                                                    .cursor = CursorType::Arrow,
                                                 }}});
     }
 };

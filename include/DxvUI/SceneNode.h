@@ -384,6 +384,27 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
      */
     void setVisible(bool visible);
 
+    /**
+     * @brief Checks whether the node is enabled.
+     *
+     * A disabled node reports WidgetState::Disabled as its current state (so the
+     * theme's Disabled style rule applies) and is skipped by the event manager:
+     * it receives no hover, press, focus or click, and keyboard focus is taken
+     * away from it.
+     * @return True if enabled, false otherwise.
+     */
+    bool isEnabled() const;
+
+    /**
+     * @brief Enables or disables the node.
+     *
+     * Disabling clears any hover/press/focus the node (or a focused descendant)
+     * currently holds through the scene's event manager, so a disabled widget
+     * stops receiving interaction immediately.
+     * @param enabled True to enable, false to disable.
+     */
+    void setEnabled(bool enabled);
+
     ///@}
 
     //----------------------------------------------------------------
@@ -625,6 +646,7 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     bool isHovered = false;
     bool isPressed = false;
     bool isFocused = false;
+    bool isEnabled_ = true;
     bool visible = true;
     static int nodeCount;
     int zIndex = 0;

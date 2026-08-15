@@ -24,6 +24,24 @@ void SDLTextEditorView::draw(IRenderer& renderer, ITextEngine& engine, const IFo
     }
     const int textY = contentRect.y + std::max(0, (contentRect.height - textMetrics.height) / 2);
 
+    // Horizontal alignment only applies while the text fits: once it overflows
+    // the box, the horizontal scroll takes over and alignment is meaningless.
+    int alignOffsetX = 0;
+    if (textMetrics.width <= contentRect.width) {
+        switch (options.horizontalAlign) {
+            case Alignment::Center:
+                alignOffsetX = (contentRect.width - textMetrics.width) / 2;
+                break;
+            case Alignment::End:
+                alignOffsetX = contentRect.width - textMetrics.width;
+                break;
+            case Alignment::Start:
+            case Alignment::Stretch:
+                break;
+        }
+    }
+    const int textAreaX = contentRect.x + alignOffsetX;
+
     // Horizontal scroll: keep the caret visible, clamped so the text never
     // scrolls past its own end.
     const int maxScroll = std::max(0, textMetrics.width - contentRect.width);
@@ -48,8 +66,8 @@ void SDLTextEditorView::draw(IRenderer& renderer, ITextEngine& engine, const IFo
         const int selLeft = std::max(selStart, scrollOffsetX_);
         const int selRight = std::min(selEnd, scrollOffsetX_ + contentRect.width);
         if (selRight > selLeft) {
-            renderer.fillRect(Rect{contentRect.x + selLeft - scrollOffsetX_, textY,
-                                   selRight - selLeft, textMetrics.height},
+            renderer.fillRect(Rect{textAreaX + selLeft - scrollOffsetX_, textY, selRight - selLeft,
+                                   textMetrics.height},
                               options.selectionColor);
         }
     }
@@ -57,28 +75,28 @@ void SDLTextEditorView::draw(IRenderer& renderer, ITextEngine& engine, const IFo
     if (visibleEnd > visibleStart) {
         const std::string visibleText = text.substr(visibleStart, visibleEnd - visibleStart);
         const int sliceX =
-            contentRect.x - scrollOffsetX_ + engine.measurePrefix(font, text, visibleStart);
+            textAreaX - scrollOffsetX_ + engine.measurePrefix(font, text, visibleStart);
         if (auto texture = engine.rasterize(font, visibleText, options.textColor)) {
-            renderer.drawTexture(
-                texture, Rect{sliceX, textY, texture->getWidth(), texture->getHeight()});
+            renderer.drawTexture(texture,
+                                 Rect{sliceX, textY, texture->getWidth(), texture->getHeight()});
         }
     }
 
     // IME composition is short and always at the end; rasterize separately.
     if (!composition.empty()) {
         const int compStart =
-            contentRect.x - scrollOffsetX_ + engine.measurePrefix(font, text, text.size());
+            textAreaX - scrollOffsetX_ + engine.measurePrefix(font, text, text.size());
         const int compEnd = compStart + engine.measure(font, composition).width;
         const int underlineY = textY + engine.lineMetrics(font).ascent + 1;
         renderer.drawLine(compStart, underlineY, compEnd, underlineY, options.compositionColor);
         if (auto texture = engine.rasterize(font, composition, options.textColor)) {
-            renderer.drawTexture(
-                texture, Rect{compStart, textY, texture->getWidth(), texture->getHeight()});
+            renderer.drawTexture(texture,
+                                 Rect{compStart, textY, texture->getWidth(), texture->getHeight()});
         }
     }
 
     if (options.showCaret && composition.empty() && isCaretVisible()) {
-        const int visibleCaretX = contentRect.x + caretX - scrollOffsetX_;
+        const int visibleCaretX = textAreaX + caretX - scrollOffsetX_;
         renderer.drawLine(visibleCaretX, textY, visibleCaretX, textY + textMetrics.height,
                           options.caretColor);
     }
@@ -86,9 +104,24 @@ void SDLTextEditorView::draw(IRenderer& renderer, ITextEngine& engine, const IFo
 }
 
 size_t SDLTextEditorView::hitTestAt(ITextEngine& engine, const IFont& font,
-                                    const TextEditor& editor, const Rect& contentRect,
-                                    int globalX) {
-    const int localX = std::max(0, globalX - contentRect.x + scrollOffsetX_);
+                                    const TextEditor& editor, const Rect& contentRect, int globalX,
+                                    Alignment horizontalAlign) {
+    int alignOffsetX = 0;
+    const int textWidth = engine.measure(font, editor.getText()).width;
+    if (textWidth <= contentRect.width) {
+        switch (horizontalAlign) {
+            case Alignment::Center:
+                alignOffsetX = (contentRect.width - textWidth) / 2;
+                break;
+            case Alignment::End:
+                alignOffsetX = contentRect.width - textWidth;
+                break;
+            case Alignment::Start:
+            case Alignment::Stretch:
+                break;
+        }
+    }
+    const int localX = std::max(0, globalX - (contentRect.x + alignOffsetX) + scrollOffsetX_);
     return engine.charIndexAtX(font, editor.getText(), localX);
 }
 

@@ -637,3 +637,99 @@ TEST(StyleManagerTest, IdempotentWhenNothingDirty) {
     EXPECT_EQ(node->getComputedAppearance(WidgetState::Normal).fontSize, 14);
     EXPECT_FLOAT_EQ(node->getComputedLayout(WidgetState::Normal).width, 0.0f);
 }
+
+TEST(StyleManagerTest, TextAlignDefaultsToCenter) {
+    auto node = std::make_shared<SceneNode>("node");
+    Theme theme;
+    StyleManager manager(theme);
+
+    manager.resolveDirtyStyles(node);
+
+    const auto& appearance = node->getComputedAppearance(WidgetState::Normal);
+    EXPECT_EQ(appearance.textAlign, Alignment::Center);
+    EXPECT_EQ(appearance.textAlignVertical, Alignment::Center);
+}
+
+TEST(StyleManagerTest, TextAlignResolvesFromOwnStyle) {
+    auto node = std::make_shared<SceneNode>("node");
+    node->setStyle({.textAlign = Alignment::End, .textAlignVertical = Alignment::Start},
+                   WidgetState::Normal);
+    Theme theme;
+    StyleManager manager(theme);
+
+    manager.resolveDirtyStyles(node);
+
+    const auto& appearance = node->getComputedAppearance(WidgetState::Normal);
+    EXPECT_EQ(appearance.textAlign, Alignment::End);
+    EXPECT_EQ(appearance.textAlignVertical, Alignment::Start);
+}
+
+TEST(StyleManagerTest, TextAlignIsInherited) {
+    auto parent = std::make_shared<SceneNode>("parent");
+    auto child = std::make_shared<SceneNode>("child");
+    parent->addChild(child);
+
+    parent->setStyle({.textAlign = Alignment::End}, WidgetState::Normal);
+    Theme theme;
+    StyleManager manager(theme);
+
+    manager.resolveDirtyStyles(parent);
+
+    EXPECT_EQ(child->getComputedAppearance(WidgetState::Normal).textAlign, Alignment::End);
+    // The vertical axis keeps the framework default when not overridden.
+    EXPECT_EQ(child->getComputedAppearance(WidgetState::Normal).textAlignVertical,
+              Alignment::Center);
+}
+
+TEST(StyleManagerTest, DisabledStateResolvesAndTakesPrecedence) {
+    auto node = std::make_shared<SceneNode>("node");
+    node->setStyle({.textColor = Colors::Red}, WidgetState::Disabled);
+    node->setStyle({.textColor = Colors::Blue}, WidgetState::Pressed);
+    node->setStyle({.textColor = Colors::Green}, WidgetState::Focused);
+    node->setStyle({.textColor = Colors::Yellow}, WidgetState::Hovered);
+    Theme theme;
+    StyleManager manager(theme);
+    manager.resolveDirtyStyles(node);
+
+    // Disabled wins over every interaction state regardless of which flags are set.
+    node->setHovered(true);
+    node->setPressed(true);
+    node->setFocused(true);
+    node->setEnabled(false);
+    EXPECT_EQ(node->getCurrentState(), WidgetState::Disabled);
+    EXPECT_EQ(node->getComputedAppearance(node->getCurrentState()).textColor, Colors::Red);
+
+    // Re-enabling falls back to the interaction states again (Pressed wins).
+    node->setEnabled(true);
+    EXPECT_EQ(node->getCurrentState(), WidgetState::Pressed);
+}
+
+TEST(StyleManagerTest, GapIsResolved) {
+    auto node = std::make_shared<SceneNode>("node");
+    node->setStyle({.gap = 8}, WidgetState::Normal);
+    Theme theme;
+    StyleManager manager(theme);
+
+    manager.resolveDirtyStyles(node);
+
+    EXPECT_FLOAT_EQ(node->getComputedLayout(WidgetState::Normal).gap, 8.0f);
+}
+
+TEST(StyleManagerTest, GapChangeInvalidatesLayout) {
+    auto node = std::make_shared<MeasureCountingWidget>("node");
+    node->setStyle({.gap = 8}, WidgetState::Normal);
+    Theme theme;
+    StyleManager manager(theme);
+    manager.resolveDirtyStyles(node);
+
+    node->measure({0, 0});
+    node->arrange({0, 0, 0, 0});
+    const int measuresAfterInitial = node->measureCalls;
+
+    // gap affects the measure pass, so changing it must force a remeasure.
+    node->setStyle({.gap = 16}, WidgetState::Normal);
+    manager.resolveDirtyStyles(node);
+    node->measure({0, 0});
+
+    EXPECT_GT(node->measureCalls, measuresAfterInitial);
+}

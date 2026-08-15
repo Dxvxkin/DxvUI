@@ -20,13 +20,16 @@ const ComputedAppearanceStyle FRAMEWORK_DEFAULT_APPEARANCE = {
     .cursor = CursorType::Arrow,
     .clipContent = false,
     .fontSize = 14,
-    .fontFamily = ""  // Resolves to the platform default font
+    .fontFamily = "",  // Resolves to the platform default font
+    .textAlign = Alignment::Center,
+    .textAlignVertical = Alignment::Center,
 };
 
 const ComputedLayoutStyle FRAMEWORK_DEFAULT_LAYOUT = {.width = 0,
                                                       .height = 0,
                                                       .padding = {},
                                                       .margin = {},
+                                                      .gap = 0,
                                                       .horizontalAlignment = Alignment::Start,
                                                       .verticalAlignment = Alignment::Start};
 

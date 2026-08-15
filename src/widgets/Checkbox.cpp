@@ -26,7 +26,13 @@ struct CheckboxStyleRegistrar {
                            .padding = {{2, 2, 2, 2}}}},
                          {WidgetState::Hovered, {.borderColor = Colors::CornflowerBlue}},
                          {WidgetState::Pressed, {.borderColor = Colors::MidnightBlue}},
-                         {WidgetState::Focused, {.borderColor = Colors::CornflowerBlue}}});
+                         {WidgetState::Focused, {.borderColor = Colors::CornflowerBlue}},
+                         {WidgetState::Disabled,
+                          {
+                              .textColor = Colors::Gray,
+                              .borderColor = Colors::LightGray,
+                              .cursor = CursorType::Arrow,
+                          }}});
     }
 };
 

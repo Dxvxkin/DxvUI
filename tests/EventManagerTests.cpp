@@ -529,3 +529,70 @@ TEST(EventManagerTest, DefaultActionSeesOriginalEventType) {
     EXPECT_TRUE(node->defaultActionRan);
     EXPECT_EQ(node->defaultActionType, EventType::Click);
 }
+
+TEST(EventManagerTest, DisabledNodeReceivesNoHoverOrPress) {
+    EventFixture f;
+    f.buttonA->setEnabled(false);
+
+    f.moveTo(50, 25, MouseButton::None);
+    EXPECT_EQ(f.buttonA->getCurrentState(), WidgetState::Disabled);
+
+    f.pressAt(50, 25);
+    EXPECT_EQ(f.buttonA->getCurrentState(), WidgetState::Disabled);
+}
+
+TEST(EventManagerTest, DisabledNodeReceivesNoClick) {
+    EventFixture f;
+    bool clicked = false;
+    auto conn =
+        f.buttonA->on(EventType::Click, [&](DxvEvent&, const UIContext&) { clicked = true; });
+    f.buttonA->setEnabled(false);
+
+    f.pressAt(50, 25);
+    f.releaseAt(50, 25);
+    EXPECT_FALSE(clicked);
+}
+
+TEST(EventManagerTest, DisabledNodeDoesNotTakeFocus) {
+    EventFixture f;
+    f.pressAt(250, 25);  // B gains press + focus
+    EXPECT_EQ(f.scene->getFocusedNode(), f.buttonB);
+
+    f.buttonA->setEnabled(false);
+    f.pressAt(50, 25);  // press over the disabled A acts like a click-outside
+    EXPECT_EQ(f.scene->getFocusedNode(), nullptr);
+    EXPECT_EQ(f.buttonA->getCurrentState(), WidgetState::Disabled);
+    EXPECT_EQ(f.buttonB->getCurrentState(), WidgetState::Normal);
+}
+
+TEST(EventManagerTest, DisablingFocusedNodeReleasesFocus) {
+    EventFixture f;
+    f.pressAt(50, 25);  // A gains focus
+    EXPECT_EQ(f.scene->getFocusedNode(), f.buttonA);
+
+    f.buttonA->setEnabled(false);
+    EXPECT_EQ(f.scene->getFocusedNode(), nullptr);
+    EXPECT_EQ(f.buttonA->getCurrentState(), WidgetState::Disabled);
+}
+
+TEST(EventManagerTest, DisablingHoveredNodeClearsHover) {
+    EventFixture f;
+    f.moveTo(50, 25, MouseButton::None);
+    EXPECT_EQ(f.buttonA->getCurrentState(), WidgetState::Hovered);
+
+    f.buttonA->setEnabled(false);
+    EXPECT_EQ(f.buttonA->getCurrentState(), WidgetState::Disabled);
+
+    // The underlying hover flag was cleared, so re-enabling returns to Normal.
+    f.buttonA->setEnabled(true);
+    EXPECT_EQ(f.buttonA->getCurrentState(), WidgetState::Normal);
+}
+
+TEST(EventManagerTest, ReenabledNodeIsInteractiveAgain) {
+    EventFixture f;
+    f.buttonA->setEnabled(false);
+    f.buttonA->setEnabled(true);
+
+    f.moveTo(50, 25, MouseButton::None);
+    EXPECT_EQ(f.buttonA->getCurrentState(), WidgetState::Hovered);
+}

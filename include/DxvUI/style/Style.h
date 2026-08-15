@@ -68,6 +68,10 @@ struct StyleRule {
     // Text Properties
     std::optional<int> fontSize;
     std::optional<std::string> fontFamily;
+    // How the node's own text content is aligned inside its box (left/center/right).
+    // Inherited, so a container can align the text of all descendant labels.
+    std::optional<Alignment> textAlign;
+    std::optional<Alignment> textAlignVertical;
 
     // Layout Properties (Absolute Positioning)
     std::optional<float> left, top, right, bottom;
@@ -80,6 +84,9 @@ struct StyleRule {
     // Layout Properties (Alignment & Spacing)
     std::optional<Thickness> padding;
     std::optional<Thickness> margin;
+    // Fixed spacing inserted between children on the container's main axis
+    // (e.g. between items of a HorizontalContainer). 0 means no extra spacing.
+    std::optional<float> gap;
     // How the parent aligns this node within the space it gives it
     // (Start/Center/End; Stretch is reserved and not implemented).
     std::optional<Alignment> horizontalAlignment;
@@ -118,13 +125,17 @@ struct ComputedAppearanceStyle {
     bool clipContent = false;
     int fontSize;
     std::string fontFamily;
+    // Text content alignment, inherited from the parent's Normal state.
+    Alignment textAlign = Alignment::Center;
+    Alignment textAlignVertical = Alignment::Center;
 
     bool operator==(const ComputedAppearanceStyle& other) const {
         return backgroundColor == other.backgroundColor && textColor == other.textColor &&
                borderColor == other.borderColor && borderThickness == other.borderThickness &&
                borderRadius == other.borderRadius && cursor == other.cursor &&
                clipContent == other.clipContent && fontSize == other.fontSize &&
-               fontFamily == other.fontFamily;
+               fontFamily == other.fontFamily && textAlign == other.textAlign &&
+               textAlignVertical == other.textAlignVertical;
     }
 };
 
@@ -139,6 +150,8 @@ struct ComputedLayoutStyle {
     std::optional<float> minWidth, minHeight, maxWidth, maxHeight;
     Thickness padding;
     Thickness margin;
+    // Spacing between children on the container's main axis (style-driven gap).
+    float gap = 0;
     // How the parent positions this node inside the space it gives it:
     // Start = top-left, Center = centered, End = bottom-right (per axis).
     // Only applied on the axes the parent does not manage itself (e.g. the
@@ -256,6 +269,10 @@ inline constexpr auto appearanceProps = std::tuple{
                                             &ComputedAppearanceStyle::fontSize, true, true},
     AppearanceProp<std::optional<std::string>, std::string>{
         &StyleRule::fontFamily, &ComputedAppearanceStyle::fontFamily, true, true},
+    AppearanceProp<std::optional<Alignment>, Alignment>{&StyleRule::textAlign,
+                                                        &ComputedAppearanceStyle::textAlign, true},
+    AppearanceProp<std::optional<Alignment>, Alignment>{
+        &StyleRule::textAlignVertical, &ComputedAppearanceStyle::textAlignVertical, true},
 };
 
 // The complete layout property list. left/top/right/bottom and min/max sizes
@@ -283,6 +300,7 @@ inline constexpr auto layoutProps = std::tuple{
                                                     &ComputedLayoutStyle::padding},
     LayoutProp<std::optional<Thickness>, Thickness>{&StyleRule::margin,
                                                     &ComputedLayoutStyle::margin},
+    LayoutProp<std::optional<float>, float>{&StyleRule::gap, &ComputedLayoutStyle::gap},
     LayoutProp<std::optional<Alignment>, Alignment>{&StyleRule::horizontalAlignment,
                                                     &ComputedLayoutStyle::horizontalAlignment},
     LayoutProp<std::optional<Alignment>, Alignment>{&StyleRule::verticalAlignment,
