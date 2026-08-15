@@ -32,6 +32,7 @@
 
 // Widgets
 #include "widgets/Button.h"
+#include "widgets/Checkbox.h"
 #include "widgets/Label.h"
 #include "widgets/TextEdit.h"
 

@@ -1,24 +1,33 @@
-cmake_minimum_required(VERSION 3.16)
-project(DxvUI)
+cmake_minimum_required(VERSION 3.20)
+project(DxvUI LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# --- Options ---
+option(DXVUI_BUILD_EXAMPLES "Собирать примеры (DxvUI*Example, DxvUIBenchmark)" ON)
+include(CTest)  # включает enable_testing() и даёт переменную BUILD_TESTING
 
 # --- Find Dependencies via vcpkg ---
-#find_package(nlohmann_json CONFIG REQUIRED)
 find_package(SDL2 REQUIRED)
 find_package(SDL2_ttf REQUIRED)
 find_package(sdl2-gfx REQUIRED)
-find_package(GTest REQUIRED)
-
 find_package(spdlog CONFIG REQUIRED)
 
+# --- Common ---
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
+function(dxvui_enable_warnings target)
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /W4)
+    else()
+        target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+endfunction()
 
 # --- DxvUI Library ---
 add_library(DxvUI STATIC)
+target_compile_features(DxvUI PUBLIC cxx_std_23)
 
 target_sources(DxvUI PRIVATE
-        src/Log.cpp # Add the new Log source file
+        src/Log.cpp
 
         src/EventManager.cpp
         src/DxvEvent.cpp
@@ -27,6 +36,7 @@ target_sources(DxvUI PRIVATE
         src/UIBinding.cpp
         src/UIContext.cpp
         src/widgets/Button.cpp
+        src/widgets/Checkbox.cpp
         src/widgets/Label.cpp
         src/widgets/TextEdit.cpp
         src/containers/CenterContainer.cpp
@@ -42,7 +52,6 @@ target_sources(DxvUI PRIVATE
         src/style/StyleManager.cpp
         src/style/Theme.cpp
         src/text/TextEditor.cpp
-
 )
 
 target_include_directories(DxvUI PUBLIC
@@ -57,70 +66,56 @@ target_include_directories(DxvUI PRIVATE
 )
 
 target_link_libraries(DxvUI PUBLIC
-        #        nlohmann_json::nlohmann_json
         SDL2::SDL2
         SDL2::SDL2_gfx
         SDL2_ttf::SDL2_ttf
         spdlog::spdlog
 )
 
-# --- Example ---
-add_executable(DxvUIExample examples/main.cpp)
-target_link_libraries(DxvUIExample PRIVATE
-        DxvUI
-        SDL2::SDL2main
-)
+dxvui_enable_warnings(DxvUI)
 
-# --- Alignment example ---
-add_executable(DxvUIAlignmentExample examples/alignment.cpp)
-target_link_libraries(DxvUIAlignmentExample PRIVATE
-        DxvUI
-        SDL2::SDL2main
-)
+# --- Examples ---
+function(add_dxvui_example name src)
+    add_executable(${name} ${src})
+    target_link_libraries(${name} PRIVATE DxvUI SDL2::SDL2main)
+    dxvui_enable_warnings(${name})
+endfunction()
 
-# --- Events example ---
-add_executable(DxvUIEventsExample examples/events.cpp)
-target_link_libraries(DxvUIEventsExample PRIVATE
-        DxvUI
-        SDL2::SDL2main
-)
-
-# --- TextEdit example ---
-add_executable(DxvUITextEditExample examples/textedit.cpp)
-target_link_libraries(DxvUITextEditExample PRIVATE
-        DxvUI
-        SDL2::SDL2main
-)
-
-# --- Benchmark ---
-add_executable(DxvUIBenchmark examples/benchmark.cpp)
-target_link_libraries(DxvUIBenchmark PRIVATE
-        DxvUI
-        SDL2::SDL2main
-)
-
+if(DXVUI_BUILD_EXAMPLES)
+    add_dxvui_example(DxvUIExample examples/main.cpp)
+    add_dxvui_example(DxvUIAlignmentExample examples/alignment.cpp)
+    add_dxvui_example(DxvUIEventsExample examples/events.cpp)
+    add_dxvui_example(DxvUITextEditExample examples/textedit.cpp)
+    add_dxvui_example(DxvUIBenchmark examples/benchmark.cpp)
+endif()
 
 # --- Tests ---
-enable_testing()
-add_executable(DxvUITests
-        tests/ColorTests.cpp
-        tests/EventManagerTests.cpp
-        tests/FpsCounterTests.cpp
-        tests/LayoutManagerTests.cpp
-        tests/LogTests.cpp
-        tests/StyleManagerTests.cpp
-        tests/WidgetTests.cpp
-        tests/TextEditorTests.cpp
-        tests/TextEngineTests.cpp
-        tests/SDLEventSourceTests.cpp
-        tests/UIBindingTests.cpp
-        tests/UIContextTests.cpp
+if(BUILD_TESTING)
+    find_package(GTest REQUIRED)
 
-)
-target_link_libraries(DxvUITests PRIVATE
-        DxvUI
-        GTest::gtest_main
-)
+    add_executable(DxvUITests
+            tests/CheckboxTests.cpp
+            tests/ColorTests.cpp
+            tests/EventManagerTests.cpp
+            tests/FpsCounterTests.cpp
+            tests/LayoutManagerTests.cpp
+            tests/LogTests.cpp
+            tests/StyleManagerTests.cpp
+            tests/WidgetTests.cpp
+            tests/TextEditorTests.cpp
+            tests/TextEngineTests.cpp
+            tests/SDLEventSourceTests.cpp
+            tests/UIBindingTests.cpp
+            tests/UIContextTests.cpp
+    )
 
-include(GoogleTest)
-gtest_discover_tests(DxvUITests)
+    target_link_libraries(DxvUITests PRIVATE
+            DxvUI
+            GTest::gtest_main
+    )
+
+    dxvui_enable_warnings(DxvUITests)
+
+    include(GoogleTest)
+    gtest_discover_tests(DxvUITests)
+endif()

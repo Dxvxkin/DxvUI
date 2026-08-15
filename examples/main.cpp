@@ -185,6 +185,27 @@ void buildUI(const std::shared_ptr<DxvUI::Scene>& scene,
             }
         }));
     root->addChild(btn_test_def_styles);
+
+    // --- Checkbox ---
+    auto cb1 = DxvUI::Checkbox::create("cb_1", "Вариант 1");
+    cb1->setStyle({.left = 50, .top = 120}, DxvUI::WidgetState::Normal);
+    connections.push_back(
+        cb1->on(DxvUI::EventType::Change, [](DxvUI::DxvEvent& event, const DxvUI::UIContext&) {
+            auto cb = event.getTarget()->as<DxvUI::Checkbox>();
+            DxvUI::Log::info("[cb_1] checked={}", cb ? cb->isChecked() : false);
+        }));
+    root->addChild(cb1);
+
+    auto cb2 = DxvUI::Checkbox::create("cb_2", "Вариант 2 (включён по умолчанию)");
+    cb2->setChecked(true);
+    cb2->setStyle({.left = 50, .top = 165}, DxvUI::WidgetState::Normal);
+    connections.push_back(
+        cb2->on(DxvUI::EventType::Change, [](DxvUI::DxvEvent& event, const DxvUI::UIContext&) {
+            auto cb = event.getTarget()->as<DxvUI::Checkbox>();
+            DxvUI::Log::info("[cb_2] checked={}", cb ? cb->isChecked() : false);
+        }));
+    root->addChild(cb2);
+
     ContanersBuildText(root, connections);
 }
 
