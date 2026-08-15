@@ -12,28 +12,32 @@ namespace DxvUI {
 
 // --- Self-registration of default styles ---
 namespace {
+// Единый источник имени типа: используется и в getNodeType(), и как ключ
+// регистрации стилей, чтобы строка не могла разойтись с типом виджета.
+constexpr const char* kWidgetType = "Button";
+
 struct ButtonStyleRegistrar {
     ButtonStyleRegistrar() {
-        Theme::registerDefaultStyle("Button", {{WidgetState::Normal,
-                                                {.backgroundColor = Colors::CornflowerBlue,
-                                                 .textColor = Colors::White,
-                                                 .borderRadius = 5,
-                                                 .cursor = CursorType::Hand,
-                                                 .padding = {{5, 5, 5, 5}}}},
-                                               {WidgetState::Hovered,
-                                                {
-                                                    .backgroundColor = Colors::RoyalBlue,
-                                                }},
-                                               {WidgetState::Pressed,
-                                                {
-                                                    .backgroundColor = Colors::MidnightBlue,
-                                                }},
-                                               {WidgetState::Disabled,
-                                                {
-                                                    .backgroundColor = Colors::LightGray,
-                                                    .textColor = Colors::DarkGray,
-                                                    .cursor = CursorType::Arrow,
-                                                }}});
+        Theme::registerDefaultStyle(kWidgetType, {{WidgetState::Normal,
+                                                   {.backgroundColor = Colors::CornflowerBlue,
+                                                    .textColor = Colors::White,
+                                                    .borderRadius = 5,
+                                                    .cursor = CursorType::Hand,
+                                                    .padding = {{5, 5, 5, 5}}}},
+                                                  {WidgetState::Hovered,
+                                                   {
+                                                       .backgroundColor = Colors::RoyalBlue,
+                                                   }},
+                                                  {WidgetState::Pressed,
+                                                   {
+                                                       .backgroundColor = Colors::MidnightBlue,
+                                                   }},
+                                                  {WidgetState::Disabled,
+                                                   {
+                                                       .backgroundColor = Colors::LightGray,
+                                                       .textColor = Colors::DarkGray,
+                                                       .cursor = CursorType::Arrow,
+                                                   }}});
     }
 };
 
@@ -48,7 +52,7 @@ Button::Button(std::string id, std::string text) : SceneNode(std::move(id)) {
     binding_ = UIBinding::create(std::move(text));
 }
 
-const char* Button::getNodeType() const { return "Button"; }
+const char* Button::getNodeType() const { return kWidgetType; }
 
 void Button::onAttach() {
     SceneNode::onAttach();

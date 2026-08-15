@@ -15,13 +15,17 @@ namespace DxvUI {
 
 // --- Self-registration of default styles ---
 namespace {
+// Единый источник имени типа: используется и в getNodeType(), и как ключ
+// регистрации стилей, чтобы строка не могла разойтись с типом виджета.
+constexpr const char* kWidgetType = "Label";
+
 struct LabelStyleRegistrar {
     LabelStyleRegistrar() {
-        Theme::registerDefaultStyle("Label", {{WidgetState::Normal,
-                                               {
-                                                   .backgroundColor = Colors::Transparent,
-                                                   .textColor = Colors::Black,
-                                               }}});
+        Theme::registerDefaultStyle(kWidgetType, {{WidgetState::Normal,
+                                                   {
+                                                       .backgroundColor = Colors::Transparent,
+                                                       .textColor = Colors::Black,
+                                                   }}});
     }
 };
 
@@ -37,7 +41,7 @@ Label::Label(std::string id, std::string text) : SceneNode(std::move(id)) {
     bind(binding);
 }
 
-const char* Label::getNodeType() const noexcept { return "Label"; }
+const char* Label::getNodeType() const noexcept { return kWidgetType; }
 
 void Label::setText(std::string newText) {
     auto current_text = getBinding()->getString();

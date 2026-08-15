@@ -15,10 +15,14 @@ namespace DxvUI {
 
 // --- Self-registration of default styles ---
 namespace {
+// Единый источник имени типа: используется и в getNodeType(), и как ключ
+// регистрации стилей, чтобы строка не могла разойтись с типом виджета.
+constexpr const char* kWidgetType = "TextEdit";
+
 struct TextEditStyleRegistrar {
     TextEditStyleRegistrar() {
         Theme::registerDefaultStyle(
-            "TextEdit",
+            kWidgetType,
             {{WidgetState::Normal,
               {.backgroundColor = Colors::White,
                .textColor = Colors::Black,
@@ -77,7 +81,7 @@ void TextEdit::onEvent(DxvEvent& event) {
     }
 }
 
-const char* TextEdit::getNodeType() const noexcept { return "TextEdit"; }
+const char* TextEdit::getNodeType() const noexcept { return kWidgetType; }
 
 std::string TextEdit::getText() const { return editor_.getText(); }
 

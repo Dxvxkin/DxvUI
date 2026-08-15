@@ -14,25 +14,29 @@ namespace DxvUI {
 
 // --- Self-registration of default styles ---
 namespace {
+// Единый источник имени типа: используется и в getNodeType(), и как ключ
+// регистрации стилей, чтобы строка не могла разойтись с типом виджета.
+constexpr const char* kWidgetType = "Checkbox";
+
 struct CheckboxStyleRegistrar {
     CheckboxStyleRegistrar() {
         Theme::registerDefaultStyle(
-            "Checkbox", {{WidgetState::Normal,
-                          {.textColor = Colors::Black,
-                           .borderColor = Colors::Gray,
-                           .borderThickness = 1,
-                           .borderRadius = 3,
-                           .cursor = CursorType::Hand,
-                           .padding = {{2, 2, 2, 2}}}},
-                         {WidgetState::Hovered, {.borderColor = Colors::CornflowerBlue}},
-                         {WidgetState::Pressed, {.borderColor = Colors::MidnightBlue}},
-                         {WidgetState::Focused, {.borderColor = Colors::CornflowerBlue}},
-                         {WidgetState::Disabled,
-                          {
-                              .textColor = Colors::Gray,
-                              .borderColor = Colors::LightGray,
-                              .cursor = CursorType::Arrow,
-                          }}});
+            kWidgetType, {{WidgetState::Normal,
+                           {.textColor = Colors::Black,
+                            .borderColor = Colors::Gray,
+                            .borderThickness = 1,
+                            .borderRadius = 3,
+                            .cursor = CursorType::Hand,
+                            .padding = {{2, 2, 2, 2}}}},
+                          {WidgetState::Hovered, {.borderColor = Colors::CornflowerBlue}},
+                          {WidgetState::Pressed, {.borderColor = Colors::MidnightBlue}},
+                          {WidgetState::Focused, {.borderColor = Colors::CornflowerBlue}},
+                          {WidgetState::Disabled,
+                           {
+                               .textColor = Colors::Gray,
+                               .borderColor = Colors::LightGray,
+                               .cursor = CursorType::Arrow,
+                           }}});
     }
 };
 
@@ -50,7 +54,7 @@ Checkbox::Checkbox(std::string id, std::string text) : SceneNode(std::move(id)) 
     labelText = std::move(text);
 }
 
-const char* Checkbox::getNodeType() const { return "Checkbox"; }
+const char* Checkbox::getNodeType() const { return kWidgetType; }
 
 void Checkbox::onAttach() {
     SceneNode::onAttach();
