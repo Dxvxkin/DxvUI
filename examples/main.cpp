@@ -6,6 +6,7 @@
 #include <DxvUI/style/Colors.h>
 #include <DxvUI/widgets/Button.h>
 #include <DxvUI/widgets/Label.h>
+#include <DxvUI/widgets/TextEdit.h>
 #include <SDL.h>
 
 #include <cstdlib>
@@ -47,6 +48,103 @@ void ContanersBuildText(std::shared_ptr<DxvUI::SceneNode>& root,
     h_container->addChild(DxvUI::Button::create("h_btn3", "h_btn3"));
 
     root->addChild(h_container);
+}
+
+void buildDisabledDemo(const std::shared_ptr<DxvUI::SceneNode>& root,
+                       std::vector<std::unique_ptr<DxvUI::SceneNode::Connection>>& connections) {
+    auto disabledBtn = DxvUI::Button::create("disabled_btn", "Disabled button");
+    disabledBtn->setStyle({.left = 50, .top = 280, .width = 200, .height = 50},
+                          DxvUI::WidgetState::Normal);
+    disabledBtn->setEnabled(false);
+    root->addChild(disabledBtn);
+
+    auto disabledCb = DxvUI::Checkbox::create("disabled_cb", "Disabled checkbox");
+    disabledCb->setStyle({.left = 50, .top = 345}, DxvUI::WidgetState::Normal);
+    disabledCb->setEnabled(false);
+    root->addChild(disabledCb);
+
+    auto disabledTe = DxvUI::TextEdit::create("disabled_te", "disabled text");
+    disabledTe->setStyle({.left = 50, .top = 395, .width = 200, .height = 30},
+                         DxvUI::WidgetState::Normal);
+    disabledTe->setEnabled(false);
+    root->addChild(disabledTe);
+
+    auto toggle = DxvUI::Button::create("toggle_disabled", "Enable widgets");
+    toggle->setStyle({.left = 300, .top = 280, .width = 180, .height = 50},
+                     DxvUI::WidgetState::Normal);
+    connections.push_back(toggle->on(
+        DxvUI::EventType::Click,
+        [disabledBtn, disabledCb, disabledTe, toggle](DxvUI::DxvEvent&, const DxvUI::UIContext&) {
+            const bool enable = !disabledBtn->isEnabled();
+            disabledBtn->setEnabled(enable);
+            disabledCb->setEnabled(enable);
+            disabledTe->setEnabled(enable);
+            toggle->setText(enable ? "Disable widgets" : "Enable widgets");
+        }));
+    root->addChild(toggle);
+}
+
+void buildTextAlignDemo(const std::shared_ptr<DxvUI::SceneNode>& root) {
+    constexpr float kX = 520.0f;
+    constexpr float kBoxWidth = 240.0f;
+    constexpr float kBoxHeight = 40.0f;
+
+    auto captionHa = DxvUI::Label::create("caption_ha", "textAlign (Start | Center | End)");
+    captionHa->setStyle({.textColor = DxvUI::Colors::Gray,
+                         .fontSize = 14,
+                         .left = kX,
+                         .top = 120},
+                        DxvUI::WidgetState::Normal);
+    root->addChild(captionHa);
+
+    auto boxStyle = [kX, kBoxWidth, kBoxHeight](const char* id, const char* text, float top,
+                                                DxvUI::Alignment align) {
+        auto label = DxvUI::Label::create(id, text);
+        label->setStyle({.backgroundColor = DxvUI::Color(0, 0, 0, 10),
+                         .borderColor = DxvUI::Colors::Gray,
+                         .borderThickness = 1,
+                         .textAlign = align,
+                         .left = kX,
+                         .top = top,
+                         .width = kBoxWidth,
+                         .height = kBoxHeight,
+                         .padding = DxvUI::Thickness{0, 0, 0, 0}},
+                        DxvUI::WidgetState::Normal);
+        return label;
+    };
+
+    root->addChild(boxStyle("align_ha_start", "Start", 150, DxvUI::Alignment::Start));
+    root->addChild(boxStyle("align_ha_center", "Center", 195, DxvUI::Alignment::Center));
+    root->addChild(boxStyle("align_ha_end", "End", 240, DxvUI::Alignment::End));
+
+    auto captionVa = DxvUI::Label::create("caption_va", "textAlignVertical (Start | Center | End)");
+    captionVa->setStyle({.textColor = DxvUI::Colors::Gray,
+                         .fontSize = 14,
+                         .left = kX,
+                         .top = 310},
+                        DxvUI::WidgetState::Normal);
+    root->addChild(captionVa);
+
+    auto boxStyleV = [kX, kBoxWidth](const char* id, const char* text, float top,
+                                     DxvUI::Alignment align) {
+        auto label = DxvUI::Label::create(id, text);
+        label->setStyle({.backgroundColor = DxvUI::Color(0, 0, 0, 10),
+                         .borderColor = DxvUI::Colors::Gray,
+                         .borderThickness = 1,
+                         .textAlign = DxvUI::Alignment::Center,
+                         .textAlignVertical = align,
+                         .left = kX,
+                         .top = top,
+                         .width = kBoxWidth,
+                         .height = 55,
+                         .padding = DxvUI::Thickness{0, 0, 0, 0}},
+                        DxvUI::WidgetState::Normal);
+        return label;
+    };
+
+    root->addChild(boxStyleV("align_va_start", "Start", 340, DxvUI::Alignment::Start));
+    root->addChild(boxStyleV("align_va_center", "Center", 400, DxvUI::Alignment::Center));
+    root->addChild(boxStyleV("align_va_end", "End", 460, DxvUI::Alignment::End));
 }
 
 void buildUI(const std::shared_ptr<DxvUI::Scene>& scene,
@@ -205,6 +303,9 @@ void buildUI(const std::shared_ptr<DxvUI::Scene>& scene,
             DxvUI::Log::info("[cb_2] checked={}", cb ? cb->isChecked() : false);
         }));
     root->addChild(cb2);
+
+    buildDisabledDemo(root, connections);
+    buildTextAlignDemo(root);
 
     ContanersBuildText(root, connections);
 }
