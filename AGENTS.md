@@ -72,6 +72,15 @@ Benchmark: `examples/benchmark.cpp` → `DxvUIBenchmark.exe` (both build dirs).
 - **Font selection.** Styles pick a font by logical family (`.fontFamily = "Sans"`), resolved to a platform font file via `getDefaultFontFamilyPath()` (in `core.h`); custom families go through `ITextEngine::registerFontFamily()`. Direct low-level engine calls use `DxvUI::getDefaultFontPath()` (in `core.h`).
 - **MinGW runtime mismatch → `0xC0000139` at startup.** Any exe that imports `libspdlogd.dll` fails to load with `STATUS_ENTRYPOINT_NOT_FOUND` if `libstdc++-6.dll` resolves from a toolchain other than CLion's bundled MinGW (e.g. a scoop `mingw-winlibs-ucrt` whose `libstdc++-6.dll` lacks `__cxa_thread_atexit`). CLion works because it puts its own MinGW bin first in PATH for build/run. From a plain shell, prepend CLion's MinGW bin: `$env:PATH = "D:\CLion <ver>\bin\mingw\bin;" + $env:PATH` before `cmake --build` / `ctest`.
 
+## Roadmap
+
+- **Переход с SDL2 на SDL3** (запланировано, в данный момент не выполняется).
+  - Зависимости: `find_package(SDL3)` + `find_package(SDL3_ttf)` (vcpkg-порты `sdl3`, `sdl3-ttf`); убрать `sdl2`/`sdl2-ttf`/`sdl2-gfx` и таргеты `SDL2::SDL2main`/`SDL2::SDL2_gfx`.
+  - `sdl2-gfx` на SDL3 не портирован: заменить `aacircleRGBA`/`filledCircleRGBA`/`arcRGBA`/`polygonRGBA`/`filledPolygonRGBA` собственной геометрией через `SDL_RenderGeometry` (как уже сделано для rounded rect).
+  - Мотивация: SDL2 в режиме поддержки; float-координаты рендера, D3D12-бэкенд с батчингом, high-DPI (`SDL_SetRenderLogicalPresentation`), SDL3_ttf (HarfBuzz-шейпинг, цветные эмодзи, SDF).
+  - Внимание: в SDL3 `SDL_Vertex.color` — это `SDL_FColor` (float 0..1); `SDL_Keymod` — keycode-ы модификаторов, нужен перевод в `DxvUI::KeyModifier`; `SDL_StartTextInput` требует `SDL_Window*`.
+  - После миграции переснять бенчмарк-базлайны (`scripts/compare.ps1`): смена рендерера может сместить медианы.
+
 ## Conventions
 
 - Formatting: `.clang-format` (ColumnLimit 100, indent 4, `PointerAlignment: Left`, includes sorted/regrouped). Project was bulk-formatted in commit `9846733`; run clang-format on touched files.
