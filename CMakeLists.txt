@@ -105,6 +105,7 @@ if(BUILD_TESTING)
             tests/TextEditorTests.cpp
             tests/TextEngineTests.cpp
             tests/SDLEventSourceTests.cpp
+            tests/SceneTests.cpp
             tests/UIBindingTests.cpp
             tests/UIContextTests.cpp
     )
