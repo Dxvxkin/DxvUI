@@ -34,6 +34,7 @@
 #include "widgets/Button.h"
 #include "widgets/Checkbox.h"
 #include "widgets/Label.h"
+#include "widgets/Popup.h"
 #include "widgets/TextEdit.h"
 
 // Layout

@@ -39,6 +39,7 @@ target_sources(DxvUI PRIVATE
         src/widgets/Checkbox.cpp
         src/widgets/Label.cpp
         src/widgets/TextEdit.cpp
+        src/widgets/Popup.cpp
         src/containers/CenterContainer.cpp
         src/containers/AbsoluteContainer.cpp
         src/containers/HorizontalContainer.cpp
@@ -106,6 +107,7 @@ if(BUILD_TESTING)
             tests/TextEngineTests.cpp
             tests/SDLEventSourceTests.cpp
             tests/SceneTests.cpp
+            tests/PopupTests.cpp
             tests/UIBindingTests.cpp
             tests/UIContextTests.cpp
     )
