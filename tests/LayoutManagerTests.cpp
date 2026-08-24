@@ -543,6 +543,41 @@ TEST(LayoutManagerTest, AlignChildCenterRespectsMargin) {
     EXPECT_EQ(result, (Rect{5 + (100 - 8 - 10) / 2, 2 + (60 - 6 - 20) / 2, 10, 20}));
 }
 
+TEST(LayoutManagerTest, AlignChildStretchesOnBothAxes) {
+    auto child = makeResolvedChild("child", {.horizontalAlignment = Alignment::Stretch,
+                                              .verticalAlignment = Alignment::Stretch});
+    const Rect slot = {10, 20, 100, 60};
+
+    const Rect result = LayoutManager::alignChild(*child, {10, 20}, slot, {true, true});
+
+    // Stretch fills the slot on both axes.
+    EXPECT_EQ(result, (Rect{10, 20, 100, 60}));
+}
+
+TEST(LayoutManagerTest, AlignChildStretchesWithMargin) {
+    const Thickness margin = {.top = 2, .right = 3, .bottom = 4, .left = 5};
+    auto child = makeResolvedChild("child", {.margin = margin,
+                                              .horizontalAlignment = Alignment::Stretch,
+                                              .verticalAlignment = Alignment::Stretch});
+    const Rect slot = {0, 0, 100, 60};
+
+    const Rect result = LayoutManager::alignChild(*child, {10, 20}, slot, {true, true});
+
+    // Stretch fills the slot minus margin on each axis.
+    EXPECT_EQ(result, (Rect{5, 2, 100 - 5 - 3, 60 - 2 - 4}));
+}
+
+TEST(LayoutManagerTest, AlignChildStretchSingleAxis) {
+    auto child = makeResolvedChild("child", {.horizontalAlignment = Alignment::Stretch,
+                                              .verticalAlignment = Alignment::End});
+    const Rect slot = {0, 0, 100, 60};
+
+    const Rect result = LayoutManager::alignChild(*child, {10, 20}, slot, {true, true});
+
+    // Horizontal stretches to fill, vertical uses End alignment.
+    EXPECT_EQ(result, (Rect{0, 60 - 20, 100, 20}));
+}
+
 TEST(LayoutManagerTest, HorizontalContainerAlignsChildrenVertically) {
     auto root = std::make_shared<AbsoluteContainer>("root");
     auto row = std::make_shared<HorizontalContainer>("row");

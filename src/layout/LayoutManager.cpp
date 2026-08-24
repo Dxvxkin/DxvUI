@@ -153,6 +153,9 @@ Rect LayoutManager::alignChild(SceneNode& child, const Size& childSize, const Re
     const auto& layout = child.getComputedLayout(child.getCurrentState());
     const auto& margin = layout.margin;
 
+    float resultW = childSize.width;
+    float resultH = childSize.height;
+
     // On a disabled axis the caller owns the placement, so the slot origin is
     // used as-is (the caller bakes any margin offset into it).
     int x = containerRect.x;
@@ -163,6 +166,8 @@ Rect LayoutManager::alignChild(SceneNode& child, const Size& childSize, const Re
             offset = (available - childSize.width) / 2.0f;
         } else if (layout.horizontalAlignment == Alignment::End) {
             offset = available - childSize.width;
+        } else if (layout.horizontalAlignment == Alignment::Stretch) {
+            resultW = static_cast<float>(available);
         }
         x = containerRect.x + static_cast<int>(margin.left) + static_cast<int>(offset);
     }
@@ -175,11 +180,13 @@ Rect LayoutManager::alignChild(SceneNode& child, const Size& childSize, const Re
             offset = (available - childSize.height) / 2.0f;
         } else if (layout.verticalAlignment == Alignment::End) {
             offset = available - childSize.height;
+        } else if (layout.verticalAlignment == Alignment::Stretch) {
+            resultH = static_cast<float>(available);
         }
         y = containerRect.y + static_cast<int>(margin.top) + static_cast<int>(offset);
     }
 
-    return {x, y, static_cast<int>(childSize.width), static_cast<int>(childSize.height)};
+    return {x, y, static_cast<int>(resultW), static_cast<int>(resultH)};
 }
 
 }  // namespace DxvUI

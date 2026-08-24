@@ -88,7 +88,7 @@ struct StyleRule {
     // (e.g. between items of a HorizontalContainer). 0 means no extra spacing.
     std::optional<float> gap;
     // How the parent aligns this node within the space it gives it
-    // (Start/Center/End; Stretch is reserved and not implemented).
+    // (Start/Center/End/Stretch).
     std::optional<Alignment> horizontalAlignment;
     std::optional<Alignment> verticalAlignment;
 
@@ -156,7 +156,7 @@ struct ComputedLayoutStyle {
     // Start = top-left, Center = centered, End = bottom-right (per axis).
     // Only applied on the axes the parent does not manage itself (e.g. the
     // cross axis of a horizontal container, or unanchored axes of an absolute
-    // container). Stretch is reserved and not implemented.
+    // container). Stretch fills the slot (minus margin) on the enabled axis.
     Alignment horizontalAlignment;
     Alignment verticalAlignment;
 };

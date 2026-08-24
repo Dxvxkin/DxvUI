@@ -9,8 +9,8 @@
 namespace DxvUI {
 
 // How a node is aligned by its parent within the space given to it:
-// Start = top-left corner, Center = centered, End = bottom-right corner.
-// Stretch is reserved and currently not implemented by the layout.
+// Start = top-left corner, Center = centered, End = bottom-right corner,
+// Stretch = fill the slot (minus margin) on the enabled axis.
 enum class Alignment { Start, Center, End, Stretch };
 
 // System cursor types

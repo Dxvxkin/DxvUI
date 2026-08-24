@@ -20,7 +20,7 @@
 #include <vector>
 
 constexpr int SCREEN_WIDTH = 800;
-constexpr int SCREEN_HEIGHT = 600;
+constexpr int SCREEN_HEIGHT = 800;
 
 namespace {
 
@@ -160,6 +160,36 @@ AlignmentDemoNodes buildAlignmentDemoUI(
     connections.push_back(rowCenter->on(DxvUI::EventType::Click, cycleVerticalAlignment));
     connections.push_back(rowEnd->on(DxvUI::EventType::Click, cycleVerticalAlignment));
 
+    const auto cycleVerticalAlignmentWithStretch =
+        [](DxvUI::DxvEvent& event, const DxvUI::UIContext& ui) {
+            if (auto target = event.getTarget()) {
+                const auto& layout = target->getComputedLayout(DxvUI::WidgetState::Normal);
+                const auto oldAlignment = layout.verticalAlignment;
+                DxvUI::StyleRule rule;
+                switch (oldAlignment) {
+                    case DxvUI::Alignment::Start:
+                        rule.verticalAlignment = DxvUI::Alignment::Center;
+                        break;
+                    case DxvUI::Alignment::Center:
+                        rule.verticalAlignment = DxvUI::Alignment::End;
+                        break;
+                    case DxvUI::Alignment::End:
+                        rule.verticalAlignment = DxvUI::Alignment::Stretch;
+                        break;
+                    default:
+                        rule.verticalAlignment = DxvUI::Alignment::Start;
+                        break;
+                }
+                target->updateStyle(rule, DxvUI::WidgetState::Normal);
+                ui.updateLayout();
+                const DxvUI::Rect bounds = target->getGlobalBounds();
+                DxvUI::Log::info("{} verticalAlignment {} -> {} bounds=({}, {}, {}, {})",
+                                 target->getId(), alignmentToString(oldAlignment),
+                                 alignmentToString(rule.verticalAlignment.value()), bounds.x,
+                                 bounds.y, bounds.width, bounds.height);
+            }
+        };
+
     row->addChild(rowStart);
     row->addChild(rowCenter);
     row->addChild(rowEnd);
@@ -234,6 +264,51 @@ AlignmentDemoNodes buildAlignmentDemoUI(
                                DxvUI::WidgetState::Normal);
     anchored->addChild(anchoredChild);
     root->addChild(anchored);
+
+    // --- 4. AbsoluteContainer: Stretch children fill their slot. ---
+    root->addChild(makeCaption(
+        "stretch_caption",
+        "AbsoluteContainer: Stretch children fill their slot (click to cycle)", 40, 550));
+
+    auto abs4 = std::make_shared<DxvUI::AbsoluteContainer>("abs4");
+    abs4->setStyle({.backgroundColor = DxvUI::Colors::LightGray,
+                    .borderColor = DxvUI::Colors::Green,
+                    .borderThickness = 1,
+                    .left = 40,
+                    .top = 580,
+                    .width = 700,
+                    .height = 120},
+                   DxvUI::WidgetState::Normal);
+
+    auto stretchBoth =
+        makeBox("stretch_both", "Stretch/Stretch", 60, 30, DxvUI::Colors::CornflowerBlue);
+    stretchBoth->updateStyle({.horizontalAlignment = DxvUI::Alignment::Stretch,
+                              .verticalAlignment = DxvUI::Alignment::Stretch},
+                             DxvUI::WidgetState::Normal);
+    abs4->addChild(stretchBoth);
+
+    auto stretchHCenter =
+        makeBox("stretch_h_center", "Stretch/Center", 60, 30, DxvUI::Colors::SeaGreen);
+    stretchHCenter->updateStyle({.horizontalAlignment = DxvUI::Alignment::Stretch,
+                                 .verticalAlignment = DxvUI::Alignment::Center},
+                                DxvUI::WidgetState::Normal);
+    abs4->addChild(stretchHCenter);
+
+    auto stretchHEnd =
+        makeBox("stretch_h_end", "Stretch/End", 60, 30, DxvUI::Colors::Orange);
+    stretchHEnd->updateStyle({.horizontalAlignment = DxvUI::Alignment::Stretch,
+                              .verticalAlignment = DxvUI::Alignment::End},
+                             DxvUI::WidgetState::Normal);
+    abs4->addChild(stretchHEnd);
+
+    connections.push_back(
+        stretchBoth->on(DxvUI::EventType::Click, cycleVerticalAlignmentWithStretch));
+    connections.push_back(
+        stretchHCenter->on(DxvUI::EventType::Click, cycleVerticalAlignmentWithStretch));
+    connections.push_back(
+        stretchHEnd->on(DxvUI::EventType::Click, cycleVerticalAlignmentWithStretch));
+
+    root->addChild(abs4);
 
     return {.rowStart = rowStart,
             .rowCenter = rowCenter,

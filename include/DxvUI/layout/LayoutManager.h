@@ -116,8 +116,8 @@ class LayoutManager {
      * caller owns that axis and bakes any margin offset into the slot). On an
      * enabled axis the child's margin-box is aligned inside the slot by the
      * child's computed horizontal/vertical alignment (Start keeps the position,
-     * Center/End shift it), then the child itself is offset by its margin. The
-     * child's size is never changed (Stretch is not implemented).
+     * Center/End shift it), then the child itself is offset by its margin. On a
+     * Stretch axis the child fills the slot (minus margin) instead.
      * @param child The child to position (reads its computed margin and alignment).
      * @param childSize The child's final size (explicit width/height or measured).
      * @param containerRect The slot the parent gives to the child.
