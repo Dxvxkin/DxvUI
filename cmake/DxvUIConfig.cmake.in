@@ -1,0 +1,14 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+# Публичные зависимости таргета DxvUI (см. target_link_libraries PUBLIC):
+# импортируемые таргеты должны существовать до включения DxvUITargets.cmake.
+find_dependency(SDL2 REQUIRED)
+find_dependency(SDL2_ttf REQUIRED)
+find_dependency(sdl2-gfx REQUIRED)
+find_dependency(spdlog CONFIG REQUIRED)
+
+include("${CMAKE_CURRENT_LIST_DIR}/DxvUITargets.cmake")
+
+check_required_components(DxvUI)

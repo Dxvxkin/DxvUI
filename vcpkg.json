@@ -1,0 +1,13 @@
+{
+  "$comment": "vcpkg-манифест (manifest mode): зависимости ставятся автоматически при configure в <builddir>/vcpkg_installed. Подойдёт любой валидный клон vcpkg (переменная VCPKG_ROOT). builtin-baseline пиннит версии портов на релиз 2026.07.29.",
+  "name": "dxvui",
+  "version-string": "0.1.0",
+  "dependencies": [
+    "sdl2",
+    "sdl2-ttf",
+    "sdl2-gfx",
+    "spdlog",
+    "gtest"
+  ],
+  "builtin-baseline": "c76c06644034521fb761a39f8f52d8e87d1103d5"
+}

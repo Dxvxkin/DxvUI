@@ -26,3 +26,4 @@
 gmon.out
 *.gcda
 *.gcno
+/compile_commands.json
