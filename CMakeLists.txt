@@ -87,6 +87,7 @@ if(DXVUI_BUILD_EXAMPLES)
     add_dxvui_example(DxvUIAlignmentExample examples/alignment.cpp)
     add_dxvui_example(DxvUIEventsExample examples/events.cpp)
     add_dxvui_example(DxvUITextEditExample examples/textedit.cpp)
+    add_dxvui_example(DxvUIPopupExample examples/popup.cpp)
     add_dxvui_example(DxvUIBenchmark examples/benchmark.cpp)
 endif()
 
