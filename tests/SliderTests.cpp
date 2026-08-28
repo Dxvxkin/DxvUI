@@ -258,6 +258,114 @@ TEST(SliderTest, DragUpdatesValueAndDoesNotJump) {
     EXPECT_FLOAT_EQ(f.slider->getValue(), 0.25f);
 }
 
+TEST(SliderTest, DragTracksCursorWithNonZeroOrigin) {
+    // The baseline fixture uses 0 padding / 0 offset, which hides a bug where
+    // the track's origin (padding + position, i.e. axisStart) was not subtracted
+    // from the cursor coordinate when mapping it back to a value. With a nonzero
+    // origin the slider used to lag behind the cursor and increment on click.
+    SliderFixtureBase<SliderHorizontal> f(0, 100, 0);
+    f.slider->setStyle(
+        {.left = 40, .top = 0, .width = 200, .height = 30, .padding = {{0, 0, 0, 0}}},
+        WidgetState::Normal);
+    f.manager.resolveDirtyStyles(f.root);
+    f.root->measure({800, 600});
+    f.root->arrange({0, 0, 800, 600});
+
+    // Content starts at x = 40, width 200. Grab the exact middle of the track
+    // (value 50 -> pixel offset 100 -> absolute x = 140): the value must not
+    // jump.
+    f.slider->setValue(50.0f);
+    f.pressAt(140, 15);
+    EXPECT_FLOAT_EQ(f.slider->getValue(), 50.0f);
+
+    // +50px right along the 200px content track => +25 on a 0..100 range.
+    f.dragTo(190, 15);
+    EXPECT_FLOAT_EQ(f.slider->getValue(), 75.0f);
+
+    // Releasing and clicking the far-left thumb must not increment it.
+    DxvEvent up;
+    up.type = EventType::MouseUp;
+    up.mouse.x = 190;
+    up.mouse.y = 15;
+    up.mouse.button = MouseButton::Left;
+    f.scene->processEvent(up);
+
+    f.slider->setValue(0.0f);
+    f.pressAt(42, 15);  // just right of the far-left thumb (at x = 40), inside grab radius
+    EXPECT_FLOAT_EQ(f.slider->getValue(), 0.0f);
+}
+
+TEST(SliderTest, TrackClickJumpsToPointer) {
+    // A press on the track outside the thumb jumps the value to the pointer.
+    SliderFixtureBase<SliderHorizontal> f(0, 100, 0);
+    f.slider->setStyle(
+        {.left = 40, .top = 0, .width = 200, .height = 30, .padding = {{0, 0, 0, 0}}},
+        WidgetState::Normal);
+    f.manager.resolveDirtyStyles(f.root);
+    f.root->measure({800, 600});
+    f.root->arrange({0, 0, 800, 600});
+
+    // Content starts at x = 40, width 200. Thumb at value 0 sits at x = 40.
+    // Clicking the middle of the track (x = 140) jumps the value to 50.
+    f.slider->setValue(0.0f);
+    f.pressAt(140, 15);
+    EXPECT_FLOAT_EQ(f.slider->getValue(), 50.0f);
+
+    // The drag continues from the jumped position: +50px along a 200px track
+    // means +25 on the 0..100 range.
+    f.dragTo(190, 15);
+    EXPECT_FLOAT_EQ(f.slider->getValue(), 75.0f);
+
+    // Release, then click the far-left end of the track (thumb is now at 140):
+    // it's a track click that clamps to the minimum.
+    DxvEvent up;
+    up.type = EventType::MouseUp;
+    up.mouse.x = 190;
+    up.mouse.y = 15;
+    up.mouse.button = MouseButton::Left;
+    f.scene->processEvent(up);
+    f.slider->setValue(50.0f);
+    f.pressAt(40, 15);
+    EXPECT_FLOAT_EQ(f.slider->getValue(), 0.0f);
+}
+
+TEST(SliderTest, GrabThumbDoesNotJump) {
+    // A press directly on the thumb must not jump the value, even for a stepped
+    // slider where an off-by-origin would previously snap to an adjacent step.
+    SliderFixtureBase<SliderHorizontal> f(0, 100, 5);
+    f.slider->setValue(20.0f);
+    f.pressAt(40, 15);  // value 20 -> offset 20/100*200 = 40 px (padding-0 fixture)
+    EXPECT_FLOAT_EQ(f.slider->getValue(), 20.0f);
+}
+
+TEST(SliderTest, VerticalTrackClickJumpsToPointer) {
+    // Vertical orientation: value grows bottom -> top, so pressing high on the
+    // track yields a large value.
+    SliderFixtureBase<SliderVertical> f(0, 100, 0);
+    f.slider->setStyle(
+        {.left = 0, .top = 0, .width = 30, .height = 200, .padding = {{0, 0, 0, 0}}},
+        WidgetState::Normal);
+    f.manager.resolveDirtyStyles(f.root);
+    f.root->measure({800, 600});
+    f.root->arrange({0, 0, 800, 600});
+
+    // Content: y = 0..200. At value 0 the thumb is at the bottom (y = 200), so a
+    // press in the middle (y = 100) is a track click that jumps to 50.
+    f.slider->setValue(0.0f);
+    f.pressAt(15, 100);
+    EXPECT_FLOAT_EQ(f.slider->getValue(), 50.0f);
+
+    // The thumb now sits at y = (1 - 0.5)*200 = 100; grabbing it does not jump.
+    DxvEvent up;
+    up.type = EventType::MouseUp;
+    up.mouse.x = 15;
+    up.mouse.y = 100;
+    up.mouse.button = MouseButton::Left;
+    f.scene->processEvent(up);
+    f.pressAt(15, 100);
+    EXPECT_FLOAT_EQ(f.slider->getValue(), 50.0f);
+}
+
 TEST(SliderTest, DisabledIgnoresInput) {
     Fixture f(0, 1, 0.25f);
     f.slider->setValue(0.0f);

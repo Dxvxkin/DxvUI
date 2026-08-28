@@ -74,6 +74,10 @@ class SliderBase : public SceneNode {
     virtual bool isMainAxisKey(KeyCode key) const = 0;
     /// The arrow key that decreases the value along the main axis.
     virtual bool isCrossAxisKey(KeyCode key) const = 0;
+    /// Half-extent of the grab zone around the thumb center: a press inside it
+    /// grabs the thumb without jumping; a press on the track outside it jumps
+    /// the value to the pointer.
+    virtual int grabRadius() const = 0;
 
    private:
     float min_ = 0.0f;

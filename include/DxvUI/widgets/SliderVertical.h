@@ -38,6 +38,7 @@ class SliderVertical : public SliderBase {
     int axisFromMouse(int x, int y) const override;
     bool isMainAxisKey(KeyCode key) const override;
     bool isCrossAxisKey(KeyCode key) const override;
+    int grabRadius() const override { return static_cast<int>(kThumbDiameter) / 2; }
 
    private:
     static constexpr float kWidgetWidth = 24.0f;

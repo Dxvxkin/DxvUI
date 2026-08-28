@@ -72,12 +72,18 @@ void SliderBase::onEvent(DxvEvent& event) {
             const int trackLen = axisLength(track);
             if (trackLen <= 0) break;
             const int pointerPos = axisFromMouse(event.mouse.x, event.mouse.y);
-            // Capture the cursor's offset from the thumb center so that grabbing
-            // the thumb does not make it jump under the pointer.
             const int thumbCenter = axisStart(track) + valueToAxisPos(getValue(), trackLen);
-            dragOffset_ = static_cast<float>(pointerPos - thumbCenter);
             isDragging_ = true;
-            setValue(axisPosToValue(pointerPos - dragOffset_, trackLen));
+            if (std::abs(pointerPos - thumbCenter) <= grabRadius()) {
+                // Grab the thumb without jumping: keep the cursor's offset from
+                // the thumb center so dragging continues without a jump.
+                dragOffset_ = static_cast<float>(pointerPos - thumbCenter);
+            } else {
+                // Track click: jump the value to the clicked position, then
+                // keep dragging from there.
+                dragOffset_ = 0.0f;
+                setValue(axisPosToValue(pointerPos - axisStart(track), trackLen));
+            }
             event.stopPropagation();
             break;
         }
@@ -86,9 +92,16 @@ void SliderBase::onEvent(DxvEvent& event) {
             const int trackLen = axisLength(track);
             if (isDragging_ && trackLen > 0) {
                 const int pointerPos = axisFromMouse(event.mouse.x, event.mouse.y);
-                setValue(axisPosToValue(pointerPos - dragOffset_, trackLen));
+                setValue(axisPosToValue((pointerPos - dragOffset_) - axisStart(track), trackLen));
                 event.stopPropagation();
             }
+            break;
+        }
+        case EventType::MouseUp: {
+            // Release the drag: a missed button-up elsewhere shouldn't leave the
+            // slider thinking it's still being dragged.
+            isDragging_ = false;
+            dragOffset_ = 0.0f;
             break;
         }
         case EventType::MouseWheel: {
