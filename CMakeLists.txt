@@ -39,6 +39,9 @@ target_sources(DxvUI PRIVATE
         src/widgets/Button.cpp
         src/widgets/Checkbox.cpp
         src/widgets/Label.cpp
+        src/widgets/SliderBase.cpp
+        src/widgets/SliderHorizontal.cpp
+        src/widgets/SliderVertical.cpp
         src/widgets/TextEdit.cpp
         src/widgets/Popup.cpp
         src/containers/CenterContainer.cpp
@@ -169,6 +172,7 @@ if(BUILD_TESTING)
             tests/SDLEventSourceTests.cpp
             tests/SceneTests.cpp
             tests/PopupTests.cpp
+            tests/SliderTests.cpp
             tests/UIBindingTests.cpp
             tests/UIContextTests.cpp
     )

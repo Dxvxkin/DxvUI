@@ -36,6 +36,9 @@
 #include "widgets/Checkbox.h"
 #include "widgets/Label.h"
 #include "widgets/Popup.h"
+#include "widgets/SliderBase.h"
+#include "widgets/SliderHorizontal.h"
+#include "widgets/SliderVertical.h"
 #include "widgets/TextEdit.h"
 
 // Layout
