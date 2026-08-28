@@ -513,7 +513,7 @@ void SceneNode::drawContent(IRenderer& /*renderer*/) {}
 
 void SceneNode::bind(const std::shared_ptr<UIBinding>& binding) {
     connection_.reset();
-    binding_ = binding;
+    binding_ = binding; //TODO: binding присваиваеться без проверки, возможно требует проверок
     if (binding_) {
         connection_ =
             binding_->subscribe([this](const UIBinding& value) { this->onBindingChange(value); });
