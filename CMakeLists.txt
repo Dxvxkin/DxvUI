@@ -44,6 +44,7 @@ target_sources(DxvUI PRIVATE
         src/containers/CenterContainer.cpp
         src/containers/AbsoluteContainer.cpp
         src/containers/HorizontalContainer.cpp
+        src/containers/VerticalContainer.cpp
         src/layout/LayoutManager.cpp
         src/renderers/SDLRenderer.cpp
         src/renderers/SDLTextEngine.cpp

@@ -119,11 +119,11 @@ struct ComputedAppearanceStyle {
     Color backgroundColor;
     Color textColor;
     Color borderColor;
-    int borderThickness;
-    int borderRadius;
-    CursorType cursor;
+    int borderThickness = 0;
+    int borderRadius = 0;
+    CursorType cursor = CursorType::Arrow;
     bool clipContent = false;
-    int fontSize;
+    int fontSize = 14;
     std::string fontFamily;
     // Text content alignment, inherited from the parent's Normal state.
     Alignment textAlign = Alignment::Center;
@@ -157,8 +157,8 @@ struct ComputedLayoutStyle {
     // Only applied on the axes the parent does not manage itself (e.g. the
     // cross axis of a horizontal container, or unanchored axes of an absolute
     // container). Stretch fills the slot (minus margin) on the enabled axis.
-    Alignment horizontalAlignment;
-    Alignment verticalAlignment;
+    Alignment horizontalAlignment = Alignment::Start;
+    Alignment verticalAlignment = Alignment::Start;
 };
 
 namespace detail {

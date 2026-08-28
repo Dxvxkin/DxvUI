@@ -86,7 +86,7 @@ class TextEditorView {
      */
     virtual size_t hitTestAt(ITextEngine& engine, const IFont& font, const TextEditor& editor,
                              const Rect& contentRect, int globalX,
-                             Alignment horizontalAlign = Alignment::Start) = 0;
+                             Alignment horizontalAlign) = 0;
 };
 
 }  // namespace DxvUI
