@@ -35,7 +35,6 @@ class Checkbox : public SceneNode {
     // --- Overrides ---
     const char* getNodeType() const override;
     void onAttach() override;
-    std::shared_ptr<SceneNode> findNodeAt(int x, int y) override;
     // ---------------------
 
    protected:

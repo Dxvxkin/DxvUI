@@ -124,6 +124,13 @@ std::shared_ptr<SceneNode> SceneNode::findNodeAt(int x, int y) {
     if (!visible || !getGlobalBounds().contains(x, y)) {
         return nullptr;
     }
+    // An opaque (hit-testable) node is an atomic target: it accepts the hit
+    // itself and never recurses into its children, even though they may cover
+    // the point visually. Used by composite leaf widgets (Button, Checkbox,
+    // Slider...) that draw their own content and must be clicked as a unit.
+    if (hitTestable_) {
+        return shared_from_this();
+    }
     sortChildrenIfDirty();
     for (auto it = children.rbegin(); it != children.rend(); ++it) {
         if (auto found = (*it)->findNodeAt(x, y)) {
@@ -132,6 +139,20 @@ std::shared_ptr<SceneNode> SceneNode::findNodeAt(int x, int y) {
     }
     return shared_from_this();
 }
+
+void SceneNode::setHitTestable(bool hitTestable) {
+    if (hitTestable_ == hitTestable) {
+        return;
+    }
+    hitTestable_ = hitTestable;
+    // The hit-test cache may hold the result for a point that now (or no
+    // longer) resolves to this node; force the next hit-test to rescan.
+    if (auto sc = scene.lock()) {
+        sc->invalidateHitTestCache();
+    }
+}
+
+bool SceneNode::isHitTestable() const { return hitTestable_; }
 
 bool SceneNode::hasNodeInFront(const Rect& bounds) {
     // Children are kept in draw order (later = drawn on top). A sibling drawn

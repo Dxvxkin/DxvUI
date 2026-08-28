@@ -52,6 +52,9 @@ Checkbox::Checkbox(std::string id, std::string text) : SceneNode(std::move(id)) 
     // dispatches a Change event with this checkbox as the target.
     bind(UIBinding::create(false));
     labelText = std::move(text);
+    // The checkbox is an atomic click target with an internal Label; it accepts
+    // the hit itself instead of delegating to its children.
+    setHitTestable(true);
 }
 
 const char* Checkbox::getNodeType() const { return kWidgetType; }
@@ -128,13 +131,6 @@ void Checkbox::onEvent(DxvEvent& event) {
         default:
             break;
     }
-}
-
-std::shared_ptr<SceneNode> Checkbox::findNodeAt(int x, int y) {
-    if (!isVisible() || !getGlobalBounds().contains(x, y)) {
-        return nullptr;
-    }
-    return shared_from_this();
 }
 
 void Checkbox::setChecked(bool checked) { getBinding()->set(checked); }

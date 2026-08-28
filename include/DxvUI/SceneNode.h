@@ -405,6 +405,28 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
      */
     void setEnabled(bool enabled);
 
+    /**
+     * @brief Marks the node as an opaque hit-test target.
+     *
+     * By default a node is transparent to hit-testing: findNodeAt() recurses
+     * into its children first and only returns the node itself when no child
+     * covers the point. Marking a node hit-testable makes it an opaque,
+     * atomic target: the node is returned as-is (never recursing into its
+     * children), which is the right semantics for a composite leaf widget that
+     * draws its own content and must be clicked as a single entity (e.g. a
+     * Button with an internal Label). Widget authors set this in the
+     * constructor instead of overriding findNodeAt().
+     * @param hitTestable True to make the node opaque to hit-testing.
+     */
+    void setHitTestable(bool hitTestable);
+
+    /**
+     * @brief Whether the node is an opaque hit-test target.
+     * @return True if the node returns itself from findNodeAt() without
+     * consulting its children.
+     */
+    bool isHitTestable() const;
+
     ///@}
 
     //----------------------------------------------------------------
@@ -648,6 +670,9 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     bool isFocused = false;
     bool isEnabled_ = true;
     bool visible = true;
+    // Opaque hit-test target: findNodeAt() returns this node without recursing
+    // into its children. Set via setHitTestable().
+    bool hitTestable_ = false;
     static int nodeCount;
     int zIndex = 0;
     bool childrenOrderDirty = false;

@@ -50,6 +50,9 @@ std::shared_ptr<Button> Button::create(std::string id, std::string text) {
 
 Button::Button(std::string id, std::string text) : SceneNode(std::move(id)) {
     binding_ = UIBinding::create(std::move(text));
+    // The button is an atomic click target with an internal Label; it accepts
+    // the hit itself instead of delegating to its children.
+    setHitTestable(true);
 }
 
 const char* Button::getNodeType() const { return kWidgetType; }
@@ -89,13 +92,6 @@ void Button::onArrange(const Rect& finalRect) {
         const Rect childRect = LayoutManager::shrinkRect(content, margin);
         getChildren().front()->arrange(childRect);
     }
-}
-
-std::shared_ptr<SceneNode> Button::findNodeAt(int x, int y) {
-    if (!isVisible() || !getGlobalBounds().contains(x, y)) {
-        return nullptr;
-    }
-    return shared_from_this();
 }
 
 void Button::setText(std::string text) { getBinding()->set(std::move(text)); }
