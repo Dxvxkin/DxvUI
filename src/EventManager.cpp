@@ -104,7 +104,8 @@ void EventManager::processRawEvent(const DxvEvent& rawEvent) {
             break;
         case EventType::TextInput:
         case EventType::KeyDown:
-        case EventType::KeyUp: {
+        case EventType::KeyUp:
+        case EventType::MouseWheel: {
             std::shared_ptr<SceneNode> target = focusedNode.lock();
             if (!target) {
                 target = root;

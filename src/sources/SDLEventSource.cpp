@@ -129,6 +129,14 @@ bool SDLEventSource::processEvent(const SDL_Event& sdlEvent, DxvEvent& dxvEvent)
                 dxvEvent.mouse.button = MouseButton::None;
             return true;
 
+        case SDL_MOUSEWHEEL:
+            dxvEvent.type = EventType::MouseWheel;
+            // Wheel deltas: y > 0 = wheel away from user (scroll up), x > 0 =
+            // wheel to the right. The mouse coords are not relevant to a wheel.
+            dxvEvent.mouse.dx = sdlEvent.wheel.x;
+            dxvEvent.mouse.dy = sdlEvent.wheel.y;
+            return true;
+
         case SDL_KEYDOWN:
             dxvEvent.type = EventType::KeyDown;
             translateKeyboardEvent(dxvEvent, sdlEvent.key);

@@ -84,6 +84,14 @@ SDL_Event makeMotionEvent(int x, int y, Uint32 state) {
     return e;
 }
 
+SDL_Event makeWheelEvent(Sint32 x, Sint32 y) {
+    SDL_Event e = {};
+    e.type = SDL_MOUSEWHEEL;
+    e.wheel.x = x;
+    e.wheel.y = y;
+    return e;
+}
+
 SDL_Event makeTextInputEvent(const char* text) {
     SDL_Event e = {};
     e.type = SDL_TEXTINPUT;
@@ -158,6 +166,23 @@ TEST(SDLEventSourceTest, MapsMouseMotionButtons) {
 
     ASSERT_TRUE(source.processEvent(makeMotionEvent(3, 4, 0), out));
     EXPECT_EQ(out.mouse.button, MouseButton::None);
+}
+
+TEST(SDLEventSourceTest, MapsMouseWheel) {
+    SDLEventSource source;
+    DxvEvent out;
+
+    // Vertical wheel: y = +1 means scrolled up (away from the user).
+    ASSERT_TRUE(source.processEvent(makeWheelEvent(3, -1), out));
+    EXPECT_EQ(out.type, EventType::MouseWheel);
+    EXPECT_EQ(out.mouse.dx, 3);
+    EXPECT_EQ(out.mouse.dy, -1);
+
+    // Horizontal wheel is carried in dx.
+    ASSERT_TRUE(source.processEvent(makeWheelEvent(-2, 0), out));
+    EXPECT_EQ(out.type, EventType::MouseWheel);
+    EXPECT_EQ(out.mouse.dx, -2);
+    EXPECT_EQ(out.mouse.dy, 0);
 }
 
 TEST(SDLEventSourceTest, MapsKeyUp) {
