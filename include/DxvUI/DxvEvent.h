@@ -23,6 +23,10 @@ enum class EventType {
     KeyUp,
     TextInput,
     Quit,
+    // The host SDL window changed size (SDL_WINDOWEVENT_SIZE_CHANGED /
+    // SDL_WINDOWEVENT_RESIZED). Width/height in the `resize` field. Relevant
+    // mainly in external-renderer mode, where the host owns the window.
+    Resize,
     // Derived UI events
     Click,
     HoverEnter,
@@ -151,6 +155,11 @@ struct DxvEvent {
     } key;
 
     std::string text;
+
+    struct {
+        int width = 0;
+        int height = 0;
+    } resize;
 
     // --- Event flow control (DOM-style) ---
     // Events are single-use: the event manager builds a fresh DxvEvent per

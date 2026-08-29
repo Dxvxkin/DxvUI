@@ -160,9 +160,8 @@ SDLRenderer::SDLRenderer(const char* title, int width, int height, bool vsync)
         SDL_Quit();
         throw std::runtime_error(std::string("SDL_CreateWindow Error: ") + SDL_GetError());
     }
-    renderer =
-        SDL_CreateRenderer(window, -1,
-                           SDL_RENDERER_ACCELERATED | (vsync ? SDL_RENDERER_PRESENTVSYNC : 0));
+    renderer = SDL_CreateRenderer(
+        window, -1, SDL_RENDERER_ACCELERATED | (vsync ? SDL_RENDERER_PRESENTVSYNC : 0));
     if (!renderer) {
         SDL_DestroyWindow(window);
         SDL_Quit();
@@ -177,6 +176,10 @@ SDLRenderer::SDLRenderer(SDL_Renderer* externalRenderer)
     : window(nullptr), renderer(externalRenderer), ownsResources(false) {
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
     if (!renderer) throw std::invalid_argument("externalRenderer cannot be null.");
+    // Same blend-mode setup as the self-contained constructor: without it,
+    // translucent clears, fills and text render incorrectly against the host's
+    // content on an external renderer.
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
     textEngine = std::make_unique<SDLTextEngine>(renderer);
     setCursor(CursorType::Arrow);
 }

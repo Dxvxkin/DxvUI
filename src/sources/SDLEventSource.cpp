@@ -100,6 +100,18 @@ bool SDLEventSource::processEvent(const SDL_Event& sdlEvent, DxvEvent& dxvEvent)
             dxvEvent.type = EventType::Quit;
             return true;
 
+        case SDL_WINDOWEVENT:
+            switch (sdlEvent.window.event) {
+                case SDL_WINDOWEVENT_SIZE_CHANGED:
+                case SDL_WINDOWEVENT_RESIZED:
+                    dxvEvent.type = EventType::Resize;
+                    dxvEvent.resize.width = sdlEvent.window.data1;
+                    dxvEvent.resize.height = sdlEvent.window.data2;
+                    return true;
+                default:
+                    return false;
+            }
+
         case SDL_MOUSEBUTTONDOWN:
             dxvEvent.type = EventType::MouseDown;
             translateMouseButtonEvent(dxvEvent, sdlEvent.button);

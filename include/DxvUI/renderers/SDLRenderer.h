@@ -2,14 +2,13 @@
 #define DXVUI_SDLRENDERER_H
 
 #include <DxvUI/interfaces/IRenderer.h>
+#include <DxvUI/sources/SDLClipboard.h>
 #include <SDL.h>  // For SDL_Cursor
 
 #include <map>
 #include <memory>
 #include <string>
 #include <vector>
-
-#include <DxvUI/sources/SDLClipboard.h>
 
 struct SDL_Window;
 struct SDL_Renderer;
@@ -21,8 +20,20 @@ class SDLTextEngine;
 class SDLRenderer : public IRenderer {
    public:
     SDLRenderer(const char* title, int width, int height, bool vsync = true);
+    // External-renderer mode (the primary integration for host apps that already
+    // own an SDL initialization, window and renderer). The host keeps ownership
+    // of the SDL_Renderer and must keep it alive longer than this SDLRenderer:
+    // the destructor frees cached text textures that reference it. SDL_Init /
+    // SDL_Quit are NOT called in this mode.
     explicit SDLRenderer(SDL_Renderer* externalRenderer);
     ~SDLRenderer() override;
+
+    // --- SDL handle access ---
+    // Exposes the backend SDL objects so a host can mix its own rendering in or
+    // tune the renderer around the UI. In external mode the renderer is the one
+    // passed in; SDLWindow() returns nullptr because the host owns the window.
+    SDL_Renderer* getSDLHandle() const { return renderer; }
+    SDL_Window* getSDLWindow() const { return window; }
 
     // --- IRenderer implementation ---
     void clear(const Color& color) override;

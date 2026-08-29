@@ -69,7 +69,15 @@ void Scene::setFocus(const std::shared_ptr<SceneNode>& node) {
     }
 }
 
-void Scene::processEvent(const DxvEvent& event) { eventManager->processRawEvent(event); }
+void Scene::processEvent(const DxvEvent& event) {
+    // A window resize is not a widget event; re-layout against the new viewport
+    // instead of dispatching it through the event manager.
+    if (event.type == EventType::Resize) {
+        updateLayout();
+        return;
+    }
+    eventManager->processRawEvent(event);
+}
 
 void Scene::onNodeRemoved(const std::shared_ptr<SceneNode>& node) {
     if (eventManager) {
