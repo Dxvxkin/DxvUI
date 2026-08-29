@@ -576,6 +576,8 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
 
    protected:
     virtual void onChange(const UIBinding& binding);
+
+    
     void onBindingChange(const UIBinding& binding);
 
     /**
