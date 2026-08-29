@@ -1,6 +1,7 @@
 #ifndef DXVUI_CORE_H
 #define DXVUI_CORE_H
 
+#include <filesystem>
 #include <map>
 #include <string>
 
@@ -81,7 +82,11 @@ inline const char* getDefaultFontPath() {
 #elif defined(__APPLE__)
     return "/System/Library/Fonts/Supplemental/Arial.ttf";
 #elif defined(__linux__)
-    return "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
+    // Arch/CachyOS keep DejaVu under /usr/share/fonts/TTF/; Debian/Ubuntu under
+    // /usr/share/fonts/truetype/dejavu/. Try both, in order of likelihood.
+    if (std::filesystem::exists("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"))
+        return "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
+    return "/usr/share/fonts/TTF/DejaVuSans.ttf";
 #else
     return "";
 #endif
@@ -111,10 +116,10 @@ inline const char* getDefaultFontFamilyPath(const std::string& family) {
         {"Mono", "/System/Library/Fonts/Supplemental/Courier New.ttf"},
         {"System", "/System/Library/Fonts/Supplemental/Arial.ttf"},
 #elif defined(__linux__)
-        {"Sans", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"},
-        {"Serif", "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf"},
-        {"Mono", "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"},
-        {"System", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"},
+        {"Sans", "/usr/share/fonts/TTF/DejaVuSans.ttf"},
+        {"Serif", "/usr/share/fonts/TTF/DejaVuSerif.ttf"},
+        {"Mono", "/usr/share/fonts/TTF/DejaVuSansMono.ttf"},
+        {"System", "/usr/share/fonts/TTF/DejaVuSans.ttf"},
 #endif
     };
     auto it = defaults.find(family);

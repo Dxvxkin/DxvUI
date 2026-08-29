@@ -9,7 +9,18 @@ include(CTest)  # включает enable_testing() и даёт переменн
 # --- Find Dependencies via vcpkg ---
 find_package(SDL2 REQUIRED)
 find_package(SDL2_ttf REQUIRED)
-find_package(sdl2-gfx REQUIRED)
+if(UNIX)
+    # sdl2-gfx has no CMake config on Linux and the FindSDL_gfx module targets
+    # the obsolete v1 (SDL_gfx) naming. Resolve the sdl2_gfx pc-file instead and
+    # expose it under the same target name the rest of the build uses.
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(SDL2_GFX REQUIRED IMPORTED_TARGET GLOBAL SDL2_gfx)
+    if(NOT TARGET SDL2::SDL2_gfx)
+        add_library(SDL2::SDL2_gfx ALIAS PkgConfig::SDL2_GFX)
+    endif()
+else()
+    find_package(sdl2-gfx REQUIRED)
+endif()
 find_package(spdlog CONFIG REQUIRED)
 
 # --- Common ---
@@ -140,7 +151,13 @@ export(EXPORT DxvUITargets
 # --- Examples ---
 function(add_dxvui_example name src)
     add_executable(${name} ${src})
-    target_link_libraries(${name} PRIVATE DxvUI SDL2::SDL2main)
+    if(UNIX)
+        # On Linux SDL2's libSDL2main.a is a dummy that provides no main()/entry
+        # point; examples define their own int main().
+        target_link_libraries(${name} PRIVATE DxvUI)
+    else()
+        target_link_libraries(${name} PRIVATE DxvUI SDL2::SDL2main)
+    endif()
     dxvui_enable_warnings(${name})
     dxvui_deploy_runtime_dlls(${name})
 endfunction()
@@ -152,6 +169,7 @@ if(DXVUI_BUILD_EXAMPLES)
     add_dxvui_example(DxvUITextEditExample examples/textedit.cpp)
     add_dxvui_example(DxvUIPopupExample examples/popup.cpp)
     add_dxvui_example(DxvUISlidersExample examples/sliders.cpp)
+    add_dxvui_example(DxvUIExternalRendererExample examples/external_renderer.cpp)
     add_dxvui_example(DxvUIBenchmark examples/benchmark.cpp)
 endif()
 

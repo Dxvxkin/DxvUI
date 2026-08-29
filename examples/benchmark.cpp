@@ -701,7 +701,7 @@ void microbenchmarks(SDLRenderer& renderer, const Options& opt) {
 
 }  // namespace
 
-extern "C" int SDL_main(int argc, char* argv[]) {
+int main(int argc, char* argv[]) {
     std::setvbuf(stdout, nullptr, _IONBF, 0);
     Log::init();
     // Node registration logs (info) would spam the benchmark output; keep
