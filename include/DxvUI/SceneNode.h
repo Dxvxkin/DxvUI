@@ -575,9 +575,22 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     [[nodiscard]] std::size_t getDepth() const noexcept;
 
    protected:
+    /**
+     * @brief Hook called when the bound UIBinding's value changes.
+     *
+     * Override this method in derived widgets (e.g., Label, Checkbox) to update
+     * internal state or visual representation when the underlying data binding updates.
+     * @param binding The UIBinding object whose value changed.
+     */
     virtual void onChange(const UIBinding& binding);
 
-    
+    /**
+     * @brief Internal callback invoked when a subscribed UIBinding updates.
+     *
+     * Calls onChange() to let the widget handle the state update, then dispatches
+     * an EventType::Change event through the node.
+     * @param binding The UIBinding object whose value changed.
+     */
     void onBindingChange(const UIBinding& binding);
 
     /**
