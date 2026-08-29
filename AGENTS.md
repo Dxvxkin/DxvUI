@@ -31,6 +31,23 @@ ctest --test-dir cmake-build-debug
 cmake --build cmake-build-release
 ```
 
+## Работа между Windows и Linux (git-воркфлоу)
+
+Обе машины работают напрямую с единой веткой `master` на GitHub (единственный источник правды); локальных «OS-веток»
+нет.
+
+- **Правила**:
+    - перед началом работы и перед пушем — обязательно стянуть свежую историю: `git pull --ff-only` (Windows) /
+      `git pull --rebase` (Linux);
+    - никогда не использовать `git push --force`;
+    - конфликты разрешаются локально, правки пушатся отдельными осмысленными коммитами.
+- **Windows**: работа на `master` (или в короткоживущей ветке с fast-forward-мержем в master); перед пушем снова
+  `git pull --ff-only` — пуш всегда идёт fast-forward.
+- **Linux**: работа на отслеживаемом `origin/master`; перед пушем `git pull --rebase` — локальные коммиты накладываются
+  поверх свежих чужих, история остаётся линейной и пуш проходит без non-fast-forward.
+- Синхронизация `AGENTS.md` и любых правок между машинами происходит сама через пул/пуш; общая документация держится в
+  актуальном виде на GitHub.
+
 ## Release build (for performance work)
 
 `cmake-build-release/` is a second, separate build dir:
