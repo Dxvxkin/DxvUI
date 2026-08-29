@@ -125,8 +125,9 @@ Benchmark: `examples/benchmark.cpp` → `DxvUIBenchmark.exe` (both build dirs).
 - Formatting: `.clang-format` (ColumnLimit 100, indent 4, `PointerAlignment: Left`, includes sorted/regrouped). Project
   was bulk-formatted in commit `9846733`; run clang-format on touched files.
 - `.clang-tidy` is generated from CLion inspections — do not hand-maintain.
-- Headers under `include/DxvUI/`, impls in `src/` mirroring the same subdirs (`widgets/`, `containers/`, `renderers/`,
-  `sources/`, `style/`, `layout/`).
+- Headers under `include/DxvUI/`, impls in `src/` mirroring the same subdirs (`widgets/`, `containers/`, `interfaces/`,
+  `backend/`, `text/`, `style/`, `layout/`). All `I*` abstractions live in `interfaces/`; all SDL/backend concrete
+  implementations live in `backend/`.
 - Layout/arrange logic was recently extracted from `SceneNode` into the container classes — put measure/arrange
   overrides in containers, not `SceneNode`.
 - Commit messages and some comments are in Russian; match that when relevant.

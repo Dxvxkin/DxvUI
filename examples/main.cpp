@@ -6,9 +6,6 @@
 // itself, like a real host application would.
 
 #include <DxvUI/DxvUI.h>
-#include <DxvUI/FpsCounter.h>
-#include <DxvUI/Log.h>
-#include <DxvUI/style/Colors.h>
 #include <SDL.h>
 
 #include <chrono>
@@ -18,7 +15,6 @@
 #include <vector>
 
 #include "App.h"
-#include "DxvUI/containers/HorizontalContainer.h"
 
 namespace {
 

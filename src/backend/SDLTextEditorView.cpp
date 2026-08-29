@@ -1,11 +1,11 @@
-#include "DxvUI/renderers/SDLTextEditorView.h"
+#include "DxvUI/backend/SDLTextEditorView.h"
 
 #include <SDL.h>
 
 #include <algorithm>
 
 #include "DxvUI/interfaces/IRenderer.h"
-#include "DxvUI/text/ITextEngine.h"
+#include "DxvUI/interfaces/ITextEngine.h"
 #include "DxvUI/text/TextEditor.h"
 
 namespace DxvUI {

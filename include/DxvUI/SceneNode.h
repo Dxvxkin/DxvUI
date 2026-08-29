@@ -1,6 +1,7 @@
 #ifndef DXVUI_SCENENODE_H
 #define DXVUI_SCENENODE_H
 
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <memory>

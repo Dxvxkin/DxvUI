@@ -2,13 +2,12 @@
 #define DXVUI_IRENDERER_H
 
 #include <memory>
-#include <string>
 #include <vector>
 
 #include "DxvUI/core.h"
 #include "DxvUI/interfaces/IClipboard.h"
+#include "DxvUI/interfaces/ITextEngine.h"
 #include "DxvUI/interfaces/ITexture.h"
-#include "DxvUI/text/ITextEngine.h"
 
 namespace DxvUI {
 

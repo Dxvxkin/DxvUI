@@ -1,4 +1,4 @@
-#include "DxvUI/renderers/SDLRenderer.h"
+#include "DxvUI/backend/SDLRenderer.h"
 
 #include <SDL.h>
 #include <SDL2_gfxPrimitives.h>
@@ -10,9 +10,9 @@
 #include <vector>
 
 #include "DxvUI/Log.h"
+#include "DxvUI/backend/SDLTextEngine.h"
 #include "DxvUI/core.h"
-#include "DxvUI/renderers/SDLTextEngine.h"
-#include "renderers/SDLTexture.h"
+#include "backend/SDLTexture.h"
 
 namespace DxvUI {
 

@@ -8,10 +8,9 @@
 #include <DxvUI/FpsCounter.h>
 #include <DxvUI/Log.h>
 #include <DxvUI/Scene.h>
+#include <DxvUI/backend/SDLEventSource.h>
+#include <DxvUI/backend/SDLRenderer.h>
 #include <DxvUI/containers/CenterContainer.h>
-#include <DxvUI/core.h>
-#include <DxvUI/renderers/SDLRenderer.h>
-#include <DxvUI/sources/SDLEventSource.h>
 #include <DxvUI/style/Colors.h>
 #include <DxvUI/style/Style.h>
 #include <DxvUI/widgets/Button.h>

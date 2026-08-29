@@ -9,7 +9,6 @@
 #include "DxvUI/SceneNode.h"
 #include "DxvUI/style/StyleManager.h"
 #include "DxvUI/style/Theme.h"
-#include "DxvUI/widgets/Button.h"
 #include "DxvUI/widgets/Checkbox.h"
 
 using namespace DxvUI;

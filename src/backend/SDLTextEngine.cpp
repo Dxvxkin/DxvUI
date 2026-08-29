@@ -1,16 +1,15 @@
-#include "DxvUI/renderers/SDLTextEngine.h"
+#include "DxvUI/backend/SDLTextEngine.h"
 
 #include <SDL.h>
 
 #include <algorithm>
 #include <cstddef>
-#include <iostream>
 #include <stdexcept>
 #include <vector>
 
 #include "DxvUI/Log.h"
 #include "DxvUI/core.h"
-#include "renderers/SDLTexture.h"
+#include "backend/SDLTexture.h"
 
 namespace DxvUI {
 

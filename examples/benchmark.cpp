@@ -3,7 +3,7 @@
 #include <DxvUI/Scene.h>
 #include <DxvUI/SceneNode.h>
 #include <DxvUI/core.h>
-#include <DxvUI/renderers/SDLRenderer.h>
+#include <DxvUI/backend/SDLRenderer.h>
 #include <DxvUI/style/Colors.h>
 #include <DxvUI/widgets/Button.h>
 #include <DxvUI/widgets/Label.h>

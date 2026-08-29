@@ -1,7 +1,6 @@
 #include "DxvUI/containers/HorizontalContainer.h"
 
 #include <algorithm>
-#include <numeric>
 
 #include "DxvUI/layout/LayoutManager.h"
 

@@ -4,7 +4,7 @@
 #include <cstring>
 
 #include "DxvUI/DxvEvent.h"
-#include "DxvUI/sources/SDLEventSource.h"
+#include "DxvUI/backend/SDLEventSource.h"
 
 using namespace DxvUI;
 

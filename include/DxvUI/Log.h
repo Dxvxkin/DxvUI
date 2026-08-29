@@ -2,6 +2,7 @@
 #define DXVUI_LOG_H
 
 #include <memory>
+#include <utility>
 
 #include "spdlog/spdlog.h"
 

@@ -16,7 +16,6 @@
 // getSDLHandle() exposes the underlying SDL_Renderer for mixed rendering.
 
 #include <DxvUI/DxvUI.h>
-#include <DxvUI/Log.h>
 #include <SDL.h>
 
 #include <format>

@@ -8,13 +8,14 @@
 #include <algorithm>
 #include <cctype>
 #include <charconv>
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
-#include <ranges>
 #include <string>
+#include <system_error>
 #include <variant>
 
 // Helper for std::visit

@@ -1,13 +1,12 @@
 #ifndef DXVUI_SDLRENDERER_H
 #define DXVUI_SDLRENDERER_H
 
+#include <DxvUI/backend/SDLClipboard.h>
 #include <DxvUI/interfaces/IRenderer.h>
-#include <DxvUI/sources/SDLClipboard.h>
 #include <SDL.h>  // For SDL_Cursor
 
 #include <map>
 #include <memory>
-#include <string>
 #include <vector>
 
 struct SDL_Window;

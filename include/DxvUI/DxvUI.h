@@ -17,12 +17,19 @@
 #include "interfaces/IClipboard.h"
 #include "interfaces/IEventSource.h"
 #include "interfaces/IRenderer.h"
+#include "interfaces/ITextEngine.h"
 #include "interfaces/ITexture.h"
 
 // Text
-#include "text/ITextEngine.h"
 #include "text/TextEditor.h"
 #include "text/TextEditorView.h"
+
+// Backend
+#include "backend/SDLClipboard.h"
+#include "backend/SDLEventSource.h"
+#include "backend/SDLRenderer.h"
+#include "backend/SDLTextEditorView.h"
+#include "backend/SDLTextEngine.h"
 
 // Containers
 #include "containers/AbsoluteContainer.h"
@@ -44,15 +51,6 @@
 // Layout
 #include "layout/LayoutData.h"
 #include "layout/LayoutManager.h"
-
-// Sources
-#include "sources/SDLClipboard.h"
-#include "sources/SDLEventSource.h"
-
-// Renderers
-#include "renderers/SDLRenderer.h"
-#include "renderers/SDLTextEditorView.h"
-#include "renderers/SDLTextEngine.h"
 
 // Style
 #include "style/Color.h"

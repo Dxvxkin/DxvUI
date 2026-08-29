@@ -1,4 +1,3 @@
-#include <SDL.h>
 #include <gtest/gtest.h>
 
 #include <algorithm>
@@ -11,12 +10,11 @@
 #include "DxvUI/Log.h"
 #include "DxvUI/Scene.h"
 #include "DxvUI/SceneNode.h"
-#include "DxvUI/UIBinding.h"
 #include "DxvUI/interfaces/IRenderer.h"
+#include "DxvUI/interfaces/ITextEngine.h"
 #include "DxvUI/style/Colors.h"
 #include "DxvUI/style/StyleManager.h"
 #include "DxvUI/style/Theme.h"
-#include "DxvUI/text/ITextEngine.h"
 #include "DxvUI/widgets/Label.h"
 #include "DxvUI/widgets/TextEdit.h"
 

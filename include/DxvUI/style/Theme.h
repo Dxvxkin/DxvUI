@@ -4,7 +4,6 @@
 #include <cstdint>
 #include <map>
 #include <string>
-#include <utility>
 
 #include "Style.h"
 

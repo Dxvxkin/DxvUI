@@ -3,8 +3,6 @@
 #include <utility>
 #include <vector>
 
-#include "DxvUI/Log.h"
-
 namespace DxvUI {
 
 namespace {

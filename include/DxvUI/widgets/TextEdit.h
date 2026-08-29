@@ -4,6 +4,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "DxvUI/SceneNode.h"
 #include "DxvUI/text/TextEditor.h"

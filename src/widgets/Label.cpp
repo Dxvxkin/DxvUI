@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <utility>
 
-#include "DxvUI/Log.h"
 #include "DxvUI/Scene.h"
 #include "DxvUI/UIBinding.h"
 #include "DxvUI/interfaces/IRenderer.h"

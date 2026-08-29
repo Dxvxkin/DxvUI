@@ -2,14 +2,13 @@
 
 #include <utility>
 
-#include "DxvUI/Log.h"
 #include "DxvUI/Scene.h"
+#include "DxvUI/backend/SDLTextEditorView.h"
 #include "DxvUI/interfaces/IClipboard.h"
+#include "DxvUI/interfaces/ITextEngine.h"
 #include "DxvUI/layout/LayoutManager.h"
-#include "DxvUI/renderers/SDLTextEditorView.h"
 #include "DxvUI/style/Colors.h"
 #include "DxvUI/style/Theme.h"
-#include "DxvUI/text/ITextEngine.h"
 
 namespace DxvUI {
 

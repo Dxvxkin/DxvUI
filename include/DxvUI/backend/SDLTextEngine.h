@@ -3,6 +3,8 @@
 
 #include <SDL_ttf.h>
 
+#include <cstddef>
+#include <cstdint>
 #include <list>
 #include <map>
 #include <memory>
@@ -11,7 +13,7 @@
 #include <tuple>
 #include <utility>
 
-#include "DxvUI/text/ITextEngine.h"
+#include "DxvUI/interfaces/ITextEngine.h"
 
 struct SDL_Renderer;
 

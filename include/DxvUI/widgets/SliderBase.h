@@ -1,7 +1,6 @@
 #ifndef DXVUI_SLIDERBASE_H
 #define DXVUI_SLIDERBASE_H
 
-#include <memory>
 #include <string>
 
 #include "DxvUI/SceneNode.h"

@@ -7,7 +7,6 @@
 #include <optional>
 #include <string>
 #include <tuple>
-#include <utility>
 
 #include "DxvUI/core.h"  // For core types like Thickness, Alignment, CursorType
 #include "DxvUI/style/Color.h"
