@@ -43,16 +43,14 @@ Label::Label(std::string id, std::string text) : SceneNode(std::move(id)) {
 const char* Label::getNodeType() const noexcept { return kWidgetType; }
 
 void Label::setText(std::string newText) {
-    auto current_text = getBinding()->getString();
-    if (current_text != newText) {
-        // Сравнение до перемещения
-        binding_->set(std::move(newText));
-    }
+    // bound: set() no-ops when the value did not change, so no Change (and no
+    // onChange -> relayout) fires for an identical text. No need to compare here.
+    getBinding()->set(std::move(newText));
 }
 
 std::string Label::getText() const { return getBinding()->getString(); }
 
-void Label::onChange(const UIBinding& /*val*/) {
+void Label::onChange(const UIBinding& /*binding*/) {
     // Binding-driven text changes must re-measure the label: otherwise the
     // bounds stay stale and the new text gets clipped. setText() goes through
     // binding_->set() -> onChange(), so it is covered here too.

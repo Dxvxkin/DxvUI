@@ -18,7 +18,7 @@ class Label : public SceneNode {
     std::string getText() const;
 
     // --- Overrides ---
-    void onChange(const UIBinding& val) override;
+    void onChange(const UIBinding& binding) override;
 
     const char* getNodeType() const noexcept override;
     // ---------------------
