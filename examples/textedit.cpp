@@ -12,7 +12,9 @@
 #include <DxvUI/backend/SDLRenderer.h>
 #include <DxvUI/style/Colors.h>
 #include <DxvUI/style/Style.h>
+#include <DxvUI/text/ITextValidator.h>
 #include <DxvUI/widgets/Button.h>
+#include <DxvUI/widgets/Checkbox.h>
 #include <DxvUI/widgets/Label.h>
 #include <DxvUI/widgets/TextEdit.h>
 #include <SDL.h>
@@ -21,6 +23,7 @@
 #include <format>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "App.h"
@@ -83,6 +86,11 @@ class DxvUITextEditExample : public DxvUIEx::SdlApp {
     // shared_ptr на этот объект, а не ссылку на локальную переменную.
     struct DemoState {
         int submits = 0;
+        // Текущий активный валидатор (имя для лейбла, "" = валидация выключена).
+        std::string activeValidator;
+        // Защита от каскада Change-событий, когда обработчик одного чекбокса
+        // программно снимает соседние: их обработчики не должны трогать поле.
+        bool suppressToggle = false;
     };
 
     void buildTextEditDemoUI(const std::shared_ptr<DxvUI::SceneNode>& root) {
@@ -146,6 +154,87 @@ class DxvUITextEditExample : public DxvUIEx::SdlApp {
                                                 DxvUI::Log::info("[demo] поле очищено");
                                             }));
         root->addChild(clearBtn);
+
+        // --- Валидаторы: чекбоксы-радиогруппа переключают активную валидацию ---
+        // Один активный валидатор: клик по чекбоксу применяет его и снимает
+        // соседние; повторный клик по уже активному отключает валидацию вовсе.
+        auto validatorLabel = DxvUI::Label::create("validator_label", "Валидатор: нет");
+        validatorLabel->setStyle({.left = 5, .top = 250}, DxvUI::WidgetState::Normal);
+        root->addChild(validatorLabel);
+
+        auto applyValidator = [field, validatorLabel, state](
+                                  std::string name,
+                                  std::shared_ptr<DxvUI::validators::ITextValidator> validator) {
+            state->activeValidator = std::move(name);
+            field->setValidator(std::move(validator));
+            // Если в поле уже лежит текст, который новый валидатор отвергает,
+            // очищаем его: иначе любая вставка была бы заблокирована, пока буфер
+            // не станет валидным вручную (backspace при этом работает).
+            const auto& active = field->getValidator();
+            if (active && !active->validate(field->getText())) {
+                field->setText("");
+            }
+            validatorLabel->setText("Валидатор: " + (state->activeValidator.empty()
+                                                         ? std::string("нет")
+                                                         : state->activeValidator));
+        };
+
+        std::vector<std::shared_ptr<DxvUI::Checkbox>> validatorBoxes;
+        auto registerToggle = [&](const std::shared_ptr<DxvUI::Checkbox>& cb, std::string name,
+                                  std::shared_ptr<DxvUI::validators::ITextValidator> validator) {
+            connections_.push_back(cb->on(
+                DxvUI::EventType::Change,
+                [cb, name = std::move(name), validator = std::move(validator), validatorBoxes,
+                 applyValidator, state](DxvUI::DxvEvent&, const DxvUI::UIContext&) {
+                    if (state->suppressToggle) {
+                        // Сосед снят программно — валидатор не трогаем.
+                        return;
+                    }
+                    if (!cb->isChecked()) {
+                        // Пользователь снял активный чекбокс — валидация выключается.
+                        if (state->activeValidator == name) {
+                            applyValidator("", nullptr);
+                        }
+                        return;
+                    }
+                    // Радиогруппа: снять все остальные чекбоксы, затем применить свой.
+                    state->suppressToggle = true;
+                    for (const auto& other : validatorBoxes) {
+                        if (other != cb) {
+                            other->setChecked(false);
+                        }
+                    }
+                    state->suppressToggle = false;
+                    applyValidator(name, validator);
+                }));
+        };
+
+        auto valDigits = DxvUI::Checkbox::create("val_digits", "Только цифры");
+        valDigits->setStyle({.left = 50, .top = 290}, DxvUI::WidgetState::Normal);
+        validatorBoxes.push_back(valDigits);
+        root->addChild(valDigits);
+
+        auto valHex = DxvUI::Checkbox::create("val_hex", "Hex число");
+        valHex->setStyle({.left = 50, .top = 330}, DxvUI::WidgetState::Normal);
+        validatorBoxes.push_back(valHex);
+        root->addChild(valHex);
+
+        auto valRange = DxvUI::Checkbox::create("val_range", "Диапазон 0–1000");
+        valRange->setStyle({.left = 50, .top = 370}, DxvUI::WidgetState::Normal);
+        validatorBoxes.push_back(valRange);
+        root->addChild(valRange);
+
+        auto valDecimal = DxvUI::Checkbox::create("val_decimal", "Десятичное число (.6)");
+        valDecimal->setStyle({.left = 50, .top = 410}, DxvUI::WidgetState::Normal);
+        validatorBoxes.push_back(valDecimal);
+        root->addChild(valDecimal);
+
+        // Обработчики регистрируются после создания ВСЕХ чекбоксов: хендлер копирует
+        // vector со всеми соседями, чтобы радиогруппа работала целиком.
+        registerToggle(valDigits, "Только цифры", DxvUI::validators::digitsOnly());
+        registerToggle(valHex, "Hex", DxvUI::validators::hex());
+        registerToggle(valRange, "Диапазон 0–1000", DxvUI::validators::range(0, 1000));
+        registerToggle(valDecimal, "Десятичное число", DxvUI::validators::decimal());
 
         // FPS-лейбл (обновляется в главном цикле).
         auto fpsLabel = DxvUI::Label::create("fps_label", "FPS: --");
@@ -220,6 +309,54 @@ class DxvUITextEditExample : public DxvUIEx::SdlApp {
         clickAt(110, 156);
         DxvUI::Log::info("[check] после очистки: '{}'", field->getText());
         ok &= field->getText().empty();
+
+        // --- Валидаторы: переключение чекбоксами (радиогруппа) ---
+        // Чекбоксы стоят на (50, 290)/(50, 330)/(50, 410); кликаем по квадратику.
+        auto clickValidator = [&](int top) { clickAt(60, top + 8); };
+
+        // «Только цифры»: поле пусто, включаем и печатаем посимвольно.
+        clickValidator(290);
+        clickAt(250, 96);
+        key(DxvUI::KeyCode::End);
+        typeText("1");
+        typeText("2");
+        typeText("a");  // буква отклоняется
+        typeText("3");
+        DxvUI::Log::info("[check] digits: после '12a3' = '{}'", field->getText());
+        ok &= field->getText() == "123";
+
+        // «Hex»: "123" — валидный hex, текст сохраняется; G отклонена, F принята.
+        clickValidator(330);
+        DxvUI::Log::info("[check] hex: '123' сохранён: {}",
+                         field->getText() == "123" ? "да" : "НЕТ");
+        ok &= field->getText() == "123";
+        clickAt(250, 96);
+        key(DxvUI::KeyCode::End);
+        typeText("G");
+        typeText("F");
+        DxvUI::Log::info("[check] hex: после 'GF' = '{}'", field->getText());
+        ok &= field->getText() == "123F";
+
+        // «Десятичное число»: "123F" невалиден -> поле очищается; вводим ".6".
+        clickValidator(410);
+        DxvUI::Log::info("[check] decimal: невалидный текст очищен: {}",
+                         field->getText().empty() ? "да" : "НЕТ");
+        ok &= field->getText().empty();
+        clickAt(250, 96);
+        key(DxvUI::KeyCode::End);
+        typeText(".");
+        typeText("6");
+        typeText(".");  // вторая точка отклоняется
+        DxvUI::Log::info("[check] decimal: после '.6.' = '{}'", field->getText());
+        ok &= field->getText() == ".6";
+
+        // Повторный клик снимает валидатор: снова можно вводить произвольный текст.
+        clickValidator(410);
+        clickAt(250, 96);
+        key(DxvUI::KeyCode::End);
+        typeText("x");
+        DxvUI::Log::info("[check] без валидатора: после 'x' = '{}'", field->getText());
+        ok &= field->getText() == ".6x";
 
         // Мёртвых токенов нет — поле и кнопка живы.
         std::erase_if(connections_, [](const auto& c) { return c->expired(); });
