@@ -65,6 +65,19 @@ class TextEdit : public SceneNode {
      */
     void setOnSubmit(SubmitCallback cb) { onSubmit_ = std::move(cb); }
 
+    // --- Validation ---
+    // Gates input at the model level: insertText()/setText() in the
+    // underlying TextEditor silently drop edits that would produce rejected
+    // text, so e.g. a digits-only field never shows a letter typed into it.
+    // nullptr (default) disables validation. Built-in validators live in
+    // DxvUI::validators: digitsOnly(), range(), hex(), decimal(), regex().
+    void setValidator(std::shared_ptr<validators::ITextValidator> validator) {
+        editor_.setValidator(std::move(validator));
+    }
+    const std::shared_ptr<validators::ITextValidator>& getValidator() const {
+        return editor_.getValidator();
+    }
+
    protected:
     Size onMeasure(const Size& availableSize) override;
     void drawContent(IRenderer& renderer) override;

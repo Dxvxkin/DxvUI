@@ -15,6 +15,7 @@
 #include "DxvUI/style/Colors.h"
 #include "DxvUI/style/StyleManager.h"
 #include "DxvUI/style/Theme.h"
+#include "DxvUI/text/ITextValidator.h"
 #include "DxvUI/widgets/Label.h"
 #include "DxvUI/widgets/TextEdit.h"
 
@@ -519,4 +520,37 @@ TEST(TextEditTest, BackspaceDeletesWholeUtf8CodePoint) {
     f.keyDown(KeyCode::End);
     f.keyDown(KeyCode::Backspace);
     EXPECT_EQ(f.field->getText(), "\xD0\x90");
+}
+
+TEST(TextEditTest, ValidatorBlocksTypingAtWidgetLevel) {
+    TextEditFixture f;
+    using validators::digitsOnly;
+    // The fixture starts with "Hello"; a digits-only field would reject every
+    // edit while that text is in the buffer, so start clean.
+    f.field->setText("");
+    f.field->setValidator(digitsOnly());
+    f.press(4, 10);  // focus
+    // typeText() sends one TextInput event per call, like a keypress.
+    f.typeText("1");
+    f.typeText("2");
+    f.typeText("a");  // rejected by the validator
+    f.typeText("3");
+    f.typeText("4");
+    EXPECT_EQ(f.field->getText(), "1234");
+}
+
+TEST(TextEditTest, ValidatorBlocksPasteWhole) {
+    TextEditFixture f;
+    using validators::range;
+    f.field->setValidator(range(0, 100));
+    f.field->setText("75");
+    f.press(4, 10);                            // focus
+    f.keyDown(KeyCode::A, KeyModifier::Ctrl);  // select all
+    f.renderer.clipboard.text = "abc";         // would produce rejected text
+    f.keyDown(KeyCode::V, KeyModifier::Ctrl);  // paste
+    EXPECT_EQ(f.field->getText(), "75");
+
+    f.renderer.clipboard.text = "42";  // in range
+    f.keyDown(KeyCode::V, KeyModifier::Ctrl);
+    EXPECT_EQ(f.field->getText(), "42");
 }

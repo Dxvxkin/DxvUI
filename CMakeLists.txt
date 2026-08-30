@@ -69,6 +69,7 @@ target_sources(DxvUI PRIVATE
         src/style/StyleManager.cpp
         src/style/Theme.cpp
         src/text/TextEditor.cpp
+        src/text/TextValidator.cpp
 )
 
 target_include_directories(DxvUI PUBLIC
@@ -188,6 +189,7 @@ if(BUILD_TESTING)
             tests/WidgetTests.cpp
             tests/TextEditorTests.cpp
             tests/TextEngineTests.cpp
+            tests/TextValidatorTests.cpp
             tests/SDLEventSourceTests.cpp
             tests/SceneTests.cpp
             tests/PopupTests.cpp

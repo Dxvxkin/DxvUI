@@ -18,6 +18,9 @@ TextEditor::TextEditor(std::string text) : text_(std::move(text)) {
 
 void TextEditor::setText(std::string text) {
     if (text == text_) return;
+    // The validator gates programmatic replacement too, so the buffer can never
+    // be forced into an invalid state behind the field's back.
+    if (validator_ && !validator_->validate(text)) return;
     pushUndo();
     text_ = std::move(text);
     caret_ = std::min(caret_, text_.size());
@@ -37,6 +40,20 @@ void TextEditor::moveCaretEnd() { caret_ = text_.size(); }
 
 void TextEditor::insertText(const std::string& utf8) {
     if (utf8.empty()) return;
+
+    // The validator sees the full proposed buffer (with the selection already
+    // replaced), not the typed fragment: that is what keeps partial rules like
+    // "0x" or "1." working while typing. Without a selection the insert
+    // position is the caret; with one it is the selection start, mirroring the
+    // deleteSelectionNoUndo() below.
+    const size_t insertAt = hasSelection() ? selectionStart_ : caret_;
+    std::string proposed = text_;
+    if (hasSelection()) {
+        proposed.erase(selectionStart_, selectionEnd_ - selectionStart_);
+    }
+    proposed.insert(insertAt, utf8);
+    if (validator_ && !validator_->validate(proposed)) return;  // silently reject
+
     pushUndo();
     if (hasSelection()) {
         deleteSelectionNoUndo();

@@ -3,9 +3,12 @@
 
 #include <cstddef>
 #include <functional>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
+
+#include "DxvUI/text/ITextValidator.h"
 
 namespace DxvUI {
 
@@ -68,6 +71,17 @@ class TextEditor {
     bool canUndo() const { return !undoStack_.empty(); }
     bool canRedo() const { return !redoStack_.empty(); }
 
+    // --- Validation ---
+    // A validator gates every buffer mutation (insertText/setText): the edit
+    // is dropped when the resulting text would be rejected. nullptr (default)
+    // disables validation. Backspace/Delete always shorten the buffer and are
+    // never blocked. See DxvUI/text/ITextValidator.h for the built-in
+    // validators (validators::digitsOnly(), range(), hex(), ...).
+    void setValidator(std::shared_ptr<validators::ITextValidator> validator) {
+        validator_ = std::move(validator);
+    }
+    const std::shared_ptr<validators::ITextValidator>& getValidator() const { return validator_; }
+
     /**
      * @brief Stores an IME composition in progress (v1 stores only; merging
      * the composition into the buffer comes with the IME integration step).
@@ -112,6 +126,7 @@ class TextEditor {
     size_t compositionStart_ = 0;
     size_t compositionLength_ = 0;
     ChangeCallback onChange_;
+    std::shared_ptr<validators::ITextValidator> validator_;
 };
 
 }  // namespace DxvUI
