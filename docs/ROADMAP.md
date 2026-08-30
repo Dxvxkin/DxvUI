@@ -125,31 +125,123 @@
 
 ## 2. Целевая модель
 
-### A. Типизированный payload
+### A. Типизированный payload — сигнатуры (с вариантами)
 
-- Сохранить `EventType` как плоский enum (совместимость ключей), но типизировать
-  доступ к данным. Рекомендуемый вариант: `DxvEvent` с типизированными геттерами
-  поверх внутреннего хранилища (обратная совместимость с ручным созданием событий
-  в `examples/`/`tests/`: `DxvEvent e; e.type=...; ...`).
-- Ввести типовые группы: `MouseEvent` (x/y/dx/dy/button), `KeyEvent`
-  (sym/mod/repeat[/scancode]), `TextEvent` (text), `ResizeEvent` (w/h),
-  `ChangeEvent`/`FocusEvent`/`HoverEvent` (target/related).
-- Добавить `EventType::Submit`, `DragStart`, `DragEnd`, `DragOver`.
+Цель: сохранить обратную совместимость записи (examples/tests создают
+`DxvEvent e; e.type=...; e.mouse.x=...`), но дать структурированный типизированный
+доступ при чтении. `EventType` остаётся плоским enum (совместимость ключей).
 
-### B. Единая маршрутизация
+**Payload-структуры (общие для обоих вариантов):**
+```cpp
+struct MouseEventData {
+    int x = 0, y = 0, dx = 0, dy = 0;      // Move-deltas в dx/dy
+    MouseButton button = MouseButton::None;
+};
+struct WheelEventData {                    // раздельный wheel (вместо mouse.dx/dy)
+    int dx = 0, dy = 0;                    // dy>0 = вверх
+    PointI position = {0, 0};
+};
+struct KeyEventData {
+    KeyCode sym = KeyCode::Unknown;
+    uint16_t mod = 0;
+    uint8_t repeat = 0;
+    uint16_t scancode = 0;                 // НОВОЕ: физический ключ
+};
+struct TextEventData { std::string text; }; // доступ .text (совместимо)
+struct ResizeEventData { int width = 0, height = 0; };
+```
 
-- Декларативная таблица «тип события → стратегия цели» (hit-test/hovered/focused/root)
-  вместо пяти веток switch в `processRawEvent`.
-- Синтез производных событий собрать в задокументированную единую точку.
+**Вариант А — иерархия классов (строгая типизация, ЛОМАЕТ запись):**
+```cpp
+class DxvEventBase {
+   public:
+    virtual ~DxvEventBase() = default;
+    virtual EventType type() const = 0;
+    virtual std::shared_ptr<SceneNode> target() const = 0;
+    void stopPropagation(); void stopImmediatePropagation(); void preventDefault();
+    // + isPropagationStopped()/isImmediatePropagationStopped()/isDefaultPrevented()
+};
+class MouseEvent : public DxvEventBase {
+   public:
+    EventType type() const override;   // MouseDown/Up/Move/Click по конструктору
+    MouseEventData data;
+    int x() const; int y() const; int dx() const; int dy() const;
+    MouseButton button() const;
+};
+class KeyEvent   : public DxvEventBase { /* KeyEventData data; sym()/mod()/repeat()/scancode() */ };
+class WheelEvent : public DxvEventBase { /* WheelEventData data; */ };
+class TextEvent  : public DxvEventBase { /* TextEventData data; text() */ };
+class ResizeEvent: public DxvEventBase { /* ResizeEventData data; */ };
+class ChangeEvent: public DxvEventBase { /* ... */ };
+class FocusEvent : public DxvEventBase { /* ... */ };
+class HoverEvent : public DxvEventBase { /* ... */ };
+class SubmitEvent: public DxvEventBase { /* ... */ };
+```
+«+» строгая типизация / dynamic_cast; «−» ломает ручное создание в examples/tests,
+требует масштабной миграции.
 
-### C. Двухфазный проход
+**Вариант Б — единый `DxvEvent` с типизированными struct + геттерами (РЕКОМЕНДУЕТСЯ — совместимость записи):**
+```cpp
+struct DxvEvent {
+    EventType type = EventType::None;
+    // Write API (обратная совместимость: примеры/тесты пишут напрямую)
+    MouseEventData mouse;
+    WheelEventData wheel;      // НОВОЕ, раздельное
+    KeyEventData key;
+    TextEventData text;
+    ResizeEventData resize;
+    // Read API (типизированный доступ)
+    [[nodiscard]] int mouseX() const;  [[nodiscard]] int mouseY() const;
+    [[nodiscard]] int wheelDx() const; [[nodiscard]] int wheelDy() const;
+    [[nodiscard]] KeyCode keySym() const;
+    // target/currentTarget/relatedNode + getTarget()/getCurrentTarget()/getRelatedNode()/getTargetId()
+    void stopPropagation(); void stopImmediatePropagation(); void preventDefault();
+    bool isPropagationStopped() const;
+    bool isImmediatePropagationStopped() const;
+    bool isDefaultPrevented() const;
+};
+```
+Ключевое: `wheel` разделяется с `mouse` — устраняет смысловой конфликт deltas у Move
+vs Wheel, но ломает текущий `e.mouse.dx` у wheel (мигрируем 4 виджета + тесты сразу,
+либо временные алиасы на переходный период).
 
-- `SceneNode::dispatchEvent`: capture → target → bubble, запускается один раз по
-  `event.currentTarget == nullptr`.
-- Новый хук `virtual void onCapture(DxvEvent&)` (root→target, без цели).
-- `stopPropagation()` в capture останавливает спуск И bubble.
-- Гейт: capture только для raw-input типов (не гонять `Change`/`Attach`/`Detach`/`
-  Focus`/`Hover`).
+**Новые EventType:** `Submit`, `DragStart`, `DragEnd`, `DragOver` (payload-полей не
+требуют; данные в `mouse`/`key`/`text`).
+
+### B′. Единая маршрутизация — сигнатура (шаг 3)
+
+```cpp
+enum class RoutingTarget { HitTest, Hovered, Focused, Root, None };
+struct RoutingRule { EventType type; RoutingTarget target; };
+//  MouseDown/Up/Move -> HitTest
+//  MouseWheel        -> Hovered   (НЕ ТРОГАТЬ, текущее поведение)
+//  KeyDown/KeyUp/TextInput -> Focused
+//  Quit/Resize       -> Root
+//  Click/Drag*/Drop/Hover/Focus -> None (синтез в EventManager)
+std::shared_ptr<SceneNode> resolveTarget(const DxvEvent& event) const;  // EventManager
+```
+
+### C′. Capture-фаза — сигнатура (шаг 4; РЕКОМЕНДАЦИЯ: хостинг в EventManager, не в dispatchEvent)
+
+```cpp
+// EventManager
+std::vector<std::shared_ptr<SceneNode>> buildPathToTarget(
+    const std::shared_ptr<SceneNode>& target) const;        // root->...->target
+void dispatchWithCapture(DxvEvent& event);                  // capture(root..предок) + dispatch(target)
+// SceneNode: новый virtual hook
+virtual void onCapture(DxvEvent& event);                    // default no-op
+```
+Осторожно: `dispatchEvent` имеет guard `if (!event.getTarget()) return;`
+(`src/SceneNode.cpp:379`); `Change` идёт через `onBindingChange` мимо EventManager —
+capture его не трогает (соответствует гейту ниже).
+Гейт: capture только для raw-input типов (не гонять `Change`/`Attach`/`Detach`/`
+Focus`/`Hover`). `stopPropagation()` в capture отменяет спуск И bubble.
+
+### Открытые решения (зафиксировать на старте сеанса)
+
+1. Вариант А или Б (рекоменд. Б).
+2. Wheel-разделение: мигрировать сразу или алиасами `mouse.dx/dy` → wheel (рекоменд. сразу).
+3. `TextEventData`: поле `.text` (совместимо) или `.value`+геттер (рекоменд. `.text`).
 
 ### D. Согласованная модель реакции
 
