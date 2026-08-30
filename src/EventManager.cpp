@@ -104,9 +104,21 @@ void EventManager::processRawEvent(const DxvEvent& rawEvent) {
             break;
         case EventType::TextInput:
         case EventType::KeyDown:
-        case EventType::KeyUp:
-        case EventType::MouseWheel: {
+        case EventType::KeyUp: {
             std::shared_ptr<SceneNode> target = focusedNode.lock();
+            if (!target) {
+                target = root;
+            }
+            event.target = target;
+            target->dispatchEvent(event);
+            break;
+        }
+        case EventType::MouseWheel: {
+            // The wheel scrolls whatever is under the cursor (e.g. a
+            // ScrollContainer), so it is delivered to the hovered node rather
+            // than the focused node. The event then bubbles up the tree, so the
+            // deepest scrollable ancestor consumes it via stopPropagation().
+            std::shared_ptr<SceneNode> target = hoveredNode.lock();
             if (!target) {
                 target = root;
             }

@@ -59,6 +59,7 @@ target_sources(DxvUI PRIVATE
         src/containers/AbsoluteContainer.cpp
         src/containers/HorizontalContainer.cpp
         src/containers/VerticalContainer.cpp
+        src/containers/ScrollContainer.cpp
         src/layout/LayoutManager.cpp
         src/backend/SDLRenderer.cpp
         src/backend/SDLTextEngine.cpp
@@ -170,6 +171,7 @@ if(DXVUI_BUILD_EXAMPLES)
     add_dxvui_example(DxvUITextEditExample examples/textedit.cpp)
     add_dxvui_example(DxvUIPopupExample examples/popup.cpp)
     add_dxvui_example(DxvUISlidersExample examples/sliders.cpp)
+    add_dxvui_example(DxvUIScrollExample examples/scroll.cpp)
     add_dxvui_example(DxvUIExternalRendererExample examples/external_renderer.cpp)
     add_dxvui_example(DxvUIBenchmark examples/benchmark.cpp)
 endif()
@@ -194,6 +196,7 @@ if(BUILD_TESTING)
             tests/SceneTests.cpp
             tests/PopupTests.cpp
             tests/SliderTests.cpp
+            tests/ScrollContainerTests.cpp
             tests/UIBindingTests.cpp
             tests/UIContextTests.cpp
     )

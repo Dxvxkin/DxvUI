@@ -37,6 +37,7 @@
 #include "containers/CenterContainer.h"
 #include "containers/Container.h"
 #include "containers/HorizontalContainer.h"
+#include "containers/ScrollContainer.h"
 #include "containers/VerticalContainer.h"
 
 // Widgets
