@@ -554,3 +554,52 @@ TEST(TextEditTest, ValidatorBlocksPasteWhole) {
     f.keyDown(KeyCode::V, KeyModifier::Ctrl);
     EXPECT_EQ(f.field->getText(), "42");
 }
+
+TEST(TextEditTest, FiresChangeOnTextMutation) {
+    TextEditFixture f;
+    int changes = 0;
+    std::unique_ptr<DxvUI::SceneNode::Connection> conn = f.field->on(
+        DxvUI::EventType::Change, [&](DxvUI::DxvEvent&, const DxvUI::UIContext&) { ++changes; });
+
+    // Initial subscription must not fire.
+    EXPECT_EQ(changes, 0);
+
+    // Typing fires Change and the binding mirrors the new text.
+    f.press(4, 10);  // focus
+    f.release(4, 10);
+    f.typeText("X");
+    EXPECT_EQ(changes, 1);
+
+    // Programmatic setText to a new value fires Change.
+    f.field->setText("Hello");
+    EXPECT_EQ(changes, 2);
+
+    // setText to the same value is a no-op (no Change).
+    f.field->setText("Hello");
+    EXPECT_EQ(changes, 2);
+
+    // Undo/redo through the keyboard fire Change too.
+    f.keyDown(KeyCode::Z, KeyModifier::Ctrl);
+    EXPECT_EQ(changes, 3);
+    f.keyDown(KeyCode::Y, KeyModifier::Ctrl);
+    EXPECT_EQ(changes, 4);
+}
+
+TEST(TextEditTest, ChangeCarriesBindingStringValue) {
+    TextEditFixture f;
+    std::string observed;
+    std::unique_ptr<DxvUI::SceneNode::Connection> conn =
+        f.field->on(DxvUI::EventType::Change, [&](DxvUI::DxvEvent& e, const DxvUI::UIContext&) {
+            observed = e.getTarget()->getBinding()->getString();
+        });
+
+    // The binding mirrors the model text, so the standard "read the value from
+    // getBinding()->getString()" idiom works for TextEdit, like for Label.
+    f.press(4, 10);  // focus
+    f.release(4, 10);
+    f.typeText("!");
+    EXPECT_EQ(observed, "!Hello");
+
+    f.field->setText("World");
+    EXPECT_EQ(observed, "World");
+}

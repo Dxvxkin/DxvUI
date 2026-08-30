@@ -28,6 +28,14 @@ class IClipboard;
  * The text lives in the editor model: read/edit it through getText()/setText()
  * or getEditor() directly. setText() records a single undo entry, like a
  * user-typed replacement.
+ *
+ * The value is observable through the standard EventType::Change channel, like
+ * the other data-bearing widgets (Label, Checkbox, Slider): the widget binds a
+ * UIBinding that mirrors the editor's text, so subscribing with
+ * field->on(EventType::Change, ...) fires on every buffer mutation. Read the
+ * value with getText() or event.getTarget()->getBinding()->getString(). React
+ * to changes via on(Change), not via getEditor().setChangeCallback() (the model
+ * callback is owned internally by the widget to sync the binding).
  */
 class TextEdit : public SceneNode {
    public:
@@ -55,6 +63,11 @@ class TextEdit : public SceneNode {
 
     /**
      * @brief Gets the underlying editor model (for tests / advanced usage).
+     *
+     * The model owns caret/selection/undo/redo/IME state that the widget does
+     * not re-expose. For reacting to value changes prefer on(EventType::Change)
+     * over the model callback; the callback is used internally to mirror the
+     * text into the widget's binding.
      */
     TextEditor& getEditor() { return editor_; }
     const TextEditor& getEditor() const { return editor_; }
@@ -79,6 +92,10 @@ class TextEdit : public SceneNode {
     }
 
    protected:
+    // Model mutation -> binding mirror -> onChange(): invalidates the layout so
+    // a text-length change triggers a remeasure on the next pass.
+    void onChange(const UIBinding& binding) override;
+
     Size onMeasure(const Size& availableSize) override;
     void drawContent(IRenderer& renderer) override;
     void onEvent(DxvEvent& event) override;

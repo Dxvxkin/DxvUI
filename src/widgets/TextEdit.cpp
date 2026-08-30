@@ -53,6 +53,21 @@ std::shared_ptr<TextEdit> TextEdit::create(std::string id, std::string text) {
 TextEdit::TextEdit(std::string id, std::string text)
     : SceneNode(std::move(id)), editor_(std::move(text)) {
     view_ = std::make_unique<SDLTextEditorView>();
+    // Mirror the model text into a bound UIBinding so the value is observable
+    // through EventType::Change like the other data-bearing widgets (Label,
+    // Checkbox, Slider). The model stays the source of truth; the binding is a
+    // kept-in-sync projection used to dispatch the Change event (and to let
+    // consumers read event.getTarget()->getBinding()->getString()).
+    bind(UIBinding::create(editor_.getText()));
+    editor_.setChangeCallback([this] { getBinding()->set(editor_.getText()); });
+}
+
+void TextEdit::onChange(const UIBinding& /*binding*/) {
+    // Every text mutation flows through the model -> binding mirror -> here, so
+    // a single invalidation point replaces the scattered markLayoutDirty() calls
+    // in the editing handlers. Caret/selection moves do not change the text and
+    // need no relayout (their bounds are unchanged; redraw happens every frame).
+    markLayoutDirty();
 }
 
 void TextEdit::onEvent(DxvEvent& event) {
@@ -84,10 +99,7 @@ const char* TextEdit::getNodeType() const noexcept { return kWidgetType; }
 
 std::string TextEdit::getText() const { return editor_.getText(); }
 
-void TextEdit::setText(std::string text) {
-    editor_.setText(std::move(text));
-    markLayoutDirty();
-}
+void TextEdit::setText(std::string text) { editor_.setText(std::move(text)); }
 
 Size TextEdit::onMeasure(const Size& availableSize) {
     const auto& padding = getComputedLayout().padding;
@@ -178,12 +190,10 @@ void TextEdit::handleKeyDown(DxvEvent& event) {
             break;
         case KeyCode::Backspace:
             editor_.backspace();
-            markLayoutDirty();
             event.stopPropagation();
             break;
         case KeyCode::Delete:
             editor_.deleteForward();
-            markLayoutDirty();
             event.stopPropagation();
             break;
         case KeyCode::Enter:
@@ -205,14 +215,12 @@ void TextEdit::handleKeyDown(DxvEvent& event) {
                 } else {
                     editor_.undo();
                 }
-                markLayoutDirty();
                 event.stopPropagation();
             }
             break;
         case KeyCode::Y:
             if (ctrl) {
                 editor_.redo();
-                markLayoutDirty();
                 event.stopPropagation();
             }
             break;
@@ -230,7 +238,6 @@ void TextEdit::handleKeyDown(DxvEvent& event) {
                     clipboard->setText(editor_.selectedText());
                 }
                 editor_.deleteSelection();
-                markLayoutDirty();
                 event.stopPropagation();
             }
             break;
@@ -240,7 +247,6 @@ void TextEdit::handleKeyDown(DxvEvent& event) {
                     const std::string text = clipboard->getText();
                     if (!text.empty()) {
                         editor_.insertText(text);
-                        markLayoutDirty();
                     }
                 }
                 event.stopPropagation();
@@ -256,7 +262,6 @@ void TextEdit::handleTextInput(DxvEvent& event) {
         return;
     }
     editor_.insertText(event.text);
-    markLayoutDirty();
     event.stopPropagation();
 }
 

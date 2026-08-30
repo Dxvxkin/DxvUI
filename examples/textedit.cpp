@@ -118,15 +118,17 @@ class DxvUITextEditExample : public DxvUIEx::SdlApp {
                         DxvUI::WidgetState::Normal);
         root->addChild(field);
 
-        // Живое эхо: модель TextEditor уведомляет о каждом изменении буфера.
+        // Живое эхо: подписка на EventType::Change (стандартный канал «значение
+        // изменилось»), значение читается через field->getText().
         auto echo = DxvUI::Label::create("echo_label", "Ввод: (пока пусто)");
         echo->setStyle({.left = 5, .top = 200}, DxvUI::WidgetState::Normal);
         root->addChild(echo);
 
-        field->getEditor().setChangeCallback([echo, field] {
-            const std::string& text = field->getEditor().getText();
-            echo->setText(std::format("Ввод: '{}' (байт: {})", text, text.size()));
-        });
+        connections_.push_back(field->on(
+            DxvUI::EventType::Change, [echo, field](DxvUI::DxvEvent&, const DxvUI::UIContext&) {
+                const std::string& text = field->getText();
+                echo->setText(std::format("Ввод: '{}' (байт: {})", text, text.size()));
+            }));
 
         // Submit: Enter в поле. Пример: зафиксировать текст и вывести в лейбл.
         // Пользовательский слушатель выполняется до дефолтного действия TextEdit:
