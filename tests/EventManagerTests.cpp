@@ -389,7 +389,6 @@ struct EventProbeNode : SceneNode {
     using SceneNode::SceneNode;
     bool defaultActionRan = false;
     EventType defaultActionType = EventType::None;
-    bool stopInDefault = false;
 
     void onEvent(DxvEvent& event) override {
         // Only the tests' Click event counts: the Attach dispatch triggered by
@@ -399,9 +398,6 @@ struct EventProbeNode : SceneNode {
         }
         defaultActionRan = true;
         defaultActionType = event.type;
-        if (stopInDefault) {
-            event.stopPropagation();
-        }
     }
 };
 
@@ -457,7 +453,7 @@ TEST(EventManagerTest, StopPropagationKeepsDefaultActionAndBlocksParent) {
     DxvEvent e;
     e.type = EventType::Click;
     e.target = node;
-    node->dispatchEvent(e);
+    f.scene->dispatch(e);
 
     EXPECT_TRUE(node->defaultActionRan);
     EXPECT_FALSE(parentSeen);
@@ -482,7 +478,7 @@ TEST(EventManagerTest, StopImmediatePropagationBlocksSiblingListenersAndParent) 
     DxvEvent e;
     e.type = EventType::Click;
     e.target = node;
-    node->dispatchEvent(e);
+    f.scene->dispatch(e);
 
     EXPECT_TRUE(firstRan);
     EXPECT_FALSE(secondRan);
@@ -494,10 +490,13 @@ TEST(EventManagerTest, StopImmediatePropagationBlocksSiblingListenersAndParent) 
     EXPECT_TRUE(e.isImmediatePropagationStopped());
 }
 
-TEST(EventManagerTest, DefaultActionCanStopPropagation) {
+TEST(EventManagerTest, DefaultActionDoesNotStopPropagation) {
+    // Per the DOM UI Events model, running the default action (onEvent) does not
+    // by itself stop propagation: a consuming widget still lets the event bubble
+    // to its ancestors. Only an explicit stopPropagation() inside the default
+    // action halts the bubble (covered by StopPropagationKeepsDefaultAction...).
     EventFixture f;
     auto node = std::make_shared<EventProbeNode>("probe");
-    node->stopInDefault = true;
     addProbe(f, node);
     bool parentSeen = false;
     auto parentConn =
@@ -506,12 +505,10 @@ TEST(EventManagerTest, DefaultActionCanStopPropagation) {
     DxvEvent e;
     e.type = EventType::Click;
     e.target = node;
-    node->dispatchEvent(e);
+    f.scene->dispatch(e);
 
-    // A widget that consumes the event in its default action stops the bubble,
-    // exactly like TextEdit's editing keys.
     EXPECT_TRUE(node->defaultActionRan);
-    EXPECT_FALSE(parentSeen);
+    EXPECT_TRUE(parentSeen);
 }
 
 TEST(EventManagerTest, DefaultActionSeesOriginalEventType) {
@@ -595,4 +592,147 @@ TEST(EventManagerTest, ReenabledNodeIsInteractiveAgain) {
 
     f.moveTo(50, 25, MouseButton::None);
     EXPECT_EQ(f.buttonA->getCurrentState(), WidgetState::Hovered);
+}
+
+// --- Phased propagation (DOM UI Events model) ---
+
+TEST(EventManagerTest, PhasesRunInOrderCaptureTargetBubble) {
+    EventFixture f;
+    std::vector<std::string> order;
+
+    // Capture: only the ancestors of the target (here: root) see the Capture
+    // phase; the target itself and its descendants do not.
+    auto rootCapture = f.root->onCapture(EventType::MouseDown, [&](DxvEvent& e, const UIContext&) {
+        order.push_back("root-capture");
+        EXPECT_EQ(e.getPhase(), EventPhase::Capture);
+    });
+    // Button A is the target.
+    auto aTarget = f.buttonA->on(EventType::MouseDown, [&](DxvEvent& e, const UIContext&) {
+        order.push_back("a-target");
+        EXPECT_EQ(e.getPhase(), EventPhase::Target);
+    });
+    auto rootBubble = f.root->on(EventType::MouseDown, [&](DxvEvent& e, const UIContext&) {
+        order.push_back("root-bubble");
+        EXPECT_EQ(e.getPhase(), EventPhase::Bubble);
+    });
+
+    f.pressAt(50, 25);  // mouse-down on button A (target from hit-test)
+
+    ASSERT_EQ(order.size(), 3u);
+    EXPECT_EQ(order[0], "root-capture");
+    EXPECT_EQ(order[1], "a-target");
+    EXPECT_EQ(order[2], "root-bubble");
+}
+
+TEST(EventManagerTest, CurrentTargetTracksPhasePath) {
+    EventFixture f;
+    std::shared_ptr<SceneNode> captureTarget, targetTarget, bubbleTarget;
+    auto rc = f.root->onCapture(EventType::MouseDown, [&](DxvEvent& e, const UIContext&) {
+        captureTarget = e.getCurrentTarget();
+    });
+    auto at = f.buttonA->on(EventType::MouseDown, [&](DxvEvent& e, const UIContext&) {
+        targetTarget = e.getCurrentTarget();
+    });
+    auto rb = f.root->on(EventType::MouseDown, [&](DxvEvent& e, const UIContext&) {
+        bubbleTarget = e.getCurrentTarget();
+    });
+
+    f.pressAt(50, 25);
+
+    EXPECT_EQ(captureTarget, f.root);
+    EXPECT_EQ(targetTarget, f.buttonA);
+    EXPECT_EQ(bubbleTarget, f.root);
+}
+
+TEST(EventManagerTest, StopPropagationInCaptureCancelsDescentAndBubble) {
+    EventFixture f;
+    bool aReached = false;
+    bool rootBubble = false;
+
+    // Consume the event in the Capture phase on root: neither the target nor the
+    // bubble should run.
+    auto rc = f.root->onCapture(EventType::MouseDown,
+                                [&](DxvEvent& e, const UIContext&) { e.stopPropagation(); });
+    auto at =
+        f.buttonA->on(EventType::MouseDown, [&](DxvEvent&, const UIContext&) { aReached = true; });
+    auto rb =
+        f.root->on(EventType::MouseDown, [&](DxvEvent&, const UIContext&) { rootBubble = true; });
+
+    f.pressAt(50, 25);
+
+    EXPECT_FALSE(aReached);
+    EXPECT_FALSE(rootBubble);
+}
+
+TEST(EventManagerTest, CaptureIsSkippedForNonCaptureableEvents) {
+    EventFixture f;
+    // Change is not captureable, so a capture listener on the root must not run.
+    bool captureRan = false;
+    auto rc = f.root->onCapture(EventType::Change,
+                                [&](DxvEvent&, const UIContext&) { captureRan = true; });
+
+    // Field a binding change on A: Change targets A and bubbles to root.
+    f.buttonA->bind(UIBinding::create(0));
+    f.buttonA->getBinding()->set(5);
+
+    EXPECT_FALSE(captureRan);
+}
+
+TEST(EventManagerTest, OnEventRunsOnlyOnTarget) {
+    EventFixture f;
+    // A parent with a default action must NOT have it run when a descendant is
+    // the target of a bubbling event.
+    auto parent = std::make_shared<EventProbeNode>("probe_parent");
+    auto child = std::make_shared<EventProbeNode>("probe_child");
+    parent->addChild(child);
+    f.root->addChild(parent);
+    f.manager.resolveDirtyStyles(f.root);
+    f.root->measure({800, 600});
+    f.root->arrange({0, 0, 800, 600});
+
+    DxvEvent e;
+    e.type = EventType::Click;
+    e.target = child;
+    f.scene->dispatch(e);
+
+    EXPECT_TRUE(child->defaultActionRan);
+    EXPECT_FALSE(parent->defaultActionRan);
+}
+
+TEST(EventManagerTest, KeyDownBubblesToRoot) {
+    // W3C: keyboard events bubble so an ancestor (e.g. a form) can handle
+    // shortcuts regardless of which leaf holds focus.
+    EventFixture f;
+    // Give focus to button A via a press.
+    f.pressAt(50, 25);
+
+    bool rootSeen = false;
+    auto conn = f.root->on(EventType::KeyDown, [&](DxvEvent& e, const UIContext&) {
+        rootSeen = true;
+        EXPECT_EQ(e.getCurrentTarget(), f.root);
+    });
+
+    DxvEvent key;
+    key.type = EventType::KeyDown;
+    key.key.sym = KeyCode::Space;
+    f.scene->processEvent(key);
+
+    EXPECT_TRUE(rootSeen);
+}
+
+TEST(EventManagerTest, HoverAndFocusDoNotBubble) {
+    // W3C: focus/blur and mouseenter/mouseleave do not bubble. Both Hover and
+    // Focus events are targeted at the affected node only; a root listener must
+    // not see them.
+    EventFixture f;
+    int rootHover = 0;
+    int rootFocus = 0;
+    auto ch = f.root->on(EventType::HoverEnter, [&](DxvEvent&, const UIContext&) { ++rootHover; });
+    auto cf = f.root->on(EventType::FocusGained, [&](DxvEvent&, const UIContext&) { ++rootFocus; });
+
+    f.moveTo(50, 25, MouseButton::None);  // hover A
+    f.pressAt(50, 25);                    // A gains focus
+
+    EXPECT_EQ(rootHover, 0);
+    EXPECT_EQ(rootFocus, 0);
 }

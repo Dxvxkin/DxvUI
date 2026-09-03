@@ -249,22 +249,48 @@ Focus`/`Hover`). `stopPropagation()` в capture отменяет спуск И b
   target-default → bubble. Чётко документированные `preventDefault`/
   `stopPropagation`/`stopImmediatePropagation`.
 
-## 3. Этапы (ветка `feat/event-system`, каждый шаг — отдельный коммит с зелёными тестами)
+## 2.1. Реализовано (ветка `feat/event-system`, DOM-модель «Путь Б»)
 
-1. **Ветка + оракул.** От `master`, зафиксировать 293 зелёных теста как baseline.
-2. **Типизация payload** (`DxvEvent`, `SDLEventSource`), обратная совместимость
-   записи. `ActionCallback` не менять.
-3. **Единая маршрутизация** `EventManager` (таблица) + сборка синтеза в одну точку.
-   Поведение не менять (тесты — оракул).
-4. **Двухфазный проход (capture).** `virtual onCapture` + проход в `dispatchEvent`,
-   тесты фазы (порядок, stopPropagation, регрессия).
-5. **Согласование модели реакции.** Унифицировать семантику флагов по фазам;
-   обновить докблоки 4 виджетов, поведение не менять.
-6. **Submit/Drag как общий механизм.** `EventType::Submit` (перенос логики
-   `TextEdit::setOnSubmit` в стандартный канал, аналог миграции Change в `08decf1`),
-   простейшие `DragStart/DragEnd`.
-7. **Полировка.** clang-format, полный билд, 293+ новых теста зелёные, прогон
-   примеров headless.
+Стандартизация событий доведена до трёхфазной DOM-модели и закреплена тестами
+(300 зелёных, включая новые тесты фаз/capture/W3C-бабблинга):
+
+- **Фазы:** `Capture → Target → Bubble`, полный проход в `EventManager::dispatch`;
+  `SceneNode::dispatchEvent(DxvEvent&, EventPhase)` — поузловой, без рекурсии на
+  родителя. Старый `dispatchEvent(DxvEvent&)` сохранён как Target-only обёртка.
+- **Две и только две реакции:** внешние слушатели `on()`/`onCapture()`
+  (по-фазно) и `virtual onEvent()` = default-action **только на Target** (гасится
+  `preventDefault`, если `cancelable`). Никаких `onBubble`/`onCapture` virtual.
+- **`eventMeta(EventType)`** — константная таблица `bubbles`/`cancelable`/
+  `captureable`; инстансовый override `bubbles` запрещён.
+- **Table-роутинг:** `Enum class RoutingTarget { HitTest, Hovered, Focused, Root,
+  None }` + `resolveTarget`; Capture — спуском root→target через
+  `isAncestorOf` (без аллокаций), Bubble — линейным parent-проходом.
+- **`captureable`-гейт:** capture только для raw-input (`Mouse*`/`Key*`/
+  `TextInput`); life-cycle/синтез (`Change`/`Focus`/`Hover`) capture не проходят.
+- **W3C-семантика:** `default action` НЕ останавливает propagation (события
+  бабблят); `stopPropagation`/`stopImmediatePropagation` прерывают доставку;
+  `bubbles=false` у `Hover`/`Focus`; клавиши всплывают до root (хоткеи).
+- **Виджеты:** `TextEdit`, `Checkbox`, `SliderBase`, `ScrollContainer` переведены
+  на таргет-модель; `ScrollContainer` сам подписывается на `MouseWheel` через
+  `on()`. Пример `examples/events.cpp` дополнен capture-демо.
+
+Вынесено из скоупа (отдельные задачи, см. п.5 ниже): типизация payload,
+`Submit`/`DragStart/DragEnd`, `FocusIn/FocusOut`, унификация `Change`.
+
+## 3. Этапы (ветка `feat/event-system`; реализованы шаги 1–5; 6–7 отложены)
+
+1. ✅ **Ветка + оракул.** От `master`, зафиксировать 293 зелёных теста как baseline.
+2. ⛔ **Типизация payload** — вынесено (за рамками выбранной DOM-модели).
+3. ✅ **Единая маршрутизация** `EventManager` (`resolveTarget`, `RoutingTarget`).
+4. ✅ **Трёхфазный проход (capture).** `onCapture` + `dispatch` в `EventManager`,
+   поузловой `dispatchEvent(node, phase)`, тесты фаз (порядок, stopPropagation,
+   captureable-гейт).
+5. ✅ **Согласование модели реакции.** W3C-семантика флагов, default-action только
+   на Target; докблоки и миграция 4 виджетов.
+6. ⛔ **Submit/Drag как общий механизм.** `EventType::Submit`,
+   `DragStart/DragEnd` — вынесено в отдельную задачу.
+7. ✅ **Полировка.** clang-format, полный билд, 300 тестов зелёные, прогон примеров
+   headless (в т.ч. capture-демо).
 
 ## 4. Риски и снижение
 
@@ -276,6 +302,10 @@ Focus`/`Hover`). `stopPropagation()` в capture отменяет спуск И b
 
 ## 5. Что НЕ входит
 
+- Типизация payload (`MouseEventData`/`WheelEventData`/`TextEventData`) — вынесено
+  из стандартизации (сохранена flat-запись `DxvEvent`), отдельная задача.
+- `Submit`/`DragStart/DragEnd` как общий механизм — вынесено, отдельная задача.
+- `FocusIn/FocusOut`-бабблинг-аналоги — вынесено.
 - Унификация `Change` «источник vs проекция» — отдельная задача (TextEdit уже
   частично сделан, см. п.5 Приоритета 2).
 - `getNodeType`/RTTI (issue #4) — отложено.

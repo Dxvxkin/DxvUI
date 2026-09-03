@@ -126,7 +126,6 @@ void Checkbox::onEvent(DxvEvent& event) {
                 break;
             }
             toggle();
-            event.stopPropagation();
             break;
         default:
             break;

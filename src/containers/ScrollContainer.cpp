@@ -25,13 +25,36 @@ const ScrollContainerStyleRegistrar registrar;
 }  // namespace
 
 std::shared_ptr<ScrollContainer> ScrollContainer::create(std::string id) {
-    return std::make_shared<ScrollContainer>(std::move(id));
+    auto container = std::make_shared<ScrollContainer>(std::move(id));
+    container->setupWheelHandler();
+    return container;
 }
 
 ScrollContainer::ScrollContainer(std::string id) : Container(std::move(id)) {
     // The container's empty box (and padding area) should be click/hover-aware so
     // the wheel bubbles up even when the cursor is over empty viewport space.
     setHitTestable(true);
+}
+
+void ScrollContainer::setupWheelHandler() {
+    // The wheel is routed to the hovered node; when a child under the cursor is
+    // the target, this container receives it during the Bubble phase, and when
+    // the cursor is over empty viewport space, it is the target itself (the
+    // Target phase). Either way the wheel scrolls the container, and the deepest
+    // scrollable container consumes it via stopPropagation() so nested scrolling
+    // stops at the innermost one.
+    wheelConnection_ =
+        on(EventType::MouseWheel, [weak = weak_from_this()](DxvEvent& event, const UIContext&) {
+            if (auto self = std::dynamic_pointer_cast<ScrollContainer>(weak.lock())) {
+                if (!self->isEnabled()) {
+                    return;
+                }
+                // A positive dy means scrolled up (away from the user): show content
+                // further up the list, i.e. decrease the offset.
+                self->scrollBy(0.0f, -event.mouse.dy);
+                event.stopPropagation();
+            }
+        });
 }
 
 const char* ScrollContainer::getNodeType() const noexcept { return kWidgetType; }
@@ -130,23 +153,6 @@ void ScrollContainer::onArrange(const Rect& finalRect) {
                                      static_cast<int>(childDesiredSize.height)};
 
         child->arrange(childFinalRect);
-    }
-}
-
-void ScrollContainer::onEvent(DxvEvent& event) {
-    if (!isEnabled()) {
-        return;
-    }
-    switch (event.type) {
-        case EventType::MouseWheel: {
-            // A positive dy means scrolled up (away from the user): show content
-            // further up the list, i.e. decrease the offset.
-            scrollBy(0.0f, -event.mouse.dy);
-            event.stopPropagation();
-            break;
-        }
-        default:
-            break;
     }
 }
 

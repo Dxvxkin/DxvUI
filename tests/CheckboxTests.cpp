@@ -150,11 +150,14 @@ TEST(CheckboxTest, PreventDefaultCancelsToggle) {
     EXPECT_FALSE(f.checkbox->isChecked());
 }
 
-TEST(CheckboxTest, ClickDoesNotBubbleToParent) {
+// Per the W3C UI Events model, click bubbles: a parent listener still sees the
+// Click originating from the checkbox (the checkbox's own toggle is its default
+// action, which does not stop propagation).
+TEST(CheckboxTest, ClickBubblesToParent) {
     CheckboxFixture f;
     int clickCount = 0;
     auto conn = f.root->on(EventType::Click, [&](DxvEvent&, const UIContext&) { ++clickCount; });
 
     f.clickAt(50, 25);
-    EXPECT_EQ(clickCount, 0);
+    EXPECT_EQ(clickCount, 1);
 }

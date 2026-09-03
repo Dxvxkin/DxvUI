@@ -19,6 +19,27 @@ class EventManager {
     void processRawEvent(const DxvEvent& event);
 
     /**
+     * @brief Dispatches an event through the scene, walking the Capture, Target
+     * and Bubble phases.
+     *
+     * The single entry point for raising any event (raw or synthesized). The
+     * target is taken from event.target if set, otherwise resolved from the
+     * scene (see resolveTarget()); when no node can resolve, the event is
+     * delivered to the root.
+     * @param event The event to dispatch.
+     */
+    void dispatch(DxvEvent& event);
+
+    /**
+     * @brief Convenience: builds a fresh event of the given type targeted at a
+     * node and dispatches it through the scene.
+     * @param type The event type.
+     * @param target The target node; when null the event is delivered to the
+     * scene root.
+     */
+    void raise(EventType type, const std::shared_ptr<SceneNode>& target);
+
+    /**
      * @brief Gets the node that currently owns keyboard focus.
      * @return The focused node, or nullptr when nothing is focused.
      */
@@ -72,6 +93,40 @@ class EventManager {
     void handleMouseMove(DxvEvent& event);
     void handleMouseDown(DxvEvent& event);
     void handleMouseUp(DxvEvent& event);
+
+    /**
+     * @brief Where an event's target comes from when none is set explicitly.
+     *
+     * Raw input is routed by its nature: pointer events go to the node under
+     * the cursor (HitTest - computed from the event's own coordinates), the
+     * wheel to the cached hovered node (Hovered - the wheel carries no
+     * coordinates), keyboard/text to the focused node (Focused). Quit/Resize go
+     * to the root. Synthesized/lifecycle events (Click, Drag, Drop, Hover,
+     * Focus, Attach, Detach, Change) always carry an explicit target and are
+     * routed as None. HitTest differs from Hovered in source: the former is a
+     * fresh computation from the event's point, the latter the already-tracked
+     * hover state.
+     */
+    enum class RoutingTarget { None, HitTest, Hovered, Focused, Root };
+
+    /**
+     * @brief Resolves the target node for an event that has none set.
+     * @param event The event whose type determines the routing.
+     * @return The resolved node, or nullptr when the routing yields nothing
+     * (e.g. the hovered/focused node is gone or the event routes to None).
+     */
+    std::shared_ptr<SceneNode> resolveTarget(const DxvEvent& event);
+
+    /**
+     * @brief Walks the Capture phase from @p node down to @p target.
+     *
+     * Recursive root->...->target descent with no per-event vector allocation:
+     * each node is dispatched (Capture) before descending into the child on the
+     * path to the target. Uses SceneNode::isAncestorOf to find that child, and
+     * stops descent at the target itself (handled in the Target phase).
+     */
+    void dispatchCapture(const std::shared_ptr<SceneNode>& node,
+                         const std::shared_ptr<SceneNode>& target, DxvEvent& event);
 
     /**
      * @brief Moves keyboard focus to the given node, dispatching FocusLost and

@@ -84,12 +84,20 @@ class ScrollContainer : public Container {
    protected:
     Size onMeasure(const Size& availableSize) override;
     void onArrange(const Rect& finalRect) override;
-    void onEvent(DxvEvent& event) override;
 
    private:
     // Clamps an offset into the valid [0, content - viewport] range for its axis.
     float clampScrollX(float x) const;
     float clampScrollY(float y) const;
+
+    // Registers a self-owned MouseWheel listener so the container reacts to the
+    // wheel wherever the cursor hovers over the viewport (its own Target phase,
+    // or the Bubble phase when a child is the target). The wheel is a "watched"
+    // event of an ancestor rather than this node's default action, so it is
+    // handled by a regular listener which consumes it via stopPropagation().
+    void setupWheelHandler();
+
+    std::unique_ptr<SceneNode::Connection> wheelConnection_;
 
     // The scroll offset applied to the child during arrange. Never negative;
     // the upper bound is recomputed from the measured content vs viewport.

@@ -79,6 +79,18 @@ void Scene::processEvent(const DxvEvent& event) {
     eventManager->processRawEvent(event);
 }
 
+void Scene::dispatch(DxvEvent& event) {
+    if (eventManager) {
+        eventManager->dispatch(event);
+    }
+}
+
+void Scene::raise(EventType type, const std::shared_ptr<SceneNode>& target) {
+    if (eventManager) {
+        eventManager->raise(type, target);
+    }
+}
+
 void Scene::onNodeRemoved(const std::shared_ptr<SceneNode>& node) {
     if (eventManager) {
         eventManager->onNodeRemoved(node);

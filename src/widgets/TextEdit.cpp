@@ -71,9 +71,11 @@ void TextEdit::onChange(const UIBinding& /*binding*/) {
 }
 
 void TextEdit::onEvent(DxvEvent& event) {
-    // Default action of the field, run by SceneNode::dispatchEvent() after the
-    // user listeners (and skipped when one called preventDefault()). The
-    // consumed events stop propagating here so parents never see editing keys.
+    // Default action of the field's own Target phase, run after the user
+    // listeners (and skipped when one called preventDefault()). Per the DOM UI
+    // Events model the field consumes the *meaning* of the editing keys here but
+    // does not stop propagation: the keys still bubble so an ancestor can react
+    // to shortcuts while the field edits.
     switch (event.type) {
         case EventType::KeyDown:
             handleKeyDown(event);
@@ -174,38 +176,30 @@ void TextEdit::handleKeyDown(DxvEvent& event) {
     switch (event.key.sym) {
         case KeyCode::Left:
             moveCaretBy(-1, shift);
-            event.stopPropagation();
             break;
         case KeyCode::Right:
             moveCaretBy(+1, shift);
-            event.stopPropagation();
             break;
         case KeyCode::Home:
             moveCaretToBoundary(0, shift);
-            event.stopPropagation();
             break;
         case KeyCode::End:
             moveCaretToBoundary(editor_.length(), shift);
-            event.stopPropagation();
             break;
         case KeyCode::Backspace:
             editor_.backspace();
-            event.stopPropagation();
             break;
         case KeyCode::Delete:
             editor_.deleteForward();
-            event.stopPropagation();
             break;
         case KeyCode::Enter:
             if (onSubmit_) {
                 onSubmit_(editor_.getText());
             }
-            event.stopPropagation();
             break;
         case KeyCode::A:
             if (ctrl) {
                 editor_.selectAll();
-                event.stopPropagation();
             }
             break;
         case KeyCode::Z:
@@ -215,13 +209,11 @@ void TextEdit::handleKeyDown(DxvEvent& event) {
                 } else {
                     editor_.undo();
                 }
-                event.stopPropagation();
             }
             break;
         case KeyCode::Y:
             if (ctrl) {
                 editor_.redo();
-                event.stopPropagation();
             }
             break;
         case KeyCode::C:
@@ -229,7 +221,6 @@ void TextEdit::handleKeyDown(DxvEvent& event) {
                 if (auto* clipboard = getClipboard()) {
                     clipboard->setText(editor_.selectedText());
                 }
-                event.stopPropagation();
             }
             break;
         case KeyCode::X:
@@ -238,7 +229,6 @@ void TextEdit::handleKeyDown(DxvEvent& event) {
                     clipboard->setText(editor_.selectedText());
                 }
                 editor_.deleteSelection();
-                event.stopPropagation();
             }
             break;
         case KeyCode::V:
@@ -249,7 +239,6 @@ void TextEdit::handleKeyDown(DxvEvent& event) {
                         editor_.insertText(text);
                     }
                 }
-                event.stopPropagation();
             }
             break;
         default:
@@ -262,7 +251,6 @@ void TextEdit::handleTextInput(DxvEvent& event) {
         return;
     }
     editor_.insertText(event.text);
-    event.stopPropagation();
 }
 
 void TextEdit::handleMouseDown(DxvEvent& event) {

@@ -8,8 +8,9 @@
 
 namespace DxvUI {
 
-class SceneNode;  // Forward declaration
-class UIContext;  // Forward declaration
+class SceneNode;     // Forward declaration
+class UIContext;     // Forward declaration
+class EventManager;  // Forward declaration
 
 // --- Enums ---
 enum class EventType {
@@ -41,6 +42,75 @@ enum class EventType {
 };
 
 enum class MouseButton { None, Left, Middle, Right };
+
+/**
+ * @brief The propagation phase an event is currently in (DOM UI Events model).
+ *
+ * A dispatched event walks the tree in three phases: Capture (root down to the
+ * target's parent), Target (the target node itself) and Bubble (the target's
+ * parents back up to the root). Set by the EventManager as it walks the path
+ * and read through DxvEvent::getPhase().
+ */
+enum class EventPhase { None, Capture, Target, Bubble };
+
+/**
+ * @brief Immutable per-type event behaviour (single source of truth).
+ *
+ * These describe how a given EventType propagates regardless of any single
+ * event instance, so the behaviour cannot be overridden per-instance (matching
+ * the DOM UI Events model). Read through the DxvEvent accessors, never through
+ * this struct directly outside DxvEvent.h/DxvEvent.cpp.
+ *
+ *   bubbles     whether the event travels back up from the target to the root
+ *               (W3C: keyboard/pointer/click/wheel/drag bubble; focus/hover
+ *               use the non-bubbling focus/blur, mouseenter/mouseleave forms).
+ *   cancelable  whether preventDefault() cancels the target's default action
+ *               (onEvent). Input/click/wheel events are cancelable; lifecycle
+ *               and state events (focus/hover/attach/change) are not.
+ *   captureable whether the event is delivered through the Capture phase.
+ *               Only raw input (pointer/key/text) travels root->target, so only
+ *               those can be intercepted before reaching their target.
+ */
+struct EventMeta {
+    bool bubbles;
+    bool cancelable;
+    bool captureable;
+};
+
+/**
+ * @brief The immutable per-type event metadata table.
+ * @param type The event type.
+ * @return The propagation metadata for @p type.
+ */
+constexpr EventMeta eventMeta(EventType type) {
+    switch (type) {
+        case EventType::MouseDown:
+        case EventType::MouseUp:
+        case EventType::MouseMove:
+        case EventType::MouseWheel:
+        case EventType::KeyDown:
+        case EventType::KeyUp:
+        case EventType::TextInput:
+        case EventType::Click:
+        case EventType::Drag:
+        case EventType::Drop:
+            return {true, true, true};
+        case EventType::Attach:
+        case EventType::Detach:
+        case EventType::Change:
+            return {true, false, false};
+        case EventType::HoverEnter:
+        case EventType::HoverLeave:
+        case EventType::FocusGained:
+        case EventType::FocusLost:
+            return {false, false, false};
+        case EventType::Quit:
+        case EventType::Resize:
+        case EventType::None:
+        default:
+            return {false, false, false};
+    }
+}
 
 /**
  * @brief Backend-neutral key identifiers.
@@ -190,6 +260,18 @@ struct DxvEvent {
     }
     [[nodiscard]] std::shared_ptr<SceneNode> getRelatedNode() const { return relatedNode.lock(); }
 
+    // --- Propagation behaviour (from the immutable eventMeta table) ---
+    // These cannot be overridden per-instance; they describe the event type's
+    // behaviour and match the DOM UI Events model (W3C).
+    [[nodiscard]] bool bubbles() const { return eventMeta(type).bubbles; }
+    [[nodiscard]] bool cancelable() const { return eventMeta(type).cancelable; }
+    [[nodiscard]] bool captureable() const { return eventMeta(type).captureable; }
+
+    // --- Propagation phase ---
+    // Set by the EventManager as it walks the path; read by listeners to tell
+    // which phase they are in.
+    [[nodiscard]] EventPhase getPhase() const { return phase_; }
+
     // Logging helper: returns "" instead of a dangling dereference.
     [[nodiscard]] std::string getTargetId() const;
 
@@ -197,6 +279,12 @@ struct DxvEvent {
     bool propagationStopped_ = false;
     bool immediatePropagationStopped_ = false;
     bool defaultPrevented_ = false;
+    EventPhase phase_ = EventPhase::None;
+
+    // The EventManager drives the phased walk and must mutate the phase;
+    // SceneNode writes it in its per-phase dispatch.
+    friend class EventManager;
+    friend class SceneNode;
 };
 
 using ActionCallback = std::function<void(DxvEvent&, const UIContext&)>;

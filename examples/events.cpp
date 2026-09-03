@@ -228,6 +228,32 @@ class DxvUIEventsExample : public DxvUIEx::SdlApp {
             }));
         root->addChild(btnToggle);
 
+        // --- Capture-фаза: перехват MouseDown на пути вниз (root → таргет). В DOM
+        // модели событие сначала идёт «вниз» от корня (Capture), потом «в цель»
+        // (Target) и только затем «вверх» (Bubble). Здесь корневой capture-слушатель
+        // видит MouseDown ДО самой кнопки и останавливает распространение, так что
+        // таргет-кнопка и bubble-фаза событие не получат.
+        connections_.push_back(root->onCapture(
+            DxvUI::EventType::MouseDown, [](DxvUI::DxvEvent& e, const DxvUI::UIContext&) {
+                const auto target = e.getTarget();
+                DxvUI::Log::info("[root] MouseDown перехвачен в Capture (target={})",
+                                 target ? target->getId() : "<none>");
+                e.stopPropagation();
+            }));
+
+        auto btnCapture = makeButton("btn_capture", "Клик (перехват)", 290, 150, 240, 40);
+        connections_.push_back(btnCapture->on(
+            DxvUI::EventType::MouseDown, [](DxvUI::DxvEvent&, const DxvUI::UIContext&) {
+                DxvUI::Log::info("[btn_capture] MouseDown (не увидит: root перехватил)");
+            }));
+        // Click — отдельное синтезированное событие; перехват MouseDown его не
+        // отменяет, поэтому btn_capture всё же увидит Click (но не MouseDown).
+        connections_.push_back(
+            btnCapture->on(DxvUI::EventType::Click, [](DxvUI::DxvEvent&, const DxvUI::UIContext&) {
+                DxvUI::Log::info("[btn_capture] Click (MouseDown перехвачен, Click всплыл)");
+            }));
+        root->addChild(btnCapture);
+
         // --- Drag & Drop: источник логирует MouseDown/Drag, приёмник — Drop.
         auto boxDrag = makeButton("box_drag", "Тащи меня", 50, 270, 150, 80);
         connections_.push_back(boxDrag->on(DxvUI::EventType::HoverEnter,
@@ -327,6 +353,10 @@ class DxvUIEventsExample : public DxvUIEx::SdlApp {
         clickAt(400, 110);  // btn_bubble: основной + ДОП. обработчик
         clickAt(640, 110);  // отключить
         clickAt(400, 110);  // btn_bubble: только основной обработчик
+
+        // Capture-перехват: корневой onCapture остановит MouseDown до таргета,
+        // поэтому btn_capture не увидит MouseDown (Click — отдельное событие).
+        clickAt(410, 170);  // btn_capture
 
         // Drag & Drop: нажали на box_drag, тащим, отпустили над box_drop.
         move(125, 310, DxvUI::MouseButton::None);

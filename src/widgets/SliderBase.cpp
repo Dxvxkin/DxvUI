@@ -84,7 +84,6 @@ void SliderBase::onEvent(DxvEvent& event) {
                 dragOffset_ = 0.0f;
                 setValue(axisPosToValue(pointerPos - axisStart(track), trackLen));
             }
-            event.stopPropagation();
             break;
         }
         case EventType::Drag: {
@@ -93,7 +92,6 @@ void SliderBase::onEvent(DxvEvent& event) {
             if (isDragging_ && trackLen > 0) {
                 const int pointerPos = axisFromMouse(event.mouse.x, event.mouse.y);
                 setValue(axisPosToValue((pointerPos - dragOffset_) - axisStart(track), trackLen));
-                event.stopPropagation();
             }
             break;
         }
@@ -108,7 +106,6 @@ void SliderBase::onEvent(DxvEvent& event) {
             // Scrolling up (dy > 0) increases the value in both orientations.
             const float step = (step_ > 0.0f) ? step_ : (max_ - min_) * 0.1f;
             setValue(getValue() + step * (event.mouse.dy > 0 ? 1.0f : -1.0f));
-            event.stopPropagation();
             break;
         }
         case EventType::KeyDown: {
@@ -116,10 +113,8 @@ void SliderBase::onEvent(DxvEvent& event) {
             const float delta = computeDelta(multiplier);
             if (isMainAxisKey(event.key.sym)) {
                 setValue(getValue() + delta);
-                event.stopPropagation();
             } else if (isCrossAxisKey(event.key.sym)) {
                 setValue(getValue() - delta);
-                event.stopPropagation();
             }
             break;
         }

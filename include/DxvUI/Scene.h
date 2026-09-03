@@ -57,6 +57,25 @@ class Scene : public std::enable_shared_from_this<Scene> {
     void draw();
 
     /**
+     * @brief Dispatches an event through the scene (raw or synthesized).
+     *
+     * The single entry point for raising any event. Delegates to the event
+     * manager, which walks the Capture/Target/Bubble phases.
+     * @param event The event to dispatch.
+     */
+    void dispatch(DxvEvent& event);
+
+    /**
+     * @brief Raises a synthesized event of the given type targeted at a node.
+     *
+     * Convenience wrapper around dispatch() used for framework-synthesized
+     * events (e.g. Attach, Detach, Change).
+     * @param type The event type.
+     * @param target The target node, or nullptr to deliver to the scene root.
+     */
+    void raise(EventType type, const std::shared_ptr<SceneNode>& target);
+
+    /**
      * @brief Notifies the event manager that a node left the tree.
      *
      * Called by SceneNode when a child is removed: the removed node (or a

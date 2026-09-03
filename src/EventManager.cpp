@@ -60,7 +60,7 @@ void EventManager::clearInteraction(const std::shared_ptr<SceneNode>& node) {
             DxvEvent e;
             e.type = EventType::HoverLeave;
             e.target = hovered;
-            hovered->dispatchEvent(e);
+            dispatch(e);
         }
     }
 
@@ -82,9 +82,120 @@ void EventManager::clearInteraction(const std::shared_ptr<SceneNode>& node) {
             DxvEvent e;
             e.type = EventType::FocusLost;
             e.target = focused;
-            focused->dispatchEvent(e);
+            dispatch(e);
         }
     }
+}
+
+void EventManager::dispatch(DxvEvent& event) {
+    auto root = ownerScene.getRoot();
+    if (!root) {
+        return;
+    }
+
+    // Target: explicit, or resolved from the scene by the event's nature.
+    std::shared_ptr<SceneNode> target = event.getTarget();
+    if (!target) {
+        target = resolveTarget(event);
+        if (!target) {
+            target = root;
+        }
+    }
+    event.target = target;
+
+    const EventMeta meta = eventMeta(event.type);
+
+    // CAPTURE: root -> ... -> target's parent, only for captureable events.
+    // A stopPropagation in capture cancels both the descent and the bubble.
+    if (meta.captureable) {
+        dispatchCapture(root, target, event);
+        if (event.isPropagationStopped()) {
+            return;
+        }
+    }
+
+    // TARGET: the target node itself (listeners + its default action onEvent).
+    target->dispatchEvent(event, EventPhase::Target);
+
+    // BUBBLE: target's parents -> ... -> root, only for bubbling events.
+    if (meta.bubbles && !event.isPropagationStopped() && !event.isImmediatePropagationStopped()) {
+        for (auto p = target->getParent().lock(); p; p = p->getParent().lock()) {
+            p->dispatchEvent(event, EventPhase::Bubble);
+            if (event.isPropagationStopped() || event.isImmediatePropagationStopped()) {
+                break;
+            }
+        }
+    }
+}
+
+void EventManager::dispatchCapture(const std::shared_ptr<SceneNode>& node,
+                                   const std::shared_ptr<SceneNode>& target, DxvEvent& event) {
+    // The target itself is handled in the Target phase, so stop descent there.
+    if (node.get() == target.get()) {
+        return;
+    }
+    node->dispatchEvent(event, EventPhase::Capture);
+    if (event.isPropagationStopped() || event.isImmediatePropagationStopped()) {
+        return;
+    }
+    // Descend into the child on the path to the target.
+    for (const auto& child : node->getChildren()) {
+        if (child.get() == target.get() || child->isAncestorOf(target)) {
+            dispatchCapture(child, target, event);
+            return;
+        }
+    }
+}
+
+std::shared_ptr<SceneNode> EventManager::resolveTarget(const DxvEvent& event) {
+    const RoutingTarget route = [&] {
+        switch (event.type) {
+            case EventType::MouseDown:
+            case EventType::MouseUp:
+            case EventType::MouseMove:
+                return RoutingTarget::HitTest;
+            case EventType::MouseWheel:
+                // The wheel scrolls whatever is under the cursor (e.g. a
+                // ScrollContainer), so it is delivered to the hovered node
+                // rather than the focused one. It carries no coordinates, so the
+                // already-tracked hover state is used instead of a fresh
+                // hit-test; the event then bubbles so the deepest scrollable
+                // ancestor consumes it via stopPropagation().
+                return RoutingTarget::Hovered;
+            case EventType::KeyDown:
+            case EventType::KeyUp:
+            case EventType::TextInput:
+                return RoutingTarget::Focused;
+            case EventType::Quit:
+            case EventType::Resize:
+                return RoutingTarget::Root;
+            default:
+                // Synthesized/lifecycle events (Click, Drag, Drop, Hover, Focus,
+                // Attach, Detach, Change) always carry an explicit target.
+                return RoutingTarget::None;
+        }
+    }();
+
+    switch (route) {
+        case RoutingTarget::HitTest:
+            return hitTest(event.mouse.x, event.mouse.y);
+        case RoutingTarget::Hovered:
+            return hoveredNode.lock();
+        case RoutingTarget::Focused:
+            return focusedNode.lock();
+        case RoutingTarget::Root:
+            return ownerScene.getRoot();
+        case RoutingTarget::None:
+        default:
+            return nullptr;
+    }
+}
+
+void EventManager::raise(EventType type, const std::shared_ptr<SceneNode>& target) {
+    DxvEvent event;
+    event.type = type;
+    event.target = target;
+    dispatch(event);
 }
 
 void EventManager::processRawEvent(const DxvEvent& rawEvent) {
@@ -104,31 +215,14 @@ void EventManager::processRawEvent(const DxvEvent& rawEvent) {
             break;
         case EventType::TextInput:
         case EventType::KeyDown:
-        case EventType::KeyUp: {
-            std::shared_ptr<SceneNode> target = focusedNode.lock();
-            if (!target) {
-                target = root;
-            }
-            event.target = target;
-            target->dispatchEvent(event);
+        case EventType::KeyUp:
+        case EventType::MouseWheel:
+            // Routed by the event's nature (focused / hovered) and delivered
+            // through the three-phase walk.
+            dispatch(event);
             break;
-        }
-        case EventType::MouseWheel: {
-            // The wheel scrolls whatever is under the cursor (e.g. a
-            // ScrollContainer), so it is delivered to the hovered node rather
-            // than the focused node. The event then bubbles up the tree, so the
-            // deepest scrollable ancestor consumes it via stopPropagation().
-            std::shared_ptr<SceneNode> target = hoveredNode.lock();
-            if (!target) {
-                target = root;
-            }
-            event.target = target;
-            target->dispatchEvent(event);
-            break;
-        }
         case EventType::Quit:
-            event.target = root;
-            root->dispatchEvent(event);
+            dispatch(event);
             break;
         default:
             // For unhandled event types, do nothing.
@@ -174,13 +268,13 @@ void EventManager::handleMouseMove(DxvEvent& event) {
             dragEvent.type = EventType::Drag;
             dragEvent.target = pressed;
             dragEvent.mouse = event.mouse;
-            pressed->dispatchEvent(dragEvent);
+            dispatch(dragEvent);
         }
     }
 
     if (newNode) {
         event.target = newNode;
-        newNode->dispatchEvent(event);
+        dispatch(event);
     }
 }
 
@@ -222,7 +316,7 @@ void EventManager::handleMouseDown(DxvEvent& event) {
             pressedNodes[button] = {targetNode, {event.mouse.x, event.mouse.y}};
         }
         event.target = targetNode;
-        targetNode->dispatchEvent(event);
+        dispatch(event);
     }
 }
 
@@ -243,7 +337,7 @@ void EventManager::handleMouseUp(DxvEvent& event) {
         if (auto pressed = record.node.lock()) {
             pressed->setPressed(false);
             event.target = pressed;
-            pressed->dispatchEvent(event);
+            dispatch(event);
 
             if (targetNodeOnUp && targetNodeOnUp.get() != pressed.get()) {
                 DxvEvent dropEvent;
@@ -252,7 +346,7 @@ void EventManager::handleMouseUp(DxvEvent& event) {
                 dropEvent.relatedNode = pressed;
                 dropEvent.mouse.x = event.mouse.x;
                 dropEvent.mouse.y = event.mouse.y;
-                targetNodeOnUp->dispatchEvent(dropEvent);
+                dispatch(dropEvent);
             }
 
             // A click is only reported when the pointer did not leave the press
@@ -267,13 +361,13 @@ void EventManager::handleMouseUp(DxvEvent& event) {
                     clickEvent.mouse.x = event.mouse.x;
                     clickEvent.mouse.y = event.mouse.y;
                     clickEvent.mouse.button = event.mouse.button;
-                    pressed->dispatchEvent(clickEvent);
+                    dispatch(clickEvent);
                 }
             }
         }
     } else if (targetNodeOnUp) {
         event.target = targetNodeOnUp;
-        targetNodeOnUp->dispatchEvent(event);
+        dispatch(event);
     }
 }
 
@@ -289,14 +383,14 @@ void EventManager::setHovered(const std::shared_ptr<SceneNode>& node) {
             DxvEvent e;
             e.type = EventType::HoverLeave;
             e.target = oldHovered;
-            oldHovered->dispatchEvent(e);
+            dispatch(e);
         }
         if (effective) {
             effective->setHovered(true);
             DxvEvent e;
             e.type = EventType::HoverEnter;
             e.target = effective;
-            effective->dispatchEvent(e);
+            dispatch(e);
         }
         hoveredNode = effective;
     }
@@ -313,7 +407,7 @@ void EventManager::changeFocus(const std::shared_ptr<SceneNode>& newNode) {
             DxvEvent e;
             e.type = EventType::FocusLost;
             e.target = oldFocused;
-            oldFocused->dispatchEvent(e);
+            dispatch(e);
         }
 
         if (effective) {
@@ -321,7 +415,7 @@ void EventManager::changeFocus(const std::shared_ptr<SceneNode>& newNode) {
             DxvEvent e;
             e.type = EventType::FocusGained;
             e.target = effective;
-            effective->dispatchEvent(e);
+            dispatch(e);
         }
         focusedNode = effective;
     }

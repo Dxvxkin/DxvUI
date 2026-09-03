@@ -475,10 +475,38 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     std::unique_ptr<Connection> on(EventType type, ActionCallback callback);
 
     /**
+     * @brief Registers a capture-phase listener for a specific event type.
+     *
+     * Capture listeners run in the Capture phase, i.e. on the path from the
+     * root down to (but not including) the target, before the target itself
+     * sees the event. This lets an ancestor intercept an event before it reaches
+     * its target (e.g. a modal layer swallowing pointer events underneath it).
+     * Only captureable event types (raw pointer/key/text input) pass through the
+     * Capture phase at all.
+     * @param type The type of event to listen for (Capture phase).
+     * @param callback The function to execute when the event is captured.
+     * @return A connection that removes the handler when destroyed.
+     */
+    std::unique_ptr<Connection> onCapture(EventType type, ActionCallback callback);
+
+    /**
      * @brief Dispatches an event through the node's hierarchy.
      * @param event The event to dispatch.
      */
     virtual void dispatchEvent(DxvEvent& event);
+
+    /**
+     * @brief Dispatches a single phase of the event to this node.
+     *
+     * Per-node, phase-aware dispatch used by the EventManager while it walks
+     * the Capture/Target/Bubble path. Runs the node's listeners for the phase
+     * (capture listeners in Capture, regular listeners in Target and Bubble)
+     * and, in the Target phase only, the node's default action (onEvent). It
+     * does not walk to the parent — the EventManager owns the walk.
+     * @param event The event being dispatched.
+     * @param phase The phase this node is being visited in.
+     */
+    void dispatchEvent(DxvEvent& event, EventPhase phase);
 
     /**
      * @brief Called when the node is attached to a scene.
@@ -597,11 +625,13 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
      * @brief Default-action hook: the widget's own behavior for a dispatched
      * event.
      *
-     * dispatchEvent() runs the user listeners registered through on() first,
-     * then calls this hook with the same event. The hook is skipped when a
-     * listener called preventDefault(). A widget that consumes the event (so it
-     * must not reach its parents) calls event.stopPropagation() inside the hook.
-     * Override instead of overriding dispatchEvent(); the default is a no-op.
+     * The default action of the node runs only when the node is the event's
+     * target (the Target phase), after the user listeners registered through
+     * on(). It is skipped when a listener called preventDefault() (and only for
+     * cancelable events). Per the DOM UI Events model it does not stop
+     * propagation by itself: an event continues to bubble unless a listener
+     * calls stopPropagation(). Override instead of overriding dispatchEvent();
+     * the default is a no-op.
      * @param event The event being dispatched (type is the original, non-mutated one).
      */
     virtual void onEvent(DxvEvent& event);
@@ -676,6 +706,15 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     // Connection's destructor; a no-op when the handler is already gone.
     void removeHandler(EventType type, handlerID id);
 
+    // Removes a capture handler. Shared with removeHandler() logic.
+    void removeCaptureHandler(EventType type, handlerID id);
+
+    // Runs the phase-appropriate listeners (capture vs regular) on this node,
+    // iterating a snapshot of handler ids so registration/removal from within a
+    // handler is safe. Shared by dispatchEvent() for both listener sets.
+    void runListeners(std::map<handlerID, ActionCallback>& handlers, DxvEvent& event,
+                      const EventType eventType, const UIContext& context);
+
     // Recursive draw used by the public draw(); carries the viewport rect so
     // the whole tree is culled against it in O(visible) instead of O(all nodes).
     void drawImpl(IRenderer& renderer, const Rect& viewportRect);
@@ -695,6 +734,8 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     // Handlers are keyed by id per event type so that registration, removal and
     // snapshot dispatch are all safe while a handler is running.
     std::map<EventType, std::map<handlerID, ActionCallback>> eventHandlers;
+    // Capture-phase listeners, registered through onCapture().
+    std::map<EventType, std::map<handlerID, ActionCallback>> captureHandlers;
     handlerID handlerIdCounter = 0;
 };
 

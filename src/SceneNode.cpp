@@ -34,10 +34,9 @@ void SceneNode::addChild(const std::shared_ptr<SceneNode>& child) {
     // its dirty flag must propagate up so the StyleManager finds it.
     child->markStyleDirty();
     child->onAttach();
-    DxvEvent event;
-    event.type = EventType::Attach;
-    event.target = child;
-    child->dispatchEvent(event);
+    if (auto s = child->getScene()) {
+        s->raise(EventType::Attach, child);
+    }
     childrenOrderDirty = true;
     markLayoutDirty();
     // A new sibling can now cover the node under the cursor, so the event
@@ -51,10 +50,9 @@ void SceneNode::removeChild(const std::shared_ptr<SceneNode>& child) {
                              [&](const std::shared_ptr<SceneNode>& p) { return p == child; });
     if (it != children.end()) {
         child->onDetach();
-        DxvEvent event;
-        event.type = EventType::Detach;
-        event.target = child;
-        child->dispatchEvent(event);
+        if (auto s = child->getScene()) {
+            s->raise(EventType::Detach, child);
+        }
         children.erase(it, children.end());
         child->parent.reset();
         child->setScene(nullptr);
@@ -357,12 +355,20 @@ std::unique_ptr<SceneNode::Connection> SceneNode::on(EventType type, ActionCallb
     return std::unique_ptr<Connection>(new Connection(weak_from_this(), type, id));
 }
 
+std::unique_ptr<SceneNode::Connection> SceneNode::onCapture(EventType type,
+                                                            ActionCallback callback) {
+    const handlerID id = handlerIdCounter++;
+    captureHandlers[type][id] = std::move(callback);
+    return std::unique_ptr<Connection>(new Connection(weak_from_this(), type, id));
+}
+
 SceneNode::Connection::Connection(std::weak_ptr<SceneNode> node, EventType type, handlerID id)
     : node(std::move(node)), type(type), id(id) {}
 
 SceneNode::Connection::~Connection() {
     if (auto n = node.lock()) {
         n->removeHandler(type, id);
+        n->removeCaptureHandler(type, id);
     }
 }
 
@@ -375,52 +381,89 @@ void SceneNode::removeHandler(EventType type, handlerID id) {
     }
 }
 
+void SceneNode::removeCaptureHandler(EventType type, handlerID id) {
+    if (auto it = captureHandlers.find(type); it != captureHandlers.end()) {
+        it->second.erase(id);
+        if (it->second.empty()) {
+            captureHandlers.erase(it);
+        }
+    }
+}
+
+// The compatibility entry point: dispatches the event to this node in the
+// Target phase without walking the tree (the Scene/EventManager owns the walk).
+// Used by application code that dispatches directly to a node.
 void SceneNode::dispatchEvent(DxvEvent& event) {
     if (!event.getTarget()) {
         return;
     }
+    dispatchEvent(event, EventPhase::Target);
+}
+
+void SceneNode::dispatchEvent(DxvEvent& event, EventPhase phase) {
+    if (!event.getTarget()) {
+        return;
+    }
     // Snapshot the event type: a handler may mutate event.type, but that must
-    // not change which handlers run here nor what the parent dispatches for.
+    // not change which handlers run here.
     const EventType eventType = event.type;
     event.currentTarget = weak_from_this();
+    event.phase_ = phase;
 
-    auto handlerIt = eventHandlers.find(eventType);
-    if (handlerIt != eventHandlers.end()) {
-        // Snapshot only the handler ids, not the callbacks: std::map iterators
-        // stay valid across insert/erase, but a handler may remove itself (or
-        // register new ones) while running, so a live iteration is unsafe and a
-        // full copy of the std::functions would allocate per dispatched event.
-        std::vector<handlerID> ids;
-        ids.reserve(handlerIt->second.size());
-        for (const auto& [id, callback] : handlerIt->second) {
-            ids.push_back(id);
-        }
-        const UIContext ctx(getScene().get());
-        for (const handlerID id : ids) {
-            const auto callbackIt = handlerIt->second.find(id);
-            if (callbackIt != handlerIt->second.end() && callbackIt->second) {
-                callbackIt->second(event, ctx);
-                // stopImmediatePropagation skips the remaining listeners of the
-                // current node, but (DOM semantics) not the default action.
-                if (event.isImmediatePropagationStopped()) {
-                    break;
-                }
+    const UIContext ctx(getScene().get());
+
+    // Capture-phase listeners run on the descent (only for captureable
+    // events, which is the only case the EventManager walks into capture).
+    if (phase == EventPhase::Capture) {
+        auto captureIt = captureHandlers.find(eventType);
+        if (captureIt != captureHandlers.end()) {
+            runListeners(captureIt->second, event, eventType, ctx);
+            if (event.isImmediatePropagationStopped()) {
+                return;
             }
         }
+        return;
     }
 
-    // Default action: the widget's own behavior. It runs after the user
-    // listeners and is only cancelled by preventDefault() (DOM semantics:
-    // stopPropagation/stopImmediatePropagation do not cancel it). The type is
-    // restored first so the hook always sees the originally raised event.
-    event.type = eventType;
-    if (!event.isDefaultPrevented()) {
-        onEvent(event);
+    // Regular listeners run in the Target and Bubble phases.
+    auto handlerIt = eventHandlers.find(eventType);
+    if (handlerIt != eventHandlers.end()) {
+        runListeners(handlerIt->second, event, eventType, ctx);
     }
 
-    if (!event.isPropagationStopped() && !event.isImmediatePropagationStopped()) {
-        if (const auto p = parent.lock()) {
-            p->dispatchEvent(event);
+    // Default action runs only on the target, after the user listeners, and is
+    // cancelled by preventDefault() (stopPropagation/stopImmediatePropagation
+    // do not cancel it, per DOM semantics). Per the DOM UI Events model the
+    // default action does not stop propagation. The type is restored first so
+    // the hook always sees the originally raised event.
+    if (phase == EventPhase::Target) {
+        event.type = eventType;
+        if (event.cancelable() && !event.isDefaultPrevented()) {
+            onEvent(event);
+        }
+    }
+}
+
+void SceneNode::runListeners(std::map<handlerID, ActionCallback>& handlers, DxvEvent& event,
+                             const EventType eventType, const UIContext& context) {
+    // Snapshot only the handler ids, not the callbacks: std::map iterators stay
+    // valid across insert/erase, but a handler may remove itself (or register
+    // new ones) while running, so a live iteration is unsafe and a full copy of
+    // the std::functions would allocate per dispatched event.
+    std::vector<handlerID> ids;
+    ids.reserve(handlers.size());
+    for (const auto& [id, callback] : handlers) {
+        ids.push_back(id);
+    }
+    for (const handlerID id : ids) {
+        const auto callbackIt = handlers.find(id);
+        if (callbackIt != handlers.end() && callbackIt->second) {
+            callbackIt->second(event, context);
+            // stopImmediatePropagation skips the remaining listeners of the
+            // current node, but (DOM semantics) not the default action.
+            if (event.isImmediatePropagationStopped()) {
+                break;
+            }
         }
     }
 }
@@ -534,7 +577,7 @@ void SceneNode::drawContent(IRenderer& /*renderer*/) {}
 
 void SceneNode::bind(const std::shared_ptr<UIBinding>& binding) {
     connection_.reset();
-    binding_ = binding; //TODO: binding присваиваеться без проверки, возможно требует проверок
+    binding_ = binding;  // TODO: binding присваиваеться без проверки, возможно требует проверок
     if (binding_) {
         connection_ =
             binding_->subscribe([this](const UIBinding& value) { this->onBindingChange(value); });
@@ -544,11 +587,13 @@ void SceneNode::bind(const std::shared_ptr<UIBinding>& binding) {
 std::shared_ptr<UIBinding> SceneNode::getBinding() const { return binding_; }
 
 void SceneNode::onBindingChange(const UIBinding& binding) {
-    DxvEvent event;
-    event.target = weak_from_this();
-    event.type = EventType::Change;
     onChange(binding);
-    dispatchEvent(event);
+    // Change is raised through the scene so the event manager controls the
+    // propagation. A node outside the scene (attached-after-bind or detached)
+    // has no scene to route through; its Change is not delivered.
+    if (auto s = scene.lock()) {
+        s->raise(EventType::Change, shared_from_this());
+    }
 }
 
 std::size_t SceneNode::getDepth() const noexcept {
