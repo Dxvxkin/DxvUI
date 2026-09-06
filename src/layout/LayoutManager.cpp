@@ -109,14 +109,17 @@ void LayoutManager::arrangeNode(SceneNode& node, const Rect& finalRect) {
 }
 
 Rect LayoutManager::contentRect(const SceneNode& node, const Rect& outerRect) {
-    const auto& computed = node.getComputedLayout(node.getCurrentState());
+    return shrinkRect(outerRect, contentInsets(node));
+}
+
+Thickness LayoutManager::contentInsets(const SceneNode& node) {
+    Thickness inset = node.getComputedLayout(node.getCurrentState()).padding;
     const int border = node.getComputedAppearance(node.getCurrentState()).borderThickness;
-    Thickness inset = computed.padding;
     inset.left += border;
     inset.top += border;
     inset.right += border;
     inset.bottom += border;
-    return shrinkRect(outerRect, inset);
+    return inset;
 }
 
 Size LayoutManager::addPadding(const Size& size, const Thickness& padding) {

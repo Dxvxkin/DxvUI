@@ -104,12 +104,12 @@ std::string TextEdit::getText() const { return editor_.getText(); }
 void TextEdit::setText(std::string text) { editor_.setText(std::move(text)); }
 
 Size TextEdit::onMeasure(const Size& availableSize) {
-    const auto& padding = getComputedLayout().padding;
+    const Thickness insets = LayoutManager::contentInsets(*this);
 
     ITextEngine* engine = nullptr;
     const IFont* font = nullptr;
     if (!getEditContext(&engine, &font)) {
-        return LayoutManager::addPadding({0, 0}, padding);
+        return LayoutManager::addPadding({0, 0}, insets);
     }
 
     const TextMetrics measured = (*engine).measure(*font, editor_.getText());
@@ -118,7 +118,7 @@ Size TextEdit::onMeasure(const Size& availableSize) {
     const LineMetrics line = (*engine).lineMetrics(*font);
     const int height = line.lineHeight > 0 ? line.lineHeight : measured.height;
     return LayoutManager::addPadding(
-        {static_cast<float>(measured.width), static_cast<float>(height)}, padding);
+        {static_cast<float>(measured.width), static_cast<float>(height)}, insets);
 }
 
 void TextEdit::drawContent(IRenderer& renderer) {

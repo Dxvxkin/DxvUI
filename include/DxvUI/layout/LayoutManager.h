@@ -64,6 +64,17 @@ class LayoutManager {
     static Rect contentRect(const SceneNode& node, const Rect& outerRect);
 
     /**
+     * @brief The node's full content inset: computed padding + border thickness.
+     *
+     * contentRect() subtracts both from an outer rect, so the measure side must
+     * add both back to its intrinsic size — otherwise content is clipped by the
+     * border on each side. Use this instead of hand-merging border into padding.
+     * @param node The node whose layout/appearance to read.
+     * @return The inset to add to (or subtract from) a size, in pixels.
+     */
+    static Thickness contentInsets(const SceneNode& node);
+
+    /**
      * @brief Adds the node's padding to a size.
      * @param size The inner size (e.g. the sum of children's desired sizes).
      * @param padding The padding to expand by.

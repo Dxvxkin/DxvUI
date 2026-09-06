@@ -41,7 +41,7 @@ const char* SliderHorizontal::getNodeType() const { return kWidgetType; }
 
 Size SliderHorizontal::onMeasure(const Size& availableSize) {
     return LayoutManager::addPadding({availableSize.width, kWidgetHeight},
-                                     getComputedLayout().padding);
+                                     LayoutManager::contentInsets(*this));
 }
 
 void SliderHorizontal::drawContent(IRenderer& renderer) {

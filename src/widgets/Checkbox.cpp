@@ -79,7 +79,7 @@ Size Checkbox::onMeasure(const Size& availableSize) {
 
     const float width = kBoxSize + kGap + labelWidth;
     const float height = std::max(kBoxSize, labelHeight);
-    return LayoutManager::addPadding({width, height}, getComputedLayout().padding);
+    return LayoutManager::addPadding({width, height}, LayoutManager::contentInsets(*this));
 }
 
 void Checkbox::onArrange(const Rect& finalRect) {

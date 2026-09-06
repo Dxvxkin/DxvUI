@@ -59,15 +59,9 @@ void Label::onChange(const UIBinding& /*binding*/) {
 
 Size Label::onMeasure(const Size& availableSize) {
     const auto& computedAppearance = getComputedAppearance();
-    // Border adds to the measured box: LayoutManager::contentRect subtracts
-    // padding + border, so a size that omits border leaves the text clipped by
-    // border on each side.
-    auto padding = getComputedLayout().padding;
-    const int border = computedAppearance.borderThickness;
-    padding.left += border;
-    padding.top += border;
-    padding.right += border;
-    padding.bottom += border;
+    // LayoutManager::contentRect subtracts padding + border, so the measured box
+    // must compensate for both — otherwise text is clipped by the border.
+    const Thickness insets = LayoutManager::contentInsets(*this);
 
     auto scene = getScene();
     if (scene && scene->getRenderer()) {
@@ -80,7 +74,7 @@ Size Label::onMeasure(const Size& availableSize) {
         auto text = getText();
         auto measured = engine.measure(*font, text);
         return LayoutManager::addPadding(
-            {static_cast<float>(measured.width), static_cast<float>(measured.height)}, padding);
+            {static_cast<float>(measured.width), static_cast<float>(measured.height)}, insets);
     }
     return {0, 0};
 }

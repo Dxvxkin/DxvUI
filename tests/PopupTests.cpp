@@ -118,8 +118,8 @@ TEST(PopupTest, AutoSizesToContent) {
     root->measure({800, 600});
     root->arrange({0, 0, 800, 600});
 
-    // 80/40 контента + padding 8 со всех сторон.
-    EXPECT_EQ(popup->getGlobalBounds(), (Rect{0, 0, 96, 56}));
+    // 80/40 контента + padding 8 + бордер 1 со всех сторон.
+    EXPECT_EQ(popup->getGlobalBounds(), (Rect{0, 0, 98, 58}));
 }
 
 TEST(PopupTest, HiddenPopupIsNotHitTested) {

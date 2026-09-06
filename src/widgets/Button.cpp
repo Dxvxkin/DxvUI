@@ -76,10 +76,7 @@ Size Button::onMeasure(const Size& availableSize) {
         childDesiredSize = LayoutManager::measureChild(*getChildren().front(), availableSize);
     }
 
-    const auto& computedLayout = getComputedLayout();
-    const auto& padding = computedLayout.padding;
-
-    return LayoutManager::addPadding(childDesiredSize, padding);
+    return LayoutManager::addPadding(childDesiredSize, LayoutManager::contentInsets(*this));
 }
 
 void Button::onArrange(const Rect& finalRect) {

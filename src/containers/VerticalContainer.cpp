@@ -12,10 +12,10 @@ float VerticalContainer::getSpacing() const { return getComputedLayout().gap; }
 
 Size VerticalContainer::onMeasure(const Size& availableSize) {
     const auto& computedLayout = getComputedLayout();
-    const auto& padding = computedLayout.padding;
+    const Thickness insets = LayoutManager::contentInsets(*this);
     const float gap = computedLayout.gap;
 
-    const Size contentAvailableSize = LayoutManager::subtractPadding(availableSize, padding);
+    const Size contentAvailableSize = LayoutManager::subtractPadding(availableSize, insets);
 
     float totalHeight = 0.0f;
     float maxWidth = 0.0f;
@@ -36,7 +36,7 @@ Size VerticalContainer::onMeasure(const Size& availableSize) {
         firstVisibleChild = false;
     }
 
-    return LayoutManager::addPadding({maxWidth, totalHeight}, padding);
+    return LayoutManager::addPadding({maxWidth, totalHeight}, insets);
 }
 
 void VerticalContainer::onArrange(const Rect& finalRect) {
@@ -64,8 +64,8 @@ void VerticalContainer::onArrange(const Rect& finalRect) {
 
         // The main axis is managed by the flow (currentY + spacing); only the
         // cross axis (horizontal) is aligned by the child's horizontalAlignment.
-        const Rect childSlot = {content.x, static_cast<int>(currentY + margin.top),
-                                content.width, static_cast<int>(finalHeight)};
+        const Rect childSlot = {content.x, static_cast<int>(currentY + margin.top), content.width,
+                                static_cast<int>(finalHeight)};
         const Rect childFinalRect = LayoutManager::alignChild(
             *child, {finalWidth, finalHeight}, childSlot, {.horizontal = true, .vertical = false});
 

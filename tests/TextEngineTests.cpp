@@ -396,10 +396,34 @@ struct TextEditFixture {
 
 TEST(TextEditTest, MeasuresTextPlusPadding) {
     TextEditFixture f;
-    // "Hello" = 5 bytes -> 40px text; default padding is 4 left + 4 right.
-    EXPECT_FLOAT_EQ(f.field->getGlobalBounds().width, 48);
-    // Font line height 16 + 2 top + 2 bottom.
-    EXPECT_FLOAT_EQ(f.field->getGlobalBounds().height, 20);
+    // "Hello" = 5 bytes -> 40px text; default padding is 4 left + 4 right and
+    // the default border is 1px per side (2px total), so the measured box covers both
+    // (contentRect subtracts padding + border when drawing the text).
+    EXPECT_FLOAT_EQ(f.field->getGlobalBounds().width, 50);
+    // Font line height 16 + 2 top + 2 bottom padding + 2 border.
+    EXPECT_FLOAT_EQ(f.field->getGlobalBounds().height, 22);
+}
+
+TEST(TextEditTest, MeasureAccountsForExplicitBorder) {
+    std::shared_ptr<Scene> scene = Scene::create();
+    auto root = scene->getRoot();
+    auto field = TextEdit::create("field", "Hello");
+    root->setStyle({.fontSize = 16, .fontFamily = "Sans"}, WidgetState::Normal);
+    field->setStyle({.borderThickness = 2}, WidgetState::Normal);
+    root->addChild(field);
+
+    FakeRenderer renderer;
+    scene->setRenderer(&renderer);
+    Theme theme;
+    StyleManager manager{theme};
+    manager.resolveDirtyStyles(root);
+    root->measure({800, 600});
+    root->arrange({0, 0, 800, 600});
+
+    // "Hello" = 40px + padding 4+4 + border 2+2 = 52; line height 16 + padding
+    // 2+2 + border 2+2 = 24. Without the border term the text would be clipped.
+    EXPECT_FLOAT_EQ(field->getGlobalBounds().width, 52);
+    EXPECT_FLOAT_EQ(field->getGlobalBounds().height, 24);
 }
 
 TEST(TextEditTest, SetTextAndGetText) {

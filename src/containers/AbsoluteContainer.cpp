@@ -7,8 +7,7 @@
 namespace DxvUI {
 
 Size AbsoluteContainer::onMeasure(const Size& availableSize) {
-    const auto& computedLayout = getComputedLayout();
-    const auto& padding = computedLayout.padding;
+    const Thickness insets = LayoutManager::contentInsets(*this);
 
     float requiredWidth = 0.0f;
     float requiredHeight = 0.0f;
@@ -48,7 +47,7 @@ Size AbsoluteContainer::onMeasure(const Size& availableSize) {
         requiredHeight = std::max(requiredHeight, childTop + childOuterSize.height);
     }
 
-    return LayoutManager::addPadding({requiredWidth, requiredHeight}, padding);
+    return LayoutManager::addPadding({requiredWidth, requiredHeight}, insets);
 }
 
 void AbsoluteContainer::onArrange(const Rect& finalRect) {

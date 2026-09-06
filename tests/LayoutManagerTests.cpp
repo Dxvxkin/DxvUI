@@ -237,6 +237,35 @@ TEST(LayoutManagerTest, ContentRectIncludesBorder) {
     EXPECT_EQ(content.height, 50);
 }
 
+TEST(LayoutManagerTest, ContentInsetsAddsPaddingAndBorder) {
+    LayoutFixture f;
+    const Thickness padding = {.top = 2, .right = 3, .bottom = 4, .left = 5};
+    f.root->setStyle({.borderThickness = 2, .padding = padding}, WidgetState::Normal);
+    f.styleManager.resolveDirtyStyles(f.root);
+
+    // Padding (5,2,3,4) + Border (2,2,2,2) = Total Inset (7,4,5,6). This is the
+    // measure-side twin of contentRect: onMeasure must add it back so the content
+    // is not clipped by the border.
+    const Thickness insets = LayoutManager::contentInsets(*f.root);
+    EXPECT_FLOAT_EQ(insets.left, 7);
+    EXPECT_FLOAT_EQ(insets.top, 4);
+    EXPECT_FLOAT_EQ(insets.right, 5);
+    EXPECT_FLOAT_EQ(insets.bottom, 6);
+}
+
+TEST(LayoutManagerTest, ContentInsetsWithoutBorderIsPlainPadding) {
+    LayoutFixture f;
+    const Thickness padding = {.top = 2, .right = 3, .bottom = 4, .left = 5};
+    f.root->setStyle({.padding = padding}, WidgetState::Normal);
+    f.styleManager.resolveDirtyStyles(f.root);
+
+    const Thickness insets = LayoutManager::contentInsets(*f.root);
+    EXPECT_FLOAT_EQ(insets.left, 5);
+    EXPECT_FLOAT_EQ(insets.top, 2);
+    EXPECT_FLOAT_EQ(insets.right, 3);
+    EXPECT_FLOAT_EQ(insets.bottom, 4);
+}
+
 TEST(LayoutManagerTest, HorizontalContainerSubtractsPaddingBeforeMeasuringChildren) {
     const Thickness padding = {.top = 2, .right = 3, .bottom = 4, .left = 5};
 
@@ -545,7 +574,7 @@ TEST(LayoutManagerTest, AlignChildCenterRespectsMargin) {
 
 TEST(LayoutManagerTest, AlignChildStretchesOnBothAxes) {
     auto child = makeResolvedChild("child", {.horizontalAlignment = Alignment::Stretch,
-                                              .verticalAlignment = Alignment::Stretch});
+                                             .verticalAlignment = Alignment::Stretch});
     const Rect slot = {10, 20, 100, 60};
 
     const Rect result = LayoutManager::alignChild(*child, {10, 20}, slot, {true, true});
@@ -557,8 +586,8 @@ TEST(LayoutManagerTest, AlignChildStretchesOnBothAxes) {
 TEST(LayoutManagerTest, AlignChildStretchesWithMargin) {
     const Thickness margin = {.top = 2, .right = 3, .bottom = 4, .left = 5};
     auto child = makeResolvedChild("child", {.margin = margin,
-                                              .horizontalAlignment = Alignment::Stretch,
-                                              .verticalAlignment = Alignment::Stretch});
+                                             .horizontalAlignment = Alignment::Stretch,
+                                             .verticalAlignment = Alignment::Stretch});
     const Rect slot = {0, 0, 100, 60};
 
     const Rect result = LayoutManager::alignChild(*child, {10, 20}, slot, {true, true});
@@ -568,8 +597,8 @@ TEST(LayoutManagerTest, AlignChildStretchesWithMargin) {
 }
 
 TEST(LayoutManagerTest, AlignChildStretchSingleAxis) {
-    auto child = makeResolvedChild("child", {.horizontalAlignment = Alignment::Stretch,
-                                              .verticalAlignment = Alignment::End});
+    auto child = makeResolvedChild(
+        "child", {.horizontalAlignment = Alignment::Stretch, .verticalAlignment = Alignment::End});
     const Rect slot = {0, 0, 100, 60};
 
     const Rect result = LayoutManager::alignChild(*child, {10, 20}, slot, {true, true});

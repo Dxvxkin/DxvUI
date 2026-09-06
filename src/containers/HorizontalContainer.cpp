@@ -12,10 +12,10 @@ float HorizontalContainer::getSpacing() const { return getComputedLayout().gap; 
 
 Size HorizontalContainer::onMeasure(const Size& availableSize) {
     const auto& computedLayout = getComputedLayout();
-    const auto& padding = computedLayout.padding;
+    const Thickness insets = LayoutManager::contentInsets(*this);
     const float gap = computedLayout.gap;
 
-    const Size contentAvailableSize = LayoutManager::subtractPadding(availableSize, padding);
+    const Size contentAvailableSize = LayoutManager::subtractPadding(availableSize, insets);
 
     float totalWidth = 0.0f;
     float maxHeight = 0.0f;
@@ -36,7 +36,7 @@ Size HorizontalContainer::onMeasure(const Size& availableSize) {
         firstVisibleChild = false;
     }
 
-    return LayoutManager::addPadding({totalWidth, maxHeight}, padding);
+    return LayoutManager::addPadding({totalWidth, maxHeight}, insets);
 }
 
 void HorizontalContainer::onArrange(const Rect& finalRect) {

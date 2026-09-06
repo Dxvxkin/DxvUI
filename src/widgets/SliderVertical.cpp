@@ -41,7 +41,7 @@ const char* SliderVertical::getNodeType() const { return kWidgetType; }
 
 Size SliderVertical::onMeasure(const Size& availableSize) {
     return LayoutManager::addPadding({kWidgetWidth, availableSize.height},
-                                     getComputedLayout().padding);
+                                     LayoutManager::contentInsets(*this));
 }
 
 void SliderVertical::drawContent(IRenderer& renderer) {

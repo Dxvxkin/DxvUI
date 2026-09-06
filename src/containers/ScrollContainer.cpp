@@ -94,10 +94,9 @@ float ScrollContainer::clampScrollY(float y) const {
 }
 
 Size ScrollContainer::onMeasure(const Size& availableSize) {
-    const auto& computedLayout = getComputedLayout();
-    const auto& padding = computedLayout.padding;
+    const Thickness insets = LayoutManager::contentInsets(*this);
 
-    const Size viewport = LayoutManager::subtractPadding(availableSize, padding);
+    const Size viewport = LayoutManager::subtractPadding(availableSize, insets);
 
     // Measure the single child with the viewport constraints to learn its full
     // content extent; it overflows the viewport and is scrolled inside it.
@@ -119,7 +118,7 @@ Size ScrollContainer::onMeasure(const Size& availableSize) {
     // width/height style is applied on top by LayoutManager afterwards.
     const float w = std::min(childOuterSize.width, viewport.width);
     const float h = std::min(childOuterSize.height, viewport.height);
-    return LayoutManager::addPadding({w, h}, padding);
+    return LayoutManager::addPadding({w, h}, insets);
 }
 
 void ScrollContainer::onArrange(const Rect& finalRect) {

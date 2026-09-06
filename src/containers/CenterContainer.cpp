@@ -6,11 +6,9 @@
 namespace DxvUI {
 
 Size CenterContainer::onMeasure(const Size& availableSize) {
-    WidgetState currentState = getCurrentState();
-    const auto& computedLayout = getComputedLayout(currentState);
-    const auto& padding = computedLayout.padding;
+    const Thickness insets = LayoutManager::contentInsets(*this);
 
-    Size contentAvailableSize = LayoutManager::subtractPadding(availableSize, padding);
+    Size contentAvailableSize = LayoutManager::subtractPadding(availableSize, insets);
 
     Size childOuterSize = {0, 0};
     if (!getChildren().empty() && getChildren().front()) {
@@ -28,7 +26,7 @@ Size CenterContainer::onMeasure(const Size& availableSize) {
         }
     }
 
-    return LayoutManager::addPadding(childOuterSize, padding);
+    return LayoutManager::addPadding(childOuterSize, insets);
 }
 
 void CenterContainer::onArrange(const Rect& finalRect) {
