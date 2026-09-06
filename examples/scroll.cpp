@@ -5,7 +5,6 @@
 // integration itself (see examples/main.cpp for the pattern).
 
 #include <DxvUI/DxvEvent.h>
-#include <DxvUI/FpsCounter.h>
 #include <DxvUI/Log.h>
 #include <DxvUI/Scene.h>
 #include <DxvUI/UIContext.h>
@@ -24,6 +23,7 @@
 #include <string>
 
 #include "App.h"
+#include "FpsOverlay.h"
 
 namespace {
 
@@ -55,15 +55,17 @@ class DxvUIScrollExample : public DxvUIEx::SdlApp {
         return true;
     }
 
-    void update(float /*dtMs*/) override {
+    void update(float dtMs) override {
+        fpsOverlay_.beginUpdate();
         scene_->update();
-
-        fps_.tick();
-        fpsLabel_->setText(
-            std::format("FPS: {:.0f} ({:.1f} ms)", fps_.getFps(), fps_.getFrameTimeMs()));
+        fpsOverlay_.endUpdate(dtMs);
     }
 
-    void draw() override { scene_->draw(); }
+    void draw() override {
+        fpsOverlay_.beginDraw();
+        scene_->draw();
+        fpsOverlay_.endDraw();
+    }
 
     bool handleEvent(const SDL_Event& event) override {
         DxvUI::DxvEvent dxv;
@@ -75,10 +77,7 @@ class DxvUIScrollExample : public DxvUIEx::SdlApp {
 
    private:
     void buildScrollDemoUI(const std::shared_ptr<DxvUI::SceneNode>& root) {
-        auto fpsLabel = DxvUI::Label::create("fps_label", "FPS: --");
-        fpsLabel->setStyle({.top = 10, .right = 10}, DxvUI::WidgetState::Normal);
-        root->addChild(fpsLabel);
-        fpsLabel_ = fpsLabel;
+        fpsOverlay_.attach(root);
 
         auto caption = DxvUI::Label::create(
             "scroll_caption", "ScrollContainer: hover the list and use the mouse wheel");
@@ -130,8 +129,7 @@ class DxvUIScrollExample : public DxvUIEx::SdlApp {
     std::shared_ptr<DxvUI::Scene> scene_;
     DxvUI::SDLEventSource eventSource_;
     std::vector<std::unique_ptr<DxvUI::SceneNode::Connection>> connections_;
-    DxvUI::FpsCounter<> fps_;
-    std::shared_ptr<DxvUI::Label> fpsLabel_;
+    DxvUIEx::FpsOverlay fpsOverlay_;
 };
 
 #ifdef _WIN32

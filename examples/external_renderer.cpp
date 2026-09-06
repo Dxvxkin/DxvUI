@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "App.h"
+#include "FpsOverlay.h"
 
 class ExternalRendererApp : public DxvUIEx::SdlApp {
    public:
@@ -39,11 +40,13 @@ class ExternalRendererApp : public DxvUIEx::SdlApp {
         return true;
     }
 
-    void update(float /*dtMs*/) override {
+    void update(float dtMs) override {
         // Background the clear will use (SDL_RenderClear happens before draw()).
         SDL_SetRenderDrawColor(renderer_, 235, 235, 235, 255);
 
+        fpsOverlay_.beginUpdate();
         scene_->update();
+        fpsOverlay_.endUpdate(dtMs);
 
         if (viewportLabel_) {
             const auto v = dxvRenderer_->getViewportSize();
@@ -65,7 +68,9 @@ class ExternalRendererApp : public DxvUIEx::SdlApp {
 
         // 2) The DxvUI UI on top of the host content (no clear() here — the frame
         //    was already cleared by the SdlApp loop).
+        fpsOverlay_.beginDraw();
         scene_->draw();
+        fpsOverlay_.endDraw();
     }
 
     bool handleEvent(const SDL_Event& event) override {
@@ -97,8 +102,11 @@ class ExternalRendererApp : public DxvUIEx::SdlApp {
         title->setStyle({.left = 20, .top = 20}, DxvUI::WidgetState::Normal);
         root->addChild(title);
 
+        fpsOverlay_.attach(root);
+
         auto viewportLabel = DxvUI::Label::create("ext_viewport", "Viewport: - x -");
-        viewportLabel->setStyle({.top = 10, .right = 10}, DxvUI::WidgetState::Normal);
+        // Below the FPS readout, which occupies the top-right corner.
+        viewportLabel->setStyle({.top = 40, .right = 10}, DxvUI::WidgetState::Normal);
         root->addChild(viewportLabel);
         viewportLabel_ = viewportLabel;
 
@@ -131,6 +139,7 @@ class ExternalRendererApp : public DxvUIEx::SdlApp {
     DxvUI::SDLEventSource eventSource_;
     std::vector<std::unique_ptr<DxvUI::SceneNode::Connection>> connections_;
     std::shared_ptr<DxvUI::Label> viewportLabel_;
+    DxvUIEx::FpsOverlay fpsOverlay_;
 };
 
 #ifdef _WIN32

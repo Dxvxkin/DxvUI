@@ -8,22 +8,18 @@
 #include <DxvUI/DxvUI.h>
 #include <SDL.h>
 
-#include <chrono>
 #include <cstdlib>
 #include <format>
 #include <memory>
 #include <vector>
 
 #include "App.h"
+#include "FpsOverlay.h"
 
 namespace {
 
 constexpr int SCREEN_WIDTH = 800;
 constexpr int SCREEN_HEIGHT = 600;
-
-// FPS readout refresh period, ms. Enough to keep the number current, slow enough
-// to avoid re-rasterizing the text every frame.
-constexpr float kFpsLabelIntervalMs = 250.0f;
 
 }  // namespace
 
@@ -45,33 +41,17 @@ class DxvUIExample : public DxvUIEx::SdlApp {
     }
 
     void update(float dtMs) override {
-        const auto tUpdate = std::chrono::steady_clock::now();
+        fpsOverlay_.beginUpdate();
         scene_->update();
-        updateMs_.recordMs(
-            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tUpdate)
-                .count());
-
-        fps_.tick();
-        // The FPS readout is refreshed at most every kFpsLabelIntervalMs: setText()
-        // on a changing string re-rasterizes the text every frame (0.4–0.8 ms of
-        // jitter under idle), so throttling the label keeps the hot path flat.
-        fpsLabelAccumMs_ += dtMs;
-        if (fpsLabelAccumMs_ >= kFpsLabelIntervalMs) {
-            fpsLabelAccumMs_ = 0.0f;
-            fpsLabel_->setText(std::format("FPS: {:.0f} (up {:.2f} ms · draw {:.2f} ms)",
-                                           fps_.getFps(), updateMs_.getFrameTimeMs(),
-                                           drawMs_.getFrameTimeMs()));
-        }
+        fpsOverlay_.endUpdate(dtMs);
 
         std::erase_if(connections_, [](const auto& c) { return c->expired(); });
     }
 
     void draw() override {
-        const auto tDraw = std::chrono::steady_clock::now();
+        fpsOverlay_.beginDraw();
         scene_->draw();
-        drawMs_.recordMs(
-            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tDraw)
-                .count());
+        fpsOverlay_.endDraw();
     }
 
     bool handleEvent(const SDL_Event& event) override {
@@ -94,11 +74,8 @@ class DxvUIExample : public DxvUIEx::SdlApp {
                        DxvUI::WidgetState::Normal);
 
         // Frame-rate readout pinned to the top-right corner; the text is refreshed
-        // by the main loop, and setText() is a no-op while the value stays stable.
-        auto fpsLabel = DxvUI::Label::create("fps_label", "FPS: --");
-        fpsLabel->setStyle({.top = 10, .right = 10}, DxvUI::WidgetState::Normal);
-        root->addChild(fpsLabel);
-        fpsLabel_ = fpsLabel;
+        // from the main loop in update() (throttled to kFpsOverlayIntervalMs).
+        fpsOverlay_.attach(root);
 
         // --- Button 1: Uses default styles + overrides ---
         auto myButton = DxvUI::Button::create("my_button", "Click Me!");
@@ -364,11 +341,7 @@ class DxvUIExample : public DxvUIEx::SdlApp {
     std::shared_ptr<DxvUI::Scene> scene_;
     DxvUI::SDLEventSource eventSource_;
     std::vector<std::unique_ptr<DxvUI::SceneNode::Connection>> connections_;
-    DxvUI::FpsCounter<> fps_;
-    DxvUI::FpsCounter<> updateMs_;
-    DxvUI::FpsCounter<> drawMs_;
-    std::shared_ptr<DxvUI::Label> fpsLabel_;
-    float fpsLabelAccumMs_ = 0.0f;
+    DxvUIEx::FpsOverlay fpsOverlay_;
 };
 
 #ifdef _WIN32

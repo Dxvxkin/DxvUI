@@ -5,7 +5,6 @@
 // integration itself (see examples/main.cpp for the pattern).
 
 #include <DxvUI/DxvEvent.h>
-#include <DxvUI/FpsCounter.h>
 #include <DxvUI/Log.h>
 #include <DxvUI/Scene.h>
 #include <DxvUI/backend/SDLEventSource.h>
@@ -27,6 +26,7 @@
 #include <vector>
 
 #include "App.h"
+#include "FpsOverlay.h"
 
 namespace {
 
@@ -60,18 +60,20 @@ class DxvUITextEditExample : public DxvUIEx::SdlApp {
         return true;
     }
 
-    void update(float /*dtMs*/) override {
+    void update(float dtMs) override {
+        fpsOverlay_.beginUpdate();
         scene_->update();
-
-        fps_.tick();
-        fpsLabel_->setText(
-            std::format("FPS: {:.0f} ({:.1f} ms)", fps_.getFps(), fps_.getFrameTimeMs()));
+        fpsOverlay_.endUpdate(dtMs);
 
         // Мёртвых токенов нет — поле и кнопка живы.
         std::erase_if(connections_, [](const auto& c) { return c->expired(); });
     }
 
-    void draw() override { scene_->draw(); }
+    void draw() override {
+        fpsOverlay_.beginDraw();
+        scene_->draw();
+        fpsOverlay_.endDraw();
+    }
 
     bool handleEvent(const SDL_Event& event) override {
         DxvUI::DxvEvent dxv;
@@ -239,10 +241,7 @@ class DxvUITextEditExample : public DxvUIEx::SdlApp {
         registerToggle(valDecimal, "Десятичное число", DxvUI::validators::decimal());
 
         // FPS-лейбл (обновляется в главном цикле).
-        auto fpsLabel = DxvUI::Label::create("fps_label", "FPS: --");
-        fpsLabel->setStyle({.top = 10, .right = 10}, DxvUI::WidgetState::Normal);
-        root->addChild(fpsLabel);
-        fpsLabel_ = fpsLabel;
+        fpsOverlay_.attach(root);
     }
 
     void runScriptedTextEdit() {
@@ -369,8 +368,7 @@ class DxvUITextEditExample : public DxvUIEx::SdlApp {
     std::shared_ptr<DxvUI::Scene> scene_;
     DxvUI::SDLEventSource eventSource_;
     std::vector<std::unique_ptr<DxvUI::SceneNode::Connection>> connections_;
-    DxvUI::FpsCounter<> fps_;
-    std::shared_ptr<DxvUI::Label> fpsLabel_;
+    DxvUIEx::FpsOverlay fpsOverlay_;
 };
 
 #ifdef _WIN32
