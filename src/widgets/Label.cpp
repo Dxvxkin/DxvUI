@@ -59,7 +59,15 @@ void Label::onChange(const UIBinding& /*binding*/) {
 
 Size Label::onMeasure(const Size& availableSize) {
     const auto& computedAppearance = getComputedAppearance();
+    // Border adds to the measured box: LayoutManager::contentRect subtracts
+    // padding + border, so a size that omits border leaves the text clipped by
+    // border on each side.
     auto padding = getComputedLayout().padding;
+    const int border = computedAppearance.borderThickness;
+    padding.left += border;
+    padding.top += border;
+    padding.right += border;
+    padding.bottom += border;
 
     auto scene = getScene();
     if (scene && scene->getRenderer()) {

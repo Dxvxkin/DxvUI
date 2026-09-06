@@ -142,6 +142,13 @@ size_t nextCodePointOffset(const std::string& text, size_t start) {
 size_t SDLTextEngine::charIndexAtX(const IFont& font, const std::string& text, int maxWidth) {
     if (text.empty() || maxWidth <= 0) return 0;
 
+    // Fast path: the whole line already fits, so the caret is at the end. This
+    // covers the common auto-sized label, avoiding the boundary vector and the
+    // per-code-point measure calls on every draw.
+    if (measure(font, text).width <= maxWidth) {
+        return text.size();
+    }
+
     // Collect code point boundaries so the answer is always a valid caret
     // position (never a split multi-byte code point). Text is short (single
     // line), so the linear scan is cheap and robust for every Unicode range.
