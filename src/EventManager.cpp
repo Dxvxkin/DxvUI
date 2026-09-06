@@ -108,7 +108,45 @@ void EventManager::dispatch(DxvEvent& event) {
     // CAPTURE: root -> ... -> target's parent, only for captureable events.
     // A stopPropagation in capture cancels both the descent and the bubble.
     if (meta.captureable) {
-        dispatchCapture(root, target, event);
+        // Collect the ancestors of the target on the root->target path with a
+        // parent walk instead of scanning siblings: an O(depth) cost per event,
+        // not O(siblings x depth), and no per-event allocation while the path
+        // fits the fixed stack buffer. The chain is built bottom-up, so descent
+        // dispatches it in reverse (root first).
+        constexpr int kMaxPathDepth = 16;
+        SceneNode* path[kMaxPathDepth];
+        std::vector<SceneNode*> deep;  // fallback for trees deeper than path[]
+        SceneNode** chain = path;
+        int depth = 0;
+        for (auto n = target->getParent().lock().get(); n && n != root.get();
+             n = n->getParent().lock().get()) {
+            if (depth < kMaxPathDepth) {
+                path[depth++] = n;
+            } else {
+                chain = nullptr;
+                break;
+            }
+        }
+        if (!chain) {
+            // Only pathological trees exceed the stack buffer; fall back to a
+            // heap copy of the path. Correctness is unaffected.
+            for (auto n = target->getParent().lock().get(); n && n != root.get();
+                 n = n->getParent().lock().get()) {
+                deep.push_back(n);
+            }
+            chain = deep.data();
+            depth = static_cast<int>(deep.size());
+        }
+
+        root->dispatchEvent(event, EventPhase::Capture);
+        if (!event.isPropagationStopped() && !event.isImmediatePropagationStopped()) {
+            for (int i = depth - 1; i >= 0; --i) {
+                chain[i]->dispatchEvent(event, EventPhase::Capture);
+                if (event.isPropagationStopped() || event.isImmediatePropagationStopped()) {
+                    break;
+                }
+            }
+        }
         if (event.isPropagationStopped()) {
             return;
         }
@@ -124,25 +162,6 @@ void EventManager::dispatch(DxvEvent& event) {
             if (event.isPropagationStopped() || event.isImmediatePropagationStopped()) {
                 break;
             }
-        }
-    }
-}
-
-void EventManager::dispatchCapture(const std::shared_ptr<SceneNode>& node,
-                                   const std::shared_ptr<SceneNode>& target, DxvEvent& event) {
-    // The target itself is handled in the Target phase, so stop descent there.
-    if (node.get() == target.get()) {
-        return;
-    }
-    node->dispatchEvent(event, EventPhase::Capture);
-    if (event.isPropagationStopped() || event.isImmediatePropagationStopped()) {
-        return;
-    }
-    // Descend into the child on the path to the target.
-    for (const auto& child : node->getChildren()) {
-        if (child.get() == target.get() || child->isAncestorOf(target)) {
-            dispatchCapture(child, target, event);
-            return;
         }
     }
 }

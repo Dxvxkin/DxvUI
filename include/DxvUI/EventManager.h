@@ -118,17 +118,6 @@ class EventManager {
     std::shared_ptr<SceneNode> resolveTarget(const DxvEvent& event);
 
     /**
-     * @brief Walks the Capture phase from @p node down to @p target.
-     *
-     * Recursive root->...->target descent with no per-event vector allocation:
-     * each node is dispatched (Capture) before descending into the child on the
-     * path to the target. Uses SceneNode::isAncestorOf to find that child, and
-     * stops descent at the target itself (handled in the Target phase).
-     */
-    void dispatchCapture(const std::shared_ptr<SceneNode>& node,
-                         const std::shared_ptr<SceneNode>& target, DxvEvent& event);
-
-    /**
      * @brief Moves keyboard focus to the given node, dispatching FocusLost and
      * FocusGained to the old and new nodes.
      * @param newNode The node to focus, or nullptr to clear the focus.

@@ -2,8 +2,8 @@
 #include <DxvUI/Log.h>
 #include <DxvUI/Scene.h>
 #include <DxvUI/SceneNode.h>
-#include <DxvUI/core.h>
 #include <DxvUI/backend/SDLRenderer.h>
+#include <DxvUI/core.h>
 #include <DxvUI/style/Colors.h>
 #include <DxvUI/widgets/Button.h>
 #include <DxvUI/widgets/Label.h>
@@ -330,6 +330,9 @@ void hitTestAt(Scene& scene, const std::shared_ptr<SceneNode>& btn, int events,
 
     // Warm-up events: the first MouseMove over the button sets hover -> dirty ->
     // relayout; fire a few before timing so the measured cost is pure hit-test.
+    // Note: the timed events below measure hit-test + the full three-phase
+    // dispatch (capture/target/bubble) that processEvent() now performs; only
+    // the "moving" scenario isolates the bare hit-test via findNodeAt().
     for (int i = 0; i < 5; ++i) {
         DxvEvent warm;
         warm.type = EventType::MouseMove;

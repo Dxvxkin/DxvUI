@@ -357,8 +357,12 @@ std::unique_ptr<SceneNode::Connection> SceneNode::on(EventType type, ActionCallb
 
 std::unique_ptr<SceneNode::Connection> SceneNode::onCapture(EventType type,
                                                             ActionCallback callback) {
+    if (!captureHandlers) {
+        captureHandlers =
+            std::make_unique<std::map<EventType, std::map<handlerID, ActionCallback>>>();
+    }
     const handlerID id = handlerIdCounter++;
-    captureHandlers[type][id] = std::move(callback);
+    (*captureHandlers)[type][id] = std::move(callback);
     return std::unique_ptr<Connection>(new Connection(weak_from_this(), type, id));
 }
 
@@ -382,11 +386,17 @@ void SceneNode::removeHandler(EventType type, handlerID id) {
 }
 
 void SceneNode::removeCaptureHandler(EventType type, handlerID id) {
-    if (auto it = captureHandlers.find(type); it != captureHandlers.end()) {
+    if (!captureHandlers) {
+        return;
+    }
+    if (auto it = captureHandlers->find(type); it != captureHandlers->end()) {
         it->second.erase(id);
         if (it->second.empty()) {
-            captureHandlers.erase(it);
+            captureHandlers->erase(it);
         }
+    }
+    if (captureHandlers->empty()) {
+        captureHandlers.reset();
     }
 }
 
@@ -404,19 +414,20 @@ void SceneNode::dispatchEvent(DxvEvent& event, EventPhase phase) {
     if (!event.getTarget()) {
         return;
     }
-    // Snapshot the event type: a handler may mutate event.type, but that must
-    // not change which handlers run here.
-    const EventType eventType = event.type;
-    event.currentTarget = weak_from_this();
-    event.phase_ = phase;
-
-    const UIContext ctx(getScene().get());
-
-    // Capture-phase listeners run on the descent (only for captureable
-    // events, which is the only case the EventManager walks into capture).
+    // Capture-phase listeners run on the descent (only for captureable events,
+    // which is the only case the EventManager walks into capture). Fast path:
+    // the vast majority of nodes hold no capture listeners, so bail out before
+    // the per-node bookkeeping below.
     if (phase == EventPhase::Capture) {
-        auto captureIt = captureHandlers.find(eventType);
-        if (captureIt != captureHandlers.end()) {
+        if (!captureHandlers) {
+            return;
+        }
+        const EventType eventType = event.type;
+        event.currentTarget = weak_from_this();
+        event.phase_ = phase;
+        if (auto captureIt = captureHandlers->find(eventType);
+            captureIt != captureHandlers->end()) {
+            const UIContext ctx(getScene().get());
             runListeners(captureIt->second, event, eventType, ctx);
             if (event.isImmediatePropagationStopped()) {
                 return;
@@ -425,8 +436,22 @@ void SceneNode::dispatchEvent(DxvEvent& event, EventPhase phase) {
         return;
     }
 
-    // Regular listeners run in the Target and Bubble phases.
+    // Regular listeners run in the Target and Bubble phases. Bubble-phase nodes
+    // with no listeners for this type skip the per-node bookkeeping (current
+    // target, phase, UIContext construction) — the common case on big trees.
+    const EventType eventType = event.type;
     auto handlerIt = eventHandlers.find(eventType);
+    if (phase == EventPhase::Bubble) {
+        if (handlerIt == eventHandlers.end()) {
+            return;
+        }
+    }
+
+    event.currentTarget = weak_from_this();
+    event.phase_ = phase;
+
+    const UIContext ctx(getScene().get());
+
     if (handlerIt != eventHandlers.end()) {
         runListeners(handlerIt->second, event, eventType, ctx);
     }
@@ -446,6 +471,18 @@ void SceneNode::dispatchEvent(DxvEvent& event, EventPhase phase) {
 
 void SceneNode::runListeners(std::map<handlerID, ActionCallback>& handlers, DxvEvent& event,
                              const EventType eventType, const UIContext& context) {
+    // Fast path: a single listener (the overwhelmingly common case in key
+    // paths) runs without the ids snapshot, avoiding the vector allocation.
+    // The snapshot exists because a handler may remove itself (or register new
+    // ones) while running, which invalidates std::map iterators.
+    if (handlers.size() == 1) {
+        auto& [id, callback] = *handlers.begin();
+        if (callback) {
+            callback(event, context);
+        }
+        return;
+    }
+
     // Snapshot only the handler ids, not the callbacks: std::map iterators stay
     // valid across insert/erase, but a handler may remove itself (or register
     // new ones) while running, so a live iteration is unsafe and a full copy of
