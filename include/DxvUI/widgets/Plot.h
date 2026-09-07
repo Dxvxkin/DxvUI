@@ -42,6 +42,8 @@ class Plot : public SceneNode {
 
     /// Overrides the default palette color for a series.
     void setSeriesColor(size_t series, Color color);
+    /// The series color (palette default unless overridden).
+    Color getSeriesColor(size_t series) const;
 
     /// Fixes the world bounds and disables auto-scaling.
     void setWorldBounds(float xMin, float yMin, float xMax, float yMax);

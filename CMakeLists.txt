@@ -191,6 +191,7 @@ if(BUILD_TESTING)
             tests/LayoutManagerTests.cpp
             tests/LogTests.cpp
             tests/NodeStateTests.cpp
+            tests/PlotTests.cpp
             tests/StyleManagerTests.cpp
             tests/WidgetTests.cpp
             tests/TextEditorTests.cpp

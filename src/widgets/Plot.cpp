@@ -82,6 +82,13 @@ void Plot::setSeriesColor(size_t series, Color color) {
     }
 }
 
+Color Plot::getSeriesColor(size_t series) const {
+    if (series < series_.size()) {
+        return series_[series].color;
+    }
+    return Colors::Transparent;
+}
+
 void Plot::setWorldBounds(float xMin, float yMin, float xMax, float yMax) {
     xMin_ = xMin;
     yMin_ = yMin;
@@ -117,6 +124,7 @@ void Plot::autoScale() {
     float xMax = -std::numeric_limits<float>::infinity();
     float yMin = std::numeric_limits<float>::infinity();
     float yMax = -std::numeric_limits<float>::infinity();
+    bool found = false;
 
     for (const auto& series : series_) {
         for (const auto& p : series.points) {
@@ -127,12 +135,13 @@ void Plot::autoScale() {
             xMax = std::max(xMax, p.x);
             yMin = std::min(yMin, p.y);
             yMax = std::max(yMax, p.y);
+            found = true;
         }
     }
 
-    if (xMax <= xMin || yMax <= yMin) {
-        // No data (or a flat/single point): keep the unit defaults so the view
-        // never collapses and a live append stays visible.
+    if (!found) {
+        // No data: keep the unit defaults so the view never collapses and a
+        // live append stays visible.
         xMin_ = 0.0f;
         xMax_ = 1.0f;
         yMin_ = 0.0f;
@@ -140,8 +149,8 @@ void Plot::autoScale() {
         return;
     }
 
-    // 5% padding; a zero-range axis (all points share the same coordinate) gets
-    // a unit span so it cannot divide by zero later.
+    // 5% padding per axis; a zero-range axis (all points share the same
+    // coordinate) gets a unit span so it cannot divide by zero later.
     const float xPad = (xMax - xMin) * 0.05f;
     const float yPad = (yMax - yMin) * 0.05f;
     xMin_ = xMin - (xPad > 0.0f ? xPad : 0.5f);
