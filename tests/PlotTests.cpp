@@ -305,6 +305,21 @@ TEST(PlotTest, AutoScalePadding) {
     EXPECT_TRUE(floatsNear(plot->getAutoScalePadding(), 0.5f));
 }
 
+TEST(PlotTest, AxisLabelsAndAreaDefaults) {
+    auto plot = Plot::create("plot");
+    EXPECT_TRUE(plot->isAxisLabelsVisible());
+    plot->setShowAxisLabels(false);
+    EXPECT_FALSE(plot->isAxisLabelsVisible());
+    plot->setShowAxisLabels(true);
+    EXPECT_TRUE(plot->isAxisLabelsVisible());
+
+    EXPECT_FALSE(plot->isAreaEnabled());
+    plot->setAreaEnabled(true);
+    EXPECT_TRUE(plot->isAreaEnabled());
+    plot->setAreaEnabled(false);
+    EXPECT_FALSE(plot->isAreaEnabled());
+}
+
 TEST(PlotTest, InvalidSeriesIndexReturnsNull) {
     auto plot = Plot::create("plot");
     plot->addSeries();

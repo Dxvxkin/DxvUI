@@ -1,4 +1,4 @@
-# DxvUI Roadmap
+#DxvUI Roadmap
 
 План развития API, виджетов и системы событий DxvUI, сгруппированный по приоритетам.
 Каждый пункт — «что, зачем, где в коде». Раздел «Стандартизация системы событий»
@@ -48,154 +48,179 @@
   binding как *проекцию* модели (источник истины — `TextEditor`), а Label/Slider —
   как *хранилище*.
 - **Зачем:** один публичный API `on(Change)`, но поведение зависит от внутреннего
-  устройства; уже приводило к багам (рефакторинг TextEdit в `08decf1`).
-- **Где:** `widgets/TextEdit`, `widgets/Label`, `widgets/SliderBase`.
+  устройства;
+уже приводило к багам(рефакторинг TextEdit в `08decf1`).- **Где : ** `widgets / TextEdit`, `widgets / Label`, `widgets
+                                                                                                                      /
+                                                                                                                      SliderBase`
+                                                                                                                          .
 
-### 6. `getNodeType()`-строка → RTTI; закрыть TODO в bind
+                                                                                                                      ## #6. `getNodeType()`-
+                                                                                                                  строка → RTTI; закрыть TODO в bind
 
 - **Что:** заменить строковый `kWidgetType` на RTTI-идентификацию типов
   (issue #4), закрыть `//TODO` в `SceneNode::bind()` (присваивание binding без
   проверок).
-- **Зачем:** риск расхождения строки с типом; безопаснее перепривязка.
-- **Где:** `include/DxvUI/widgets/*`, `src/SceneNode.cpp` (`bind`).
+- **Зачем:** риск расхождения строки с типом;
+безопаснее перепривязка.- **Где
+    : ** `include / DxvUI / widgets /*`, `src/SceneNode.cpp` (`bind`).
 
----
+   ---
 
-## Приоритет 3 — Производительность и наполнение
+   ## Приоритет 3 — Производительность и наполнение
 
-### 7. `UIBinding`: мутекс/копии колбэков/аллокации в горячем пути
+   ### 7. `UIBinding`: мутекс/копии колбэков/аллокации в горячем пути
 
-- **Что:** `UIBinding::set` блокирует мутекс и копирует весь вектор колбэков
-  (`src/UIBinding.cpp`); `getString()` аллоцирует строку (`UIBinding.h`).
-- **Зачем:** однопоточный UI — лишние затраты на каждый `set`/чтение.
-- **Где:** `include/DxvUI/UIBinding.h`, `src/UIBinding.cpp`.
+   - **Что:** `UIBinding::set` блокирует мутекс и копирует весь вектор колбэков
+     (`src/UIBinding.cpp`); `getString()` аллоцирует строку (`UIBinding.h`).
+   - **Зачем:** однопоточный UI — лишние затраты на каждый `set`/чтение.
+   - **Где:** `include/DxvUI/UIBinding.h`, `src/UIBinding.cpp`.
 
-### 8. Scrollbars, фокус-навигация, наследование disabled
+   ### 8. Scrollbars, фокус-навигация, наследование disabled
 
-- **Что:** полосы прокрутки в `ScrollContainer`; навигация по фокусу (Tab/arrows)
-  между фокусируемыми виджетами; модель «контейнер отключён → дети отключены».
-- **Зачем:** удобство и завершённость по умолчанию.
-- **Где:** `containers/ScrollContainer`, `EventManager` (focus), `SceneNode`.
+   - **Что:** полосы прокрутки в `ScrollContainer`; навигация по фокусу (Tab/arrows)
+     между фокусируемыми виджетами; модель «контейнер отключён → дети отключены».
+   - **Зачем:** удобство и завершённость по умолчанию.
+   - **Где:** `containers/ScrollContainer`, `EventManager` (focus), `SceneNode`.
 
-### 9. Виджеты: Dropdown, ProgressBar, Image/Sprite, Dialog/Modal
+   ### 9. Виджеты: Dropdown, ProgressBar, Image/Sprite, Dialog/Modal
 
-- **Что:** новые виджеты. Dropdown поверх `Popup`+списка; ProgressBar переиспользует
-  паттерн `SliderBase`; Image/Sprite для отрисовки текстур; Dialog/Modal — поверх
-  capture-фазы событий.
-- **Зачем:** закрыть основные «почему нет X» в API.
-- **Где:** `include/DxvUI/widgets/`, `include/DxvUI/containers/`.
+   - **Что:** новые виджеты. Dropdown поверх `Popup`+списка; ProgressBar переиспользует
+     паттерн `SliderBase`; Image/Sprite для отрисовки текстур; Dialog/Modal — поверх
+     capture-фазы событий.
+   - **Зачем:** закрыть основные «почему нет X» в API.
+   - **Где:** `include/DxvUI/widgets/`, `include/DxvUI/containers/`.
+   - **Сделано:** виджет `Plot` (v1 `92b217a`, полировка API `9e971ef`, тики и
+     подписи осей + адаптивная сетка + area-заливка). Идеи на будущее Plot v3:
+     pan/zoom мышью, hover-тултип со значением точки, легенда на основе
+     `getSeriesName()`, line-толщина >1px (требует более толстых примитивов в
+     `IRenderer`/SDL_gfx).
 
----
+   ---
 
-## Приоритет 4 — Долгосрочные
+   ## Приоритет 4 — Долгосрочные
 
-### 10. Multi-scene / modal-стеки, HiDPI, touch
+   ### 10. Multi-scene / modal-стеки, HiDPI, touch
 
-- **Что:** несколько сцен / стек модальных окон; поддержка
-  `devicePixelRatio`/HiDPI в `IRenderer`; сенсорный ввод.
-- **Зачем:** масштабирование для реальных приложений.
-- **Где:** `Scene`, `EventManager`, `IRenderer`, `backend/`.
+   - **Что:** несколько сцен / стек модальных окон; поддержка
+     `devicePixelRatio`/HiDPI в `IRenderer`; сенсорный ввод.
+   - **Зачем:** масштабирование для реальных приложений.
+   - **Где:** `Scene`, `EventManager`, `IRenderer`, `backend/`.
 
----
+   ---
 
-# Стандартизация системы событий (детальный план)
+   # Стандартизация системы событий (детальный план)
 
-Полный пересмотр базы событий для понятного и предсказуемого поведения.
-Выполняется в отдельной ветке `feat/event-system`.
+   Полный пересмотр базы событий для понятного и предсказуемого поведения.
+   Выполняется в отдельной ветке `feat/event-system`.
 
-## 1. Проблемы
+   ## 1. Проблемы
 
-1. **Плоский `DxvEvent` без типизации.** Raw и производные события делят одно
-   `mouse`/`key`/`text`/`resize` поле. `MouseMove` vs `Drag` семантически разные,
-   но несут одни поля. Payload нельзя расширить (scancode, drop-files, scale) без
-   правки общего struct. Где: `include/DxvUI/event/DxvEvent.h`.
-2. **Размазанный синтез.** `Click`/`Drag`/`Drop`/`Hover`/`Focus` шьются императивно
-   в `EventManager::handleMouseUp/MouseMove`; `Change` — отдельно в
-   `SceneNode::onBindingChange`. Нет единой точки превращения raw → derived.
-3. **Пять разных правил маршрутизации** в `EventManager::processRawEvent`
-   (hit-test / hovered / focused / root по типу) — не масштабируется.
-4. **Двойная модель реакции** (`virtual onEvent` + `on()`-listeners +
-   `preventDefault`) не согласована.
-5. **Нет фаз / модальности / фокус-порядка** — нельзя перехватить событие до его
-   цели (нужно для Dialog/Modal/Tooltip).
+   1. **Плоский `DxvEvent` без типизации.** Raw и производные события делят одно
+      `mouse`/`key`/`text`/`resize` поле. `MouseMove` vs `Drag` семантически разные,
+      но несут одни поля. Payload нельзя расширить (scancode, drop-files, scale) без
+      правки общего struct. Где: `include/DxvUI/event/DxvEvent.h`.
+   2. **Размазанный синтез.** `Click`/`Drag`/`Drop`/`Hover`/`Focus` шьются императивно
+      в `EventManager::handleMouseUp/MouseMove`; `Change` — отдельно в
+      `SceneNode::onBindingChange`. Нет единой точки превращения raw → derived.
+   3. **Пять разных правил маршрутизации** в `EventManager::processRawEvent`
+      (hit-test / hovered / focused / root по типу) — не масштабируется.
+   4. **Двойная модель реакции** (`virtual onEvent` + `on()`-listeners +
+      `preventDefault`) не согласована.
+   5. **Нет фаз / модальности / фокус-порядка** — нельзя перехватить событие до его
+      цели (нужно для Dialog/Modal/Tooltip).
 
-Контур затронутого кода мал и управляем: `onEvent` переопределяют ровно 4 виджета
-(`Checkbox`, `SliderBase`, `TextEdit`, `ScrollContainer`), `dispatchEvent` — только
-базовая реализация, `on()`-listeners — 85 точек в `src/`/`examples/`/`tests/`.
+   Контур затронутого кода мал и управляем: `onEvent` переопределяют ровно 4 виджета
+   (`Checkbox`, `SliderBase`, `TextEdit`, `ScrollContainer`), `dispatchEvent` — только
+   базовая реализация, `on()`-listeners — 85 точек в `src/`/`examples/`/`tests/`.
 
-## 2. Целевая модель
+   ## 2. Целевая модель
 
-### A. Типизированный payload — сигнатуры (с вариантами)
+   ### A. Типизированный payload — сигнатуры (с вариантами)
 
-Цель: сохранить обратную совместимость записи (examples/tests создают
-`DxvEvent e; e.type=...; e.mouse.x=...`), но дать структурированный типизированный
-доступ при чтении. `EventType` остаётся плоским enum (совместимость ключей).
+   Цель: сохранить обратную совместимость записи (examples/tests создают
+   `DxvEvent e; e.type=...; e.mouse.x=...`), но дать структурированный типизированный
+   доступ при чтении. `EventType` остаётся плоским enum (совместимость ключей).
 
-**Payload-структуры (общие для обоих вариантов):**
-```cpp
-struct MouseEventData {
-    int x = 0, y = 0, dx = 0, dy = 0;      // Move-deltas в dx/dy
-    MouseButton button = MouseButton::None;
+   **Payload-структуры (общие для обоих вариантов):**
+   ```cpp
+   struct MouseEventData {
+       int x = 0, y = 0, dx = 0, dy = 0;      // Move-deltas в dx/dy
+       MouseButton button = MouseButton::None;
+   };
+   struct WheelEventData {                    // раздельный wheel (вместо mouse.dx/dy)
+       int dx = 0, dy = 0;                    // dy>0 = вверх
+       PointI position = {0, 0};
+   };
+   struct KeyEventData {
+       KeyCode sym = KeyCode::Unknown;
+       uint16_t mod = 0;
+       uint8_t repeat = 0;
+       uint16_t scancode = 0;                 // НОВОЕ: физический ключ
+   };
+   struct TextEventData { std::string text; }; // доступ .text (совместимо)
+   struct ResizeEventData { int width = 0, height = 0; };
+   ```
+
+   **Вариант А — иерархия классов (строгая типизация, ЛОМАЕТ запись):**
+   ```cpp
+   class DxvEventBase {
+      public:
+       virtual ~DxvEventBase() = default;
+       virtual EventType type() const = 0;
+       virtual std::shared_ptr<SceneNode> target() const = 0;
+       void stopPropagation(); void stopImmediatePropagation(); void preventDefault();
+       // + isPropagationStopped()/isImmediatePropagationStopped()/isDefaultPrevented()
+   };
+   class MouseEvent : public DxvEventBase {
+      public:
+       EventType type() const override;   // MouseDown/Up/Move/Click по конструктору
+       MouseEventData data;
+       int x() const; int y() const; int dx() const; int dy() const;
+       MouseButton button() const;
+   };
+   class KeyEvent   : public DxvEventBase { /* KeyEventData data; sym()/mod()/repeat()/scancode() */
+}
+;
+class WheelEvent : public DxvEventBase { /* WheelEventData data; */
 };
-struct WheelEventData {                    // раздельный wheel (вместо mouse.dx/dy)
-    int dx = 0, dy = 0;                    // dy>0 = вверх
-    PointI position = {0, 0};
+class TextEvent : public DxvEventBase { /* TextEventData data; text() */
 };
-struct KeyEventData {
-    KeyCode sym = KeyCode::Unknown;
-    uint16_t mod = 0;
-    uint8_t repeat = 0;
-    uint16_t scancode = 0;                 // НОВОЕ: физический ключ
+class ResizeEvent : public DxvEventBase { /* ResizeEventData data; */
 };
-struct TextEventData { std::string text; }; // доступ .text (совместимо)
-struct ResizeEventData { int width = 0, height = 0; };
+class ChangeEvent : public DxvEventBase { /* ... */
+};
+class FocusEvent : public DxvEventBase { /* ... */
+};
+class HoverEvent : public DxvEventBase { /* ... */
+};
+class SubmitEvent : public DxvEventBase { /* ... */
+};
 ```
+«+» строгая типизация / dynamic_cast;
+«−» ломает ручное создание в examples / tests,
+    требует масштабной миграции.
 
-**Вариант А — иерархия классов (строгая типизация, ЛОМАЕТ запись):**
-```cpp
-class DxvEventBase {
-   public:
-    virtual ~DxvEventBase() = default;
-    virtual EventType type() const = 0;
-    virtual std::shared_ptr<SceneNode> target() const = 0;
-    void stopPropagation(); void stopImmediatePropagation(); void preventDefault();
-    // + isPropagationStopped()/isImmediatePropagationStopped()/isDefaultPrevented()
-};
-class MouseEvent : public DxvEventBase {
-   public:
-    EventType type() const override;   // MouseDown/Up/Move/Click по конструктору
-    MouseEventData data;
-    int x() const; int y() const; int dx() const; int dy() const;
-    MouseButton button() const;
-};
-class KeyEvent   : public DxvEventBase { /* KeyEventData data; sym()/mod()/repeat()/scancode() */ };
-class WheelEvent : public DxvEventBase { /* WheelEventData data; */ };
-class TextEvent  : public DxvEventBase { /* TextEventData data; text() */ };
-class ResizeEvent: public DxvEventBase { /* ResizeEventData data; */ };
-class ChangeEvent: public DxvEventBase { /* ... */ };
-class FocusEvent : public DxvEventBase { /* ... */ };
-class HoverEvent : public DxvEventBase { /* ... */ };
-class SubmitEvent: public DxvEventBase { /* ... */ };
-```
-«+» строгая типизация / dynamic_cast; «−» ломает ручное создание в examples/tests,
-требует масштабной миграции.
-
-**Вариант Б — единый `DxvEvent` с типизированными struct + геттерами (РЕКОМЕНДУЕТСЯ — совместимость записи):**
-```cpp
-struct DxvEvent {
+            **Вариант Б — единый `DxvEvent` с типизированными struct
+        + геттерами(РЕКОМЕНДУЕТСЯ — совместимость записи) : **
+```cpp struct DxvEvent {
     EventType type = EventType::None;
     // Write API (обратная совместимость: примеры/тесты пишут напрямую)
     MouseEventData mouse;
-    WheelEventData wheel;      // НОВОЕ, раздельное
+    WheelEventData wheel;  // НОВОЕ, раздельное
     KeyEventData key;
     TextEventData text;
     ResizeEventData resize;
     // Read API (типизированный доступ)
-    [[nodiscard]] int mouseX() const;  [[nodiscard]] int mouseY() const;
-    [[nodiscard]] int wheelDx() const; [[nodiscard]] int wheelDy() const;
+    [[nodiscard]] int mouseX() const;
+    [[nodiscard]] int mouseY() const;
+    [[nodiscard]] int wheelDx() const;
+    [[nodiscard]] int wheelDy() const;
     [[nodiscard]] KeyCode keySym() const;
-    // target/currentTarget/relatedNode + getTarget()/getCurrentTarget()/getRelatedNode()/getTargetId()
-    void stopPropagation(); void stopImmediatePropagation(); void preventDefault();
+    // target/currentTarget/relatedNode +
+    // getTarget()/getCurrentTarget()/getRelatedNode()/getTargetId()
+    void stopPropagation();
+    void stopImmediatePropagation();
+    void preventDefault();
     bool isPropagationStopped() const;
     bool isImmediatePropagationStopped() const;
     bool isDefaultPrevented() const;
@@ -212,7 +237,10 @@ vs Wheel, но ломает текущий `e.mouse.dx` у wheel (мигриру
 
 ```cpp
 enum class RoutingTarget { HitTest, Hovered, Focused, Root, None };
-struct RoutingRule { EventType type; RoutingTarget target; };
+struct RoutingRule {
+    EventType type;
+    RoutingTarget target;
+};
 //  MouseDown/Up/Move -> HitTest
 //  MouseWheel        -> Hovered   (НЕ ТРОГАТЬ, текущее поведение)
 //  KeyDown/KeyUp/TextInput -> Focused
@@ -221,57 +249,81 @@ struct RoutingRule { EventType type; RoutingTarget target; };
 std::shared_ptr<SceneNode> resolveTarget(const DxvEvent& event) const;  // EventManager
 ```
 
-### C′. Capture-фаза — сигнатура (шаг 4; РЕКОМЕНДАЦИЯ: хостинг в EventManager, не в dispatchEvent)
+    ## #C′.Capture -
+    фаза — сигнатура(шаг 4; РЕКОМЕНДАЦИЯ : хостинг в EventManager, не в dispatchEvent)
 
 ```cpp
-// EventManager
-std::vector<std::shared_ptr<SceneNode>> buildPathToTarget(
-    const std::shared_ptr<SceneNode>& target) const;        // root->...->target
-void dispatchWithCapture(DxvEvent& event);                  // capture(root..предок) + dispatch(target)
+    // EventManager
+    std::vector<std::shared_ptr<SceneNode>> buildPathToTarget(
+        const std::shared_ptr<SceneNode>& target) const;  // root->...->target
+void dispatchWithCapture(DxvEvent& event);  // capture(root..предок) + dispatch(target)
 // SceneNode: новый virtual hook
-virtual void onCapture(DxvEvent& event);                    // default no-op
-```
-Осторожно: `dispatchEvent` имеет guard `if (!event.getTarget()) return;`
-(`src/SceneNode.cpp:379`); `Change` идёт через `onBindingChange` мимо EventManager —
-capture его не трогает (соответствует гейту ниже).
-Гейт: capture только для raw-input типов (не гонять `Change`/`Attach`/`Detach`/`
-Focus`/`Hover`). `stopPropagation()` в capture отменяет спуск И bubble.
+virtual void onCapture(DxvEvent& event);  // default no-op
+``` Осторожно : `dispatchEvent` имеет guard `if (!event.getTarget()) return;
+` (`src / SceneNode.cpp : 379`);
+`Change` идёт через `onBindingChange` мимо EventManager — capture его не
+    трогает(соответствует гейту ниже)
+        .Гейт : capture только для raw
+    -
+    input типов(не гонять `Change`/`Attach`/`Detach`/` Focus`/`Hover`)
+        . `stopPropagation()` в capture отменяет спуск И bubble
+        .
 
-### Открытые решения (зафиксировать на старте сеанса)
+    ## #Открытые решения(зафиксировать на старте сеанса)
 
-1. Вариант А или Б (рекоменд. Б).
-2. Wheel-разделение: мигрировать сразу или алиасами `mouse.dx/dy` → wheel (рекоменд. сразу).
-3. `TextEventData`: поле `.text` (совместимо) или `.value`+геттер (рекоменд. `.text`).
+        1. Вариант А или Б(рекоменд.Б)
+        .2. Wheel
+    -
+    разделение : мигрировать сразу или алиасами `mouse.dx
+        / dy` → wheel(рекоменд.сразу).3. `TextEventData`: поле `.text` (совместимо)или `.value`+
+    геттер(рекоменд. `.text`)
+        .
 
-### D. Согласованная модель реакции
+    ## #D.Согласованная модель реакции
 
-- Единый порядок по фазам: capture-listener → target-listener → capture-default →
-  target-default → bubble. Чётко документированные `preventDefault`/
+    - Единый порядок по фазам : capture - listener → target - listener → capture - default → target
+                                -
+                                default → bubble.Чётко документированные `preventDefault`/
   `stopPropagation`/`stopImmediatePropagation`.
 
-## 2.1. Реализовано (ветка `feat/event-system`, DOM-модель «Путь Б»)
+                                    ##2.1. Реализовано(ветка `feat / event - system`,
+                                                       DOM - модель «Путь Б»)
 
-Стандартизация событий доведена до трёхфазной DOM-модели и закреплена тестами
-(300 зелёных, включая новые тесты фаз/capture/W3C-бабблинга):
+                                        Стандартизация событий доведена до трёхфазной DOM
+                                -
+                                модели и закреплена
+                                тестами(300 зелёных,
+                                        включая новые тесты фаз / capture / W3C - бабблинга)
+    :
 
-- **Фазы:** `Capture → Target → Bubble`, полный проход в `EventManager::dispatch`;
-  `SceneNode::dispatchEvent(DxvEvent&, EventPhase)` — поузловой, без рекурсии на
-  родителя. Старый `dispatchEvent(DxvEvent&)` сохранён как Target-only обёртка.
-- **Две и только две реакции:** внешние слушатели `on()`/`onCapture()`
-  (по-фазно) и `virtual onEvent()` = default-action **только на Target** (гасится
-  `preventDefault`, если `cancelable`). Никаких `onBubble`/`onCapture` virtual.
-- **`eventMeta(EventType)`** — константная таблица `bubbles`/`cancelable`/
-  `captureable`; инстансовый override `bubbles` запрещён.
-- **Table-роутинг:** `Enum class RoutingTarget { HitTest, Hovered, Focused, Root,
-  None }` + `resolveTarget`; Capture — спуском root→target через
-  `isAncestorOf` (без аллокаций), Bubble — линейным parent-проходом.
-- **`captureable`-гейт:** capture только для raw-input (`Mouse*`/`Key*`/
-  `TextInput`); life-cycle/синтез (`Change`/`Focus`/`Hover`) capture не проходят.
-- **W3C-семантика:** `default action` НЕ останавливает propagation (события
-  бабблят); `stopPropagation`/`stopImmediatePropagation` прерывают доставку;
-  `bubbles=false` у `Hover`/`Focus`; клавиши всплывают до root (хоткеи).
-- **Виджеты:** `TextEdit`, `Checkbox`, `SliderBase`, `ScrollContainer` переведены
-  на таргет-модель; `ScrollContainer` сам подписывается на `MouseWheel` через
+      -**Фазы : ** `Capture → Target → Bubble`,
+    полный проход в `EventManager::dispatch`;
+`SceneNode::dispatchEvent(DxvEvent&, EventPhase)` — поузловой,
+    без рекурсии на родителя.Старый `dispatchEvent(DxvEvent&)` сохранён как Target - only обёртка.-
+        **Две и только две реакции
+    : **внешние слушатели `on()`/`onCapture()` (по - фазно) и `virtual onEvent()` =
+        default - action * *только на Target * *(гасится
+  `preventDefault`, если `cancelable`).Никаких `onBubble`/`onCapture` virtual.-
+        **`eventMeta(EventType)`* * — константная таблица `bubbles`/`cancelable`/
+  `captureable`;
+инстансовый override `bubbles` запрещён.- **Table - роутинг : ** `Enum class RoutingTarget {
+    HitTest, Hovered, Focused, Root, None
+}` + `resolveTarget`;
+Capture — спуском root→target через
+  `isAncestorOf` (без аллокаций), Bubble — линейным parent - проходом.-
+                                       **`captureable`- гейт : **capture только для raw -
+                                                               input(`Mouse*`/`Key *`/
+  `TextInput`);
+life - cycle / синтез(`Change`/`Focus`/`Hover`) capture не проходят.- **W3C
+    - семантика : ** `default action` НЕ останавливает propagation(события бабблят);
+`stopPropagation`/`stopImmediatePropagation` прерывают доставку;
+`bubbles = false` у `Hover`/`Focus`;
+клавиши всплывают до root(хоткеи).- **Виджеты : ** `TextEdit`, `Checkbox`, `SliderBase`, `ScrollContainer` переведены
+                                                                                             на
+                                                                                             таргет
+                                                                                             -
+                                                                                             модель;
+`ScrollContainer` сам подписывается на `MouseWheel` через
   `on()`. Пример `examples/events.cpp` дополнен capture-демо.
 
 Вынесено из скоупа (отдельные задачи, см. п.5 ниже): типизация payload,
@@ -286,28 +338,31 @@ Focus`/`Hover`). `stopPropagation()` в capture отменяет спуск И b
    поузловой `dispatchEvent(node, phase)`, тесты фаз (порядок, stopPropagation,
    captureable-гейт).
 5. ✅ **Согласование модели реакции.** W3C-семантика флагов, default-action только
-   на Target; докблоки и миграция 4 виджетов.
-6. ⛔ **Submit/Drag как общий механизм.** `EventType::Submit`,
-   `DragStart/DragEnd` — вынесено в отдельную задачу.
-7. ✅ **Полировка.** clang-format, полный билд, 300 тестов зелёные, прогон примеров
-   headless (в т.ч. capture-демо).
+   на Target;
+докблоки и миграция 4 виджетов.6. ⛔ **Submit / Drag как общий механизм.** `EventType::Submit`,
+   `DragStart / DragEnd` — вынесено в отдельную задачу.7. ✅ **Полировка.**clang - format,
+    полный билд, 300 тестов зелёные,
+    прогон примеров headless(в т.ч.capture - демо)
+            .
 
-## 4. Риски и снижение
+        ##4. Риски и снижение
 
-- **Обратная совместимость записи `DxvEvent`** (examples/tests создают события
-  вручную) — снижение: сохранить поля / дать удобные конструкторы.
-- **85 call-site `on()`** — снижение: сигнатуру `ActionCallback` не менять.
-- **Регрессия** — снижение: тесты-оракул 293 + новые тесты на каждом шаге;
-  независимый коммит на шаг.
+        - **Обратная совместимость записи `DxvEvent`**(examples /
+                                                       tests создают события вручную) — снижение
+    : сохранить поля
+              / дать удобные конструкторы.-
+        **85 call - site `on()`** — снижение : сигнатуру `ActionCallback` не менять.-
+        **Регрессия ** — снижение : тесты - оракул 293 + новые тесты на каждом шаге;
+независимый коммит на шаг.
 
-## 5. Что НЕ входит
+    ##5. Что НЕ входит
 
-- Типизация payload (`MouseEventData`/`WheelEventData`/`TextEventData`) — вынесено
-  из стандартизации (сохранена flat-запись `DxvEvent`), отдельная задача.
-- `Submit`/`DragStart/DragEnd` как общий механизм — вынесено, отдельная задача.
-- `FocusIn/FocusOut`-бабблинг-аналоги — вынесено.
-- Унификация `Change` «источник vs проекция» — отдельная задача (TextEdit уже
-  частично сделан, см. п.5 Приоритета 2).
-- `getNodeType`/RTTI (issue #4) — отложено.
-- Модальный стек / outside-click-dismiss — поверх capture, при реализации
-  Popup/Modal.
+    - Типизация payload(`MouseEventData`/`WheelEventData`/`TextEventData`) — вынесено из
+    стандартизации(сохранена flat - запись `DxvEvent`),
+    отдельная задача.- `Submit`/`DragStart / DragEnd` как общий механизм — вынесено,
+    отдельная задача.- `FocusIn / FocusOut`- бабблинг - аналоги — вынесено.-
+        Унификация `Change` «источник vs проекция» — отдельная
+        задача(TextEdit уже частично сделан, см.п.5 Приоритета 2)
+            .- `getNodeType`/ RTTI(issue #4) — отложено.-
+        Модальный стек / outside - click - dismiss — поверх capture,
+    при реализации Popup / Modal.

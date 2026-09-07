@@ -50,14 +50,19 @@ class DxvUIPlotExample : public DxvUIEx::SdlApp {
         root->addChild(caption);
 
         plot_ = DxvUI::Plot::create("plot");
-        plot_->setStyle({.borderColor = DxvUI::Colors::Gray,
+        // Left gutter for the y-axis labels, bottom gutter for the x-axis labels
+        // (labels need >= 8px of the corresponding padding).
+        plot_->setStyle({.textColor = DxvUI::Colors::DarkGray,
+                         .borderColor = DxvUI::Colors::Gray,
                          .borderThickness = 1,
-                         .padding = DxvUI::Thickness{8, 8, 8, 8}},
+                         .fontSize = 12,
+                         .padding = DxvUI::Thickness{8, 12, 18, 44}},
                         DxvUI::WidgetState::Normal);
         updateSeries_ = plot_->addSeries("update");
         drawSeries_ = plot_->addSeries("draw");
         plot_->setSeriesColor(updateSeries_, DxvUI::Colors::CornflowerBlue);
         plot_->setSeriesColor(drawSeries_, DxvUI::Colors::Orange);
+        plot_->setAreaEnabled(true);
         root->addChild(plot_);
 
         addLegend(root, "update", 12, 56);

@@ -91,6 +91,19 @@ class Plot : public SceneNode {
     void setAxisColor(Color color);
     Color getAxisColor() const;
 
+    /// Toggles axis tick labels ("nice" numbers at each grid line).
+    ///
+    /// Labels are drawn in the widget's padding gutters: y-labels need at least
+    /// 8px of left padding, x-labels 8px of bottom padding. Without the gutter
+    /// space the labels are hidden (the grid keeps drawing).
+    void setShowAxisLabels(bool show);
+    bool isAxisLabelsVisible() const;
+
+    /// Toggles area fill: the region between each series and the bottom of the
+    /// plot is filled with a semi-transparent version of the series color.
+    void setAreaEnabled(bool enabled);
+    bool isAreaEnabled() const;
+
     const char* getNodeType() const noexcept override;
 
    protected:
@@ -106,6 +119,15 @@ class Plot : public SceneNode {
         Color color;
     };
 
+    // A computed tick layout for one axis: step/first/count describe the grid
+    // positions, decimals the number of fractional digits for the labels.
+    struct TickInfo {
+        float step = 0.0f;
+        float first = 0.0f;
+        int count = 0;
+        int decimals = 0;
+    };
+
     // Recomputes xMin_/yMin_/xMax_/yMax_ to fit all series, padded by
     // autoScalePadding_ of each range. Flat or empty data keeps sensible
     // defaults (unit range centered on the value), so a live append can never
@@ -118,9 +140,30 @@ class Plot : public SceneNode {
     int toPixelX(float x, const Rect& content) const;
     int toPixelY(float y, const Rect& content) const;
 
+    // "Nice" tick positions (steps of 1/2/5 * 10^k) so the grid lines sit on
+    // round numbers. Returns a zero step (no ticks) for non-positive ranges.
+    static TickInfo computeTicks(float min, float max, int targetTicks);
+
+    // Clips a segment to a rect (Liang-Barsky); returns false when nothing is
+    // visible. Used to keep huge off-widget coordinates out of fillPolygon and
+    // to build the area polygon.
+    static bool clipSegment(int& x1, int& y1, int& x2, int& y2, const Rect& rect);
+
+    // Projects the series points to pixels and clips the polyline to the content
+    // box. Consecutive vertices are merged so the result has no duplicate
+    // boundary points; empty when nothing is visible.
+    std::vector<PointI> buildPolyline(const Series& series, const Rect& content) const;
+
+    // Draws the axis tick labels in the left/bottom padding gutters (requires
+    // at least 8px of the corresponding inset, otherwise the axis is skipped).
+    void drawAxisLabels(IRenderer& renderer, const Rect& content, const TickInfo& xTicks,
+                        const TickInfo& yTicks) const;
+
     std::vector<Series> series_;
     bool autoScale_ = true;
     bool showGrid_ = true;
+    bool showAxisLabels_ = true;
+    bool areaEnabled_ = false;
     float autoScalePadding_ = 0.05f;
     Color gridColor_ = Colors::LightGray;
     Color axisColor_ = Colors::Gray;
