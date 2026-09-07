@@ -2,6 +2,7 @@
 
 #include <utility>
 
+#include "DxvUI/Scene.h"
 #include "DxvUI/style/Colors.h"
 #include "DxvUI/style/Theme.h"
 
@@ -47,6 +48,7 @@ void Popup::setPosition(int x, int y) {
 
 void Popup::show() {
     if (isOpen()) return;
+    installDismissListeners();
     setVisible(true);
     onOpen();
 }
@@ -63,6 +65,51 @@ void Popup::hide() {
 }
 
 bool Popup::isOpen() const { return isVisible(); }
+
+void Popup::setDismissOnOutsideClick(bool dismiss) {
+    if (dismissOnOutsideClick_ == dismiss) return;
+    dismissOnOutsideClick_ = dismiss;
+    removeDismissListeners();
+    // Собираем настройку сразу: открытый попап должен подхватить её, не дожи-
+    // даясь повторного show().
+    if (isOpen()) {
+        installDismissListeners();
+    }
+}
+
+bool Popup::dismissOnOutsideClick() const { return dismissOnOutsideClick_; }
+
+void Popup::installDismissListeners() {
+    if (dismissListenerInstalled_ || !dismissOnOutsideClick_) return;
+    auto scene = getScene();
+    auto root = scene ? scene->getRoot() : nullptr;
+    if (!root) return;
+
+    dismissListenerInstalled_ = true;
+    dismissConnection_ =
+        root->onCapture(EventType::MouseDown, [this](DxvEvent& event, const UIContext&) {
+            if (!isOpen()) return;
+            auto target = event.getTarget();
+            if (!target || target.get() == this || isAncestorOf(target)) return;
+            // Press вне попапа: закрываемся и останавливаем MouseDown в
+            // capture-фазе. По контракту движка это отменяет весь жест press,
+            // поэтому виджет под попапом (или сама кнопка-переключатель) не
+            // остаётся pressed и не получает Click закрывающего клика — попап
+            // не «дергается» туда-обратно.
+            event.stopPropagation();
+            hide();
+        });
+}
+
+void Popup::removeDismissListeners() {
+    dismissListenerInstalled_ = false;
+    dismissConnection_.reset();
+}
+
+void Popup::onDetach() {
+    removeDismissListeners();
+    AbsoluteContainer::onDetach();
+}
 
 void Popup::onOpen() {}
 

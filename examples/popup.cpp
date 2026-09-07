@@ -30,6 +30,23 @@ namespace {
 constexpr int SCREEN_WIDTH = 800;
 constexpr int SCREEN_HEIGHT = 600;
 
+// Попап, знающий свою кнопку-переключатель: при любом закрытии (включая клик
+// вне попапа, который идёт мимо кнопок) восстанавливает её лейбл.
+class DemoPopup : public DxvUI::Popup {
+   public:
+    DemoPopup(std::string id, DxvUI::Button* toggleBtn)
+        : DxvUI::Popup(std::move(id)), toggleBtn_(toggleBtn) {}
+
+   protected:
+    void onClose() override {
+        toggleBtn_->setText("Open popup");
+        DxvUI::Log::info("[popup] закрыт");
+    }
+
+   private:
+    DxvUI::Button* toggleBtn_;
+};
+
 }  // namespace
 
 class DxvUIPopupExample : public DxvUIEx::SdlApp {
@@ -57,7 +74,7 @@ class DxvUIPopupExample : public DxvUIEx::SdlApp {
 
         // --- Popup: создаётся закрытым, контент — абсолютно позиционированные дети. ---
         // Добавляем последним ребёнком root, чтобы он рисовался поверх остального.
-        auto popup = DxvUI::Popup::create("demo_popup");
+        auto popup = std::make_shared<DemoPopup>("demo_popup", openBtn.get());
         popup->setStyle({.backgroundColor = DxvUI::Colors::Gray, .width = 220, .height = 110},
                         DxvUI::WidgetState::Normal);
 
@@ -72,10 +89,8 @@ class DxvUIPopupExample : public DxvUIEx::SdlApp {
         closeBtn->setStyle({.left = 0, .top = 40, .width = 120, .height = 32},
                            DxvUI::WidgetState::Normal);
         connections_.push_back(closeBtn->on(
-            DxvUI::EventType::Click, [popup, openBtn](DxvUI::DxvEvent&, const DxvUI::UIContext&) {
-                popup->hide();
-                openBtn->setText("Open popup");
-                DxvUI::Log::info("[popup] закрыт");
+            DxvUI::EventType::Click, [popup](DxvUI::DxvEvent&, const DxvUI::UIContext&) {
+                popup->hide();  // текст переключателя восстановит onClose()
             }));
         popup->addChild(closeBtn);
 
@@ -168,6 +183,34 @@ class DxvUIPopupExample : public DxvUIEx::SdlApp {
                          !popup->isOpen() ? "да" : "НЕТ");
         ok &= openBtn->getText() == "Open popup";
         DxvUI::Log::info("[check] текст кнопки восстановлен: {}",
+                         openBtn->getText() == "Open popup" ? "да" : "НЕТ");
+
+        // Клик по пустому месту (вне попапа) тоже закрывает: dismiss по клику вне.
+        clickAt(390, 275);
+        scene_->update();
+        ok &= popup->isOpen();
+        DxvUI::Log::info("[check] поп-ап снова открыт: {}", popup->isOpen() ? "да" : "НЕТ");
+        clickAt(100, 500);  // пустое место сцены, target = root
+        scene_->update();
+        ok &= !popup->isOpen();
+        DxvUI::Log::info("[check] закрыт кликом по пустому месту: {}",
+                         !popup->isOpen() ? "да" : "НЕТ");
+
+        // Клик по самой кнопке-переключателю при открытом попапе закрывает его и
+        // НЕ переоткрывает: закрывающий жест целиком отменяется (Click не доходит
+        // до кнопки), текст восстанавливает onClose().
+        clickAt(390, 275);
+        scene_->update();
+        ok &= popup->isOpen();
+        DxvUI::Log::info("[check] поп-ап открыт перед toggle-dismiss: {}",
+                         popup->isOpen() ? "да" : "НЕТ");
+        clickAt(390, 275);
+        scene_->update();
+        ok &= !popup->isOpen();
+        DxvUI::Log::info("[check] toggle-клик закрыл и не переоткрыл попап: {}",
+                         !popup->isOpen() ? "да" : "НЕТ");
+        ok &= openBtn->getText() == "Open popup";
+        DxvUI::Log::info("[check] текст кнопки восстановлен (внешний dismiss): {}",
                          openBtn->getText() == "Open popup" ? "да" : "НЕТ");
 
         // Мёртвых токенов нет — кнопки и поп-ап живы.

@@ -4,12 +4,14 @@
 #include <string>
 #include <utility>
 
+#include "DxvUI/DxvEvent.h"
 #include "DxvUI/Log.h"
 #include "DxvUI/Scene.h"
 #include "DxvUI/SceneNode.h"
 #include "DxvUI/style/Colors.h"
 #include "DxvUI/style/StyleManager.h"
 #include "DxvUI/style/Theme.h"
+#include "DxvUI/widgets/Button.h"
 #include "DxvUI/widgets/Popup.h"
 
 using namespace DxvUI;
@@ -46,6 +48,22 @@ struct PopupFixture {
         manager.resolveDirtyStyles(root);
         root->measure({800, 600});
         root->arrange({0, 0, 800, 600});
+    }
+
+    // Full press+release gesture at a point, driven through the public event
+    // pipeline (Scene::processEvent -> EventManager) exactly like a real mouse.
+    void clickAt(int x, int y) {
+        DxvEvent e;
+        e.type = EventType::MouseMove;
+        e.mouse.x = x;
+        e.mouse.y = y;
+        e.mouse.button = MouseButton::None;
+        scene->processEvent(e);
+        e.type = EventType::MouseDown;
+        e.mouse.button = MouseButton::Left;
+        scene->processEvent(e);
+        e.type = EventType::MouseUp;
+        scene->processEvent(e);
     }
 };
 
@@ -204,4 +222,116 @@ TEST(PopupTest, LifecycleHooksFireOncePerTransition) {
     popup->show();
     EXPECT_EQ(popup->openCount, 2);
     EXPECT_EQ(popup->closeCount, 1);
+}
+
+// --- Dismiss-on-outside-click ---
+//
+// An open popup closes itself when a press lands outside it. The dismissal uses
+// a capture-phase MouseDown listener on the scene root and stops the press
+// during capture, so the whole gesture is canceled: the widget under the popup
+// (or the toggle button that opened it) is neither left pressed nor receives
+// the Click of the dismissing press.
+
+TEST(PopupTest, OutsideClickDismisses) {
+    PopupFixture f;
+    f.popup->showAt(300, 200);
+    f.layout();
+    ASSERT_TRUE(f.popup->isOpen());
+
+    f.clickAt(50, 50);  // пустое место вдали от попапа (target = root)
+    EXPECT_FALSE(f.popup->isOpen());
+}
+
+TEST(PopupTest, ClickInsidePopupKeepsItOpen) {
+    PopupFixture f;
+    f.popup->showAt(300, 200);
+    f.layout();
+    ASSERT_TRUE(f.popup->isOpen());
+
+    f.clickAt(400, 250);  // пустой фон попапа: target = сам попап
+    EXPECT_TRUE(f.popup->isOpen());
+}
+
+TEST(PopupTest, ClickOnPopupChildKeepsItOpen) {
+    PopupFixture f;
+    auto content = std::make_shared<SceneNode>("content");
+    content->setStyle({.left = 0, .top = 0, .width = 80, .height = 60}, WidgetState::Normal);
+    f.popup->addChild(content);
+    f.popup->showAt(300, 200);
+    f.layout();
+
+    f.clickAt(310, 210);  // внутри ребёнка попапа
+    EXPECT_TRUE(f.popup->isOpen());
+}
+
+TEST(PopupTest, DismissingClickDoesNotActivateUnderlyingButton) {
+    PopupFixture f;
+    auto outside = Button::create("outside_btn", "Outside");
+    outside->setStyle({.left = 600, .top = 400, .width = 80, .height = 40}, WidgetState::Normal);
+    f.root->addChild(outside);
+    f.popup->showAt(300, 200);
+    f.layout();
+
+    int downCalls = 0;
+    int upCalls = 0;
+    int clickCalls = 0;
+    auto cd = outside->on(EventType::MouseDown, [&](DxvEvent&, const UIContext&) { ++downCalls; });
+    auto cu = outside->on(EventType::MouseUp, [&](DxvEvent&, const UIContext&) { ++upCalls; });
+    auto cc = outside->on(EventType::Click, [&](DxvEvent&, const UIContext&) { ++clickCalls; });
+
+    // Клик по кнопке вне попапа: попап закрывается, а жест целиком отменяется
+    // (stopPropagation в capture) — кнопка не видит ни down, ни up, ни click.
+    f.clickAt(640, 420);
+
+    EXPECT_FALSE(f.popup->isOpen());
+    EXPECT_EQ(downCalls, 0);
+    EXPECT_EQ(upCalls, 0);
+    EXPECT_EQ(clickCalls, 0);
+}
+
+TEST(PopupTest, ReopenAfterDismissWorksRepeatedly) {
+    PopupFixture f;
+    f.popup->showAt(300, 200);
+    f.layout();
+    f.clickAt(50, 50);
+    EXPECT_FALSE(f.popup->isOpen());
+
+    f.popup->showAt(400, 100);
+    f.layout();
+    ASSERT_TRUE(f.popup->isOpen());
+    f.clickAt(50, 50);
+    EXPECT_FALSE(f.popup->isOpen());
+}
+
+TEST(PopupTest, ReattachKeepsDismissWorking) {
+    PopupFixture f;
+    f.popup->showAt(300, 200);
+    f.layout();
+    f.clickAt(50, 50);
+    EXPECT_FALSE(f.popup->isOpen());
+
+    // Detach убирает dismiss-слушатель (root не держит слушателей снятого
+    // узла); повторный show после re-attach снова его устанавливает.
+    f.popup->detach();
+    f.root->addChild(f.popup);
+    f.popup->showAt(100, 100);
+    f.layout();
+    f.clickAt(50, 50);
+    EXPECT_FALSE(f.popup->isOpen());
+}
+
+TEST(PopupTest, DismissDisabledKeepsPopupOpen) {
+    PopupFixture f;
+    f.popup->setDismissOnOutsideClick(false);
+    f.popup->showAt(300, 200);
+    f.layout();
+    ASSERT_TRUE(f.popup->isOpen());
+
+    f.clickAt(50, 50);
+    EXPECT_TRUE(f.popup->isOpen());
+
+    // Включение на лету на открытом попапе подхватывается сразу.
+    f.popup->setDismissOnOutsideClick(true);
+    f.clickAt(50, 50);
+    EXPECT_FALSE(f.popup->isOpen());
 }
