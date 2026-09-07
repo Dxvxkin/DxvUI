@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "DxvUI/DxvEvent.h"
+#include "DxvUI/NodeState.h"
 #include "DxvUI/UIBinding.h"
 #include "DxvUI/core.h"
 #include "DxvUI/interfaces/IRenderer.h"
@@ -316,7 +317,13 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     const LayoutData& getLayoutData() const;
 
     /**
-     * @brief Gets the current interaction state of the node (e.g., Normal, Hovered).
+     * @brief Gets the interaction state as a single WidgetState (e.g., Normal, Hovered).
+     *
+     * Collapses the node's flags to one value by a fixed priority (Pressed >
+     * Focused > Hovered > Normal) so a single style rule can be selected. It is
+     * a *style selector*, not a lossless report of the node's flags: for the
+     * combined state (e.g. focused and hovered at once) the underlying
+     * NodeState flags are still queryable.
      * @return The current WidgetState.
      */
     WidgetState getCurrentState() const;
@@ -727,11 +734,10 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     void drawImpl(IRenderer& renderer, const Rect& viewportRect);
 
     std::weak_ptr<Scene> scene;
-    bool isHovered = false;
-    bool isPressed = false;
-    bool isFocused = false;
-    bool isEnabled_ = true;
-    bool visible = true;
+    // Compact bitmask of per-node state (hover/press/focus/enabled/visible).
+    // hitTestable_ is kept separate because, unlike the flags, it invalidates
+    // the hit-test cache rather than the layout.
+    NodeState state_;
     // Opaque hit-test target: findNodeAt() returns this node without recursing
     // into its children. Set via setHitTestable().
     bool hitTestable_ = false;

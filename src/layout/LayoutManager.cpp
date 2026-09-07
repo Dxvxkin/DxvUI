@@ -58,7 +58,7 @@ void LayoutManager::layout(const std::shared_ptr<SceneNode>& root, const Size& v
 Size LayoutManager::measureNode(SceneNode& node, const Size& availableSize) {
     auto& data = node.layoutData;
 
-    if (!node.visible) {
+    if (!node.state_.test(NodeState::Flag::Visible)) {
         // An invisible node has no footprint. Parents skip invisible children
         // in measureChild(), so this branch only guards direct measure() calls;
         // isSubtreeDirty is deliberately kept set here and cleared later by
@@ -85,7 +85,7 @@ Size LayoutManager::measureNode(SceneNode& node, const Size& availableSize) {
 void LayoutManager::arrangeNode(SceneNode& node, const Rect& finalRect) {
     auto& data = node.layoutData;
 
-    if (!node.visible) {
+    if (!node.state_.test(NodeState::Flag::Visible)) {
         data.bounds = {finalRect.x, finalRect.y, 0, 0};
         for (const auto& child : node.children) {
             child->arrange({finalRect.x, finalRect.y, 0, 0});
@@ -139,7 +139,7 @@ Rect LayoutManager::shrinkRect(const Rect& rect, const Thickness& padding) {
 }
 
 Size LayoutManager::measureChild(SceneNode& child, const Size& availableSize) {
-    if (!child.visible) {
+    if (!child.state_.test(NodeState::Flag::Visible)) {
         return {0, 0};
     }
     const auto& margin = child.getComputedLayout(child.getCurrentState()).margin;

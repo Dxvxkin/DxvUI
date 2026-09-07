@@ -119,7 +119,7 @@ std::shared_ptr<SceneNode> SceneNode::findNodeById(const std::string& searchId) 
 }
 
 std::shared_ptr<SceneNode> SceneNode::findNodeAt(int x, int y) {
-    if (!visible || !getGlobalBounds().contains(x, y)) {
+    if (!state_.test(NodeState::Flag::Visible) || !getGlobalBounds().contains(x, y)) {
         return nullptr;
     }
     // An opaque (hit-testable) node is an atomic target: it accepts the hit
@@ -275,10 +275,10 @@ const Size& SceneNode::getLastMeasureConstraints() const {
 const LayoutData& SceneNode::getLayoutData() const { return layoutData; }
 
 WidgetState SceneNode::getCurrentState() const {
-    if (!isEnabled_) return WidgetState::Disabled;
-    if (isPressed) return WidgetState::Pressed;
-    if (isFocused) return WidgetState::Focused;
-    if (isHovered) return WidgetState::Hovered;
+    if (!state_.test(NodeState::Flag::Enabled)) return WidgetState::Disabled;
+    if (state_.test(NodeState::Flag::Pressed)) return WidgetState::Pressed;
+    if (state_.test(NodeState::Flag::Focused)) return WidgetState::Focused;
+    if (state_.test(NodeState::Flag::Hovered)) return WidgetState::Hovered;
     return WidgetState::Normal;
 }
 
@@ -294,46 +294,42 @@ bool SceneNode::isAncestorOf(const std::shared_ptr<SceneNode>& descendant) const
 }
 
 void SceneNode::setHovered(bool hovered) {
-    if (isHovered != hovered) {
-        isHovered = hovered;
+    if (state_.take(NodeState::Flag::Hovered, hovered)) {
         markLayoutDirty();
     }
 }
 
 void SceneNode::setPressed(bool pressed) {
-    if (isPressed != pressed) {
-        isPressed = pressed;
+    if (state_.take(NodeState::Flag::Pressed, pressed)) {
         markLayoutDirty();
     }
 }
 
 void SceneNode::setFocused(bool focused) {
-    if (isFocused != focused) {
-        isFocused = focused;
+    if (state_.take(NodeState::Flag::Focused, focused)) {
         markLayoutDirty();
     }
 }
 
-bool SceneNode::isVisible() const { return visible; }
+bool SceneNode::isVisible() const { return state_.test(NodeState::Flag::Visible); }
 
 void SceneNode::setVisible(bool newVisible) {
-    if (visible != newVisible) {
-        visible = newVisible;
+    if (state_.take(NodeState::Flag::Visible, newVisible)) {
         markLayoutDirty();
     }
 }
 
-bool SceneNode::isEnabled() const { return isEnabled_; }
+bool SceneNode::isEnabled() const { return state_.test(NodeState::Flag::Enabled); }
 
 void SceneNode::setEnabled(bool enabled) {
-    if (isEnabled_ == enabled) return;
-    isEnabled_ = enabled;
-    markLayoutDirty();
-    if (!enabled) {
-        // A disabled node (or its focused descendant) must stop holding
-        // hover/press/focus and stop receiving interaction events right away.
-        if (auto s = scene.lock()) {
-            s->onNodeDisabled(shared_from_this());
+    if (state_.take(NodeState::Flag::Enabled, enabled)) {
+        markLayoutDirty();
+        if (!enabled) {
+            // A disabled node (or its focused descendant) must stop holding
+            // hover/press/focus and stop receiving interaction events right away.
+            if (auto s = scene.lock()) {
+                s->onNodeDisabled(shared_from_this());
+            }
         }
     }
 }
@@ -568,7 +564,7 @@ void SceneNode::draw(IRenderer& renderer) {
 }
 
 void SceneNode::drawImpl(IRenderer& renderer, const Rect& viewportRect) {
-    if (!visible) {
+    if (!state_.test(NodeState::Flag::Visible)) {
         return;
     }
 

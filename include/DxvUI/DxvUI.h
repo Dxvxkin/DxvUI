@@ -6,6 +6,7 @@
 #include "EventManager.h"
 #include "FpsCounter.h"
 #include "Log.h"
+#include "NodeState.h"
 #include "Scene.h"
 #include "SceneNode.h"
 #include "UIBinding.h"
