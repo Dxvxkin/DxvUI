@@ -50,8 +50,8 @@ TEST(PlotTest, AddSeriesAssignsIndices) {
     EXPECT_EQ(plot->addSeries(), 1u);
     EXPECT_EQ(plot->addSeries("c"), 2u);
     EXPECT_EQ(plot->getSeriesCount(), 3u);
-    EXPECT_TRUE(plot->getSeriesPoints(0).empty());
-    EXPECT_TRUE(plot->getSeriesPoints(2).empty());
+    EXPECT_TRUE(!plot->getSeriesPoints(0) || plot->getSeriesPoints(0)->empty());
+    EXPECT_TRUE(!plot->getSeriesPoints(2) || plot->getSeriesPoints(2)->empty());
 }
 
 TEST(PlotTest, SeriesUseDefaultPaletteByIndex) {
@@ -88,7 +88,7 @@ TEST(PlotTest, ApplyingPointsGrowsTheView) {
     plot->addSeries();
     plot->applyPoint(0, 0.0f, 1.0f);
     plot->applyPoint(0, 2.0f, 3.0f);
-    EXPECT_EQ(plot->getSeriesPoints(0).size(), 2u);
+    EXPECT_EQ(plot->getSeriesPoints(0)->size(), 2u);
     // Range growth: x [0..2] -> xMin -0.1/xMax 2.1; y [1..3] -> 0.9/3.1.
     EXPECT_TRUE(floatsNear(plot->getXMin(), -0.1f));
     EXPECT_TRUE(floatsNear(plot->getXMax(), 2.1f));
@@ -120,7 +120,7 @@ TEST(PlotTest, NonFinitePointsAreSkipped) {
     EXPECT_FLOAT_EQ(plot->getXMax(), 1.0f);
     EXPECT_FLOAT_EQ(plot->getYMin(), 0.0f);
     EXPECT_FLOAT_EQ(plot->getYMax(), 1.0f);
-    EXPECT_EQ(plot->getSeriesPoints(0).size(), 2u);
+    EXPECT_EQ(plot->getSeriesPoints(0)->size(), 2u);
 }
 
 TEST(PlotTest, FixedWorldBoundsDisableAutoScale) {
@@ -156,10 +156,10 @@ TEST(PlotTest, SeriesDataIsIndependent) {
     const auto b = plot->addSeries("b");
     plot->setData(a, {{1, 1}, {2, 2}});
     plot->applyPoint(b, 7.0f, 7.0f);
-    EXPECT_EQ(plot->getSeriesPoints(a).size(), 2u);
-    EXPECT_EQ(plot->getSeriesPoints(b).size(), 1u);
-    EXPECT_FLOAT_EQ(plot->getSeriesPoints(a)[0].x, 1.0f);
-    EXPECT_FLOAT_EQ(plot->getSeriesPoints(b)[0].y, 7.0f);
+    EXPECT_EQ(plot->getSeriesPoints(a)->size(), 2u);
+    EXPECT_EQ(plot->getSeriesPoints(b)->size(), 1u);
+    EXPECT_FLOAT_EQ((*plot->getSeriesPoints(a))[0].x, 1.0f);
+    EXPECT_FLOAT_EQ((*plot->getSeriesPoints(b))[0].y, 7.0f);
     // Auto-scaled over all series: a covers [1..2]/[1..2], b adds 7.
     EXPECT_TRUE(floatsNear(plot->getYMax(), 7.3f));
 }
@@ -189,6 +189,129 @@ TEST(PlotTest, MeasuresToDefaultSizeWhenStretched) {
     EXPECT_EQ(bounds.width, 300);
     EXPECT_EQ(bounds.height, 200);
     EXPECT_EQ(plot->getNodeType(), std::string("Plot"));
+}
+
+TEST(PlotTest, EmptyNameDefaultsToIndex) {
+    auto plot = Plot::create("plot");
+    plot->addSeries("named");
+    plot->addSeries();
+    plot->addSeries("");
+    EXPECT_EQ(plot->getSeriesName(0), "named");
+    EXPECT_EQ(plot->getSeriesName(1), "1");
+    EXPECT_EQ(plot->getSeriesName(2), "2");
+    EXPECT_EQ(plot->getSeriesName(7), "");
+}
+
+TEST(PlotTest, SeriesNameGetSet) {
+    auto plot = Plot::create("plot");
+    plot->addSeries();
+    plot->setSeriesName(0, "frames");
+    plot->setSeriesName(0, "update");
+    EXPECT_EQ(plot->getSeriesName(0), "update");
+    // Out-of-range set is a no-op, get returns an empty string.
+    plot->setSeriesName(5, "x");
+    EXPECT_EQ(plot->getSeriesName(5), "");
+}
+
+TEST(PlotTest, RemoveSeriesShiftsIndices) {
+    auto plot = Plot::create("plot");
+    const auto a = plot->addSeries("a");
+    const auto b = plot->addSeries("b");
+    const auto c = plot->addSeries("c");
+    plot->setData(a, {{1, 1}});
+    plot->setData(b, {{2, 2}});
+    plot->setData(c, {{3, 3}});
+    plot->removeSeries(b);
+    EXPECT_EQ(plot->getSeriesCount(), 2u);
+    EXPECT_EQ(plot->getSeriesName(1), "c");
+    EXPECT_EQ((*plot->getSeriesPoints(1))[0].x, 3.0f);
+    // Removing shifts the auto-scaled range down to the remaining series:
+    // data {1, 3} + 5% padding -> yMax 3.1.
+    EXPECT_TRUE(floatsNear(plot->getYMax(), 3.1f));
+}
+
+TEST(PlotTest, RemoveAllSeriesResetsToDefaults) {
+    auto plot = Plot::create("plot");
+    plot->addSeries();
+    plot->addSeries();
+    plot->applyPoint(0, 5.0f, 7.0f);
+    plot->removeAllSeries();
+    EXPECT_EQ(plot->getSeriesCount(), 0u);
+    EXPECT_FLOAT_EQ(plot->getXMin(), 0.0f);
+    EXPECT_FLOAT_EQ(plot->getXMax(), 1.0f);
+    EXPECT_FLOAT_EQ(plot->getYMin(), 0.0f);
+    EXPECT_FLOAT_EQ(plot->getYMax(), 1.0f);
+}
+
+TEST(PlotTest, ClearDataKeepsSeriesAndRescales) {
+    auto plot = Plot::create("plot");
+    plot->addSeries("a");
+    plot->addSeries("b");
+    plot->applyPoint(0, 5.0f, 7.0f);
+    plot->clearData();
+    EXPECT_EQ(plot->getSeriesCount(), 2u);
+    EXPECT_TRUE(plot->getSeriesPoints(0)->empty());
+    EXPECT_TRUE(plot->getSeriesPoints(1)->empty());
+    EXPECT_FLOAT_EQ(plot->getXMin(), 0.0f);
+    EXPECT_FLOAT_EQ(plot->getXMax(), 1.0f);
+    EXPECT_FLOAT_EQ(plot->getYMin(), 0.0f);
+    EXPECT_FLOAT_EQ(plot->getYMax(), 1.0f);
+}
+
+TEST(PlotTest, InvalidWorldBoundsAreIgnored) {
+    auto plot = Plot::create("plot");
+    plot->addSeries();
+    plot->applyPoint(0, 5.0f, 7.0f);
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    // Reversed, degenerate and non-finite bounds must be ignored in full.
+    plot->setWorldBounds(5.0f, 5.0f, -5.0f, -5.0f);
+    EXPECT_TRUE(plot->isAutoScaleEnabled());
+    plot->setWorldBounds(1.0f, 1.0f, 1.0f, 3.0f);
+    EXPECT_TRUE(plot->isAutoScaleEnabled());
+    plot->setWorldBounds(-5.0f, -5.0f, nan, 5.0f);
+    EXPECT_TRUE(plot->isAutoScaleEnabled());
+    // The auto-scaled bounds from the live point are untouched: a single flat
+    // point (5, 7) spans 4.5..5.5 / 6.5..7.5.
+    EXPECT_TRUE(floatsNear(plot->getXMin(), 4.5f));
+    EXPECT_TRUE(floatsNear(plot->getYMax(), 7.5f));
+}
+
+TEST(PlotTest, GridAndAxisColors) {
+    auto plot = Plot::create("plot");
+    EXPECT_EQ(plot->getGridColor(), Colors::LightGray);
+    EXPECT_EQ(plot->getAxisColor(), Colors::Gray);
+    plot->setGridColor(Colors::DarkGray);
+    plot->setAxisColor(Colors::CornflowerBlue);
+    EXPECT_EQ(plot->getGridColor(), Colors::DarkGray);
+    EXPECT_EQ(plot->getAxisColor(), Colors::CornflowerBlue);
+}
+
+TEST(PlotTest, AutoScalePadding) {
+    auto plot = Plot::create("plot");
+    EXPECT_TRUE(floatsNear(plot->getAutoScalePadding(), 0.05f));
+    plot->addSeries();
+    plot->applyPoint(0, 10.0f, 10.0f);
+    plot->applyPoint(0, 20.0f, 20.0f);
+    plot->setAutoScalePadding(0.5f);
+    // Padding 50% of [10..20] pushes the bounds half a range to each side.
+    EXPECT_TRUE(floatsNear(plot->getXMin(), 5.0f));
+    EXPECT_TRUE(floatsNear(plot->getXMax(), 25.0f));
+    EXPECT_TRUE(floatsNear(plot->getYMin(), 5.0f));
+    EXPECT_TRUE(floatsNear(plot->getYMax(), 25.0f));
+    // Negative or non-finite values are rejected.
+    plot->setAutoScalePadding(-1.0f);
+    EXPECT_TRUE(floatsNear(plot->getAutoScalePadding(), 0.5f));
+    plot->setAutoScalePadding(std::numeric_limits<float>::quiet_NaN());
+    EXPECT_TRUE(floatsNear(plot->getAutoScalePadding(), 0.5f));
+}
+
+TEST(PlotTest, InvalidSeriesIndexReturnsNull) {
+    auto plot = Plot::create("plot");
+    plot->addSeries();
+    EXPECT_NE(plot->getSeriesPoints(0), nullptr);  // valid index, empty data
+    EXPECT_EQ(plot->getSeriesPoints(7), nullptr);  // out of range
+    plot->setData(7, {{1, 1}});                    // no-op, nothing crashes
+    EXPECT_EQ(plot->getSeriesCount(), 1u);
 }
 
 }  // namespace

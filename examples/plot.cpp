@@ -107,18 +107,20 @@ class DxvUIPlotExample : public DxvUIEx::SdlApp {
     }
 
     // Translates the window into plot points with the current frame as the
-    // right edge (x grows from frameCount - size..frameCount).
+    // right edge (x grows from frameCount - size..frameCount). The scratch
+    // buffer is reused across frames; setData() moves it into the widget, so no
+    // per-frame allocation happens.
     void pushSeries(size_t series, const std::vector<float>& data) {
         if (data.empty()) {
             return;
         }
-        std::vector<DxvUI::Point<float>> points;
-        points.reserve(data.size());
+        pendingPoints_.clear();
+        pendingPoints_.reserve(data.size());
         const float firstX = static_cast<float>(frameCount_ - data.size());
         for (size_t i = 0; i < data.size(); ++i) {
-            points.push_back({firstX + static_cast<float>(i), data[i]});
+            pendingPoints_.push_back({firstX + static_cast<float>(i), data[i]});
         }
-        plot_->setData(series, std::move(points));
+        plot_->setData(series, std::move(pendingPoints_));
     }
 
     std::shared_ptr<DxvUI::Label> makeLegendLabel(const std::string& id, const std::string& text,
@@ -146,6 +148,7 @@ class DxvUIPlotExample : public DxvUIEx::SdlApp {
     uint64_t frameCount_ = 0;
     std::vector<float> updateMs_;
     std::vector<float> drawMs_;
+    std::vector<DxvUI::Point<float>> pendingPoints_;
 };
 
 }  // namespace
