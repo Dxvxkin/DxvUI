@@ -1,17 +1,15 @@
 #ifndef DXVUI_SCENENODE_H
 #define DXVUI_SCENENODE_H
 
-#include <cstdint>
-#include <functional>
-#include <map>
 #include <memory>
 #include <string>
 #include <vector>
 
-#include "DxvUI/event/DxvEvent.h"
 #include "DxvUI/NodeState.h"
 #include "DxvUI/UIBinding.h"
 #include "DxvUI/core.h"
+#include "DxvUI/event/DxvEvent.h"
+#include "DxvUI/event/EventTarget.h"
 #include "DxvUI/interfaces/IRenderer.h"
 #include "DxvUI/layout/LayoutData.h"
 #include "DxvUI/style/Style.h"
@@ -442,7 +440,7 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     //----------------------------------------------------------------
     ///@{
 
-    using handlerID = uint64_t;
+    using handlerID = EventTarget::handlerID;
 
     /**
      * @brief RAII handle for a registered event handler.
@@ -718,16 +716,12 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
 
     // Removes the handler with the given id for the given event type. Called by
     // Connection's destructor; a no-op when the handler is already gone.
-    void removeHandler(EventType type, handlerID id);
+    void removeHandler(EventType type, handlerID id) { target_.removeHandler(type, id); }
 
     // Removes a capture handler. Shared with removeHandler() logic.
-    void removeCaptureHandler(EventType type, handlerID id);
-
-    // Runs the phase-appropriate listeners (capture vs regular) on this node,
-    // iterating a snapshot of handler ids so registration/removal from within a
-    // handler is safe. Shared by dispatchEvent() for both listener sets.
-    void runListeners(std::map<handlerID, ActionCallback>& handlers, DxvEvent& event,
-                      const EventType eventType, const UIContext& context);
+    void removeCaptureHandler(EventType type, handlerID id) {
+        target_.removeCaptureHandler(type, id);
+    }
 
     // Recursive draw used by the public draw(); carries the viewport rect so
     // the whole tree is culled against it in O(visible) instead of O(all nodes).
@@ -745,13 +739,10 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     int zIndex = 0;
     bool childrenOrderDirty = false;
     // Handlers are keyed by id per event type so that registration, removal and
-    // snapshot dispatch are all safe while a handler is running.
-    std::map<EventType, std::map<handlerID, ActionCallback>> eventHandlers;
-    // Capture-phase listeners, registered through onCapture(). Lazily allocated:
-    // only nodes that actually hold capture listeners pay for the map, keeping
-    // the per-node footprint of the common (capture-less) case at a pointer.
-    std::unique_ptr<std::map<EventType, std::map<handlerID, ActionCallback>>> captureHandlers;
-    handlerID handlerIdCounter = 0;
+    // snapshot dispatch are all safe while a handler is running. Pure storage:
+    // the phase bookkeeping (current target, phase, UIContext, default action)
+    // stays in dispatchEvent(); EventTarget only owns the maps and iteration.
+    EventTarget target_;
 };
 
 }  // namespace DxvUI

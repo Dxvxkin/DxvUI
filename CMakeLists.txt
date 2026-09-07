@@ -43,6 +43,7 @@ target_sources(DxvUI PRIVATE
 
         src/event/EventManager.cpp
         src/event/DxvEvent.cpp
+        src/event/EventTarget.cpp
         src/Scene.cpp
         src/SceneNode.cpp
         src/UIBinding.cpp

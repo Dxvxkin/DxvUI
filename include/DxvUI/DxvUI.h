@@ -4,6 +4,7 @@
 // Core
 #include "event/DxvEvent.h"
 #include "event/EventManager.h"
+#include "event/EventTarget.h"
 #include "FpsCounter.h"
 #include "Log.h"
 #include "NodeState.h"
