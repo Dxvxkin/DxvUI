@@ -51,6 +51,7 @@ target_sources(DxvUI PRIVATE
         src/widgets/Button.cpp
         src/widgets/Checkbox.cpp
         src/widgets/Label.cpp
+        src/widgets/Plot.cpp
         src/widgets/SliderBase.cpp
         src/widgets/SliderHorizontal.cpp
         src/widgets/SliderVertical.cpp

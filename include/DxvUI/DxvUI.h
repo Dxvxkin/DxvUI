@@ -46,6 +46,7 @@
 #include "widgets/Button.h"
 #include "widgets/Checkbox.h"
 #include "widgets/Label.h"
+#include "widgets/Plot.h"
 #include "widgets/Popup.h"
 #include "widgets/SliderBase.h"
 #include "widgets/SliderHorizontal.h"
