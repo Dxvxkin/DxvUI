@@ -2,8 +2,8 @@
 #define DXVUI_H
 
 // Core
-#include "DxvEvent.h"
-#include "EventManager.h"
+#include "event/DxvEvent.h"
+#include "event/EventManager.h"
 #include "FpsCounter.h"
 #include "Log.h"
 #include "NodeState.h"

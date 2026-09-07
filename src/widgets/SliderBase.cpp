@@ -4,7 +4,7 @@
 #include <cmath>
 #include <utility>
 
-#include "DxvUI/DxvEvent.h"
+#include "DxvUI/event/DxvEvent.h"
 #include "DxvUI/UIBinding.h"
 #include "DxvUI/layout/LayoutManager.h"
 

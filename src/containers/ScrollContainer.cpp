@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-#include "DxvUI/DxvEvent.h"
+#include "DxvUI/event/DxvEvent.h"
 #include "DxvUI/layout/LayoutManager.h"
 #include "DxvUI/style/Theme.h"
 

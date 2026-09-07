@@ -5,7 +5,7 @@
 #include <memory>
 
 #include "DxvEvent.h"
-#include "core.h"
+#include "DxvUI/core.h"
 
 namespace DxvUI {
 

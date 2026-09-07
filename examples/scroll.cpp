@@ -4,7 +4,7 @@
 // with the mouse wheel. It subclasses DxvUIEx::SdlApp and owns the DxvUI
 // integration itself (see examples/main.cpp for the pattern).
 
-#include <DxvUI/DxvEvent.h>
+#include <DxvUI/event/DxvEvent.h>
 #include <DxvUI/Log.h>
 #include <DxvUI/Scene.h>
 #include <DxvUI/UIContext.h>

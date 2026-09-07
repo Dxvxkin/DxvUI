@@ -4,7 +4,7 @@
 // undo/redo and a clear button. It subclasses DxvUIEx::SdlApp and owns the DxvUI
 // integration itself (see examples/main.cpp for the pattern).
 
-#include <DxvUI/DxvEvent.h>
+#include <DxvUI/event/DxvEvent.h>
 #include <DxvUI/Log.h>
 #include <DxvUI/Scene.h>
 #include <DxvUI/backend/SDLEventSource.h>

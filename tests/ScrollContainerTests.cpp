@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-#include "DxvUI/DxvEvent.h"
+#include "DxvUI/event/DxvEvent.h"
 #include "DxvUI/Log.h"
 #include "DxvUI/Scene.h"
 #include "DxvUI/SceneNode.h"

@@ -3,7 +3,7 @@
 
 #include <cstring>
 
-#include "DxvUI/DxvEvent.h"
+#include "DxvUI/event/DxvEvent.h"
 #include "DxvUI/backend/SDLEventSource.h"
 
 using namespace DxvUI;

@@ -108,7 +108,7 @@
 1. **Плоский `DxvEvent` без типизации.** Raw и производные события делят одно
    `mouse`/`key`/`text`/`resize` поле. `MouseMove` vs `Drag` семантически разные,
    но несут одни поля. Payload нельзя расширить (scancode, drop-files, scale) без
-   правки общего struct. Где: `include/DxvUI/DxvEvent.h`.
+   правки общего struct. Где: `include/DxvUI/event/DxvEvent.h`.
 2. **Размазанный синтез.** `Click`/`Drag`/`Drop`/`Hover`/`Focus` шьются императивно
    в `EventManager::handleMouseUp/MouseMove`; `Change` — отдельно в
    `SceneNode::onBindingChange`. Нет единой точки превращения raw → derived.

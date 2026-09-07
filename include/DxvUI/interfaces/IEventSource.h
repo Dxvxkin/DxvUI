@@ -1,7 +1,7 @@
 #ifndef DXVUI_IEVENTSOURCE_H
 #define DXVUI_IEVENTSOURCE_H
 
-#include "../DxvEvent.h"
+#include "DxvUI/event/DxvEvent.h"
 
 namespace DxvUI {
 

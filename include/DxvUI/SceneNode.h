@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-#include "DxvUI/DxvEvent.h"
+#include "DxvUI/event/DxvEvent.h"
 #include "DxvUI/NodeState.h"
 #include "DxvUI/UIBinding.h"
 #include "DxvUI/core.h"

@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <utility>
 
-#include "DxvUI/DxvEvent.h"
+#include "DxvUI/event/DxvEvent.h"
 #include "DxvUI/interfaces/IRenderer.h"
 #include "DxvUI/layout/LayoutManager.h"
 #include "DxvUI/style/Colors.h"

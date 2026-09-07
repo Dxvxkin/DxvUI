@@ -41,8 +41,8 @@ target_compile_features(DxvUI PUBLIC cxx_std_23)
 target_sources(DxvUI PRIVATE
         src/Log.cpp
 
-        src/EventManager.cpp
-        src/DxvEvent.cpp
+        src/event/EventManager.cpp
+        src/event/DxvEvent.cpp
         src/Scene.cpp
         src/SceneNode.cpp
         src/UIBinding.cpp

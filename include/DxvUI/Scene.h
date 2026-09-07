@@ -6,7 +6,7 @@
 #include "DxvUI/layout/LayoutManager.h"  // Include the new LayoutManager header
 #include "DxvUI/style/StyleManager.h"    // Include the new StyleManager header
 #include "DxvUI/style/Theme.h"           // Include the new Theme header
-#include "EventManager.h"
+#include "event/EventManager.h"
 
 namespace DxvUI {
 
