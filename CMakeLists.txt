@@ -185,6 +185,7 @@ if(BUILD_TESTING)
             tests/CheckboxTests.cpp
             tests/ColorTests.cpp
             tests/EventManagerTests.cpp
+            tests/EventTargetTests.cpp
             tests/FpsCounterTests.cpp
             tests/LayoutManagerTests.cpp
             tests/LogTests.cpp
