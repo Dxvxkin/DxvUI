@@ -187,6 +187,7 @@ if(BUILD_TESTING)
             tests/FpsCounterTests.cpp
             tests/LayoutManagerTests.cpp
             tests/LogTests.cpp
+            tests/NodeStateTests.cpp
             tests/StyleManagerTests.cpp
             tests/WidgetTests.cpp
             tests/TextEditorTests.cpp
