@@ -854,3 +854,90 @@ TEST(EventManagerTest, CanceledPressDoesNotBlockOtherGestures) {
     f.releaseAt(250, 25);
     EXPECT_EQ(clickB, 1);
 }
+
+// --- Successful drag & drop gesture (not just its cancellation) ---
+//
+// A press on button A followed by a held move must deliver Drag events to the
+// pressed node, and releasing over a different node (B) must synthesize a Drop
+// targeted at B whose related node is the dragged-from A.
+
+TEST(EventManagerTest, HeldMoveDeliversDragToPressedNode) {
+    EventFixture f;
+    int dragCalls = 0;
+    auto connDrag =
+        f.buttonA->on(EventType::Drag, [&](DxvEvent&, const UIContext&) { ++dragCalls; });
+
+    f.pressAt(50, 25);                    // press A
+    f.moveTo(60, 25, MouseButton::Left);  // held move outside the down position
+    f.moveTo(70, 25, MouseButton::Left);  // another held move
+
+    EXPECT_GT(dragCalls, 0);
+}
+
+TEST(EventManagerTest, ReleaseOverOtherNodeSynthesizesDrop) {
+    EventFixture f;
+    int dropB = 0;
+    int dropRoot = 0;
+    std::shared_ptr<SceneNode> draggedFrom;
+    auto connB = f.buttonB->on(EventType::Drop, [&](DxvEvent& e, const UIContext&) {
+        ++dropB;
+        EXPECT_EQ(e.getCurrentTarget(), f.buttonB);
+        EXPECT_EQ(e.getTarget(), f.buttonB);
+        draggedFrom = e.getRelatedNode();
+    });
+    auto connRoot = f.root->on(EventType::Drop, [&](DxvEvent&, const UIContext&) { ++dropRoot; });
+
+    f.pressAt(50, 25);     // press A
+    f.releaseAt(250, 25);  // release over B -> Drop targeted at B
+
+    EXPECT_EQ(dropB, 1);
+    // Drop bubbles (W3C) so the root listener sees it too.
+    EXPECT_EQ(dropRoot, 1);
+    EXPECT_EQ(draggedFrom, f.buttonA);
+}
+
+// --- Resize routed to root (non-widget, host-level event) ---
+//
+// Through the dispatcher Resize is routed to the root node and delivered in the
+// Target phase. (Scene::processEvent() special-cases Resize as a re-layout, so
+// this exercises the direct dispatch path that a host window owns.)
+
+TEST(EventManagerTest, ResizeRoutesToRoot) {
+    EventFixture f;
+    bool rootSeen = false;
+    auto conn = f.root->on(EventType::Resize, [&](DxvEvent& e, const UIContext&) {
+        rootSeen = true;
+        EXPECT_EQ(e.getCurrentTarget(), f.root);
+    });
+
+    DxvEvent resize;
+    resize.type = EventType::Resize;
+    resize.resize.width = 100;
+    resize.resize.height = 200;
+    f.scene->dispatch(resize);
+
+    EXPECT_TRUE(rootSeen);
+}
+
+// --- Detach lifecycle event ---
+//
+// Removing a child raises Detach on the removed node and it bubbles up to the
+// ancestor, mirroring Attach which is dispatched when a node joins the scene.
+
+TEST(EventManagerTest, RemoveChildRaisesDetachAndBubbles) {
+    EventFixture f;
+    int detachA = 0;
+    int detachRoot = 0;
+    auto connA = f.buttonA->on(EventType::Detach, [&](DxvEvent& e, const UIContext&) {
+        ++detachA;
+        EXPECT_EQ(e.getCurrentTarget(), f.buttonA);
+    });
+    auto connRoot =
+        f.root->on(EventType::Detach, [&](DxvEvent&, const UIContext&) { ++detachRoot; });
+
+    f.root->removeChild(f.buttonA);
+
+    EXPECT_EQ(detachA, 1);
+    // Detach bubbles (W3C lifecycle), so the root listener sees it too.
+    EXPECT_EQ(detachRoot, 1);
+}
