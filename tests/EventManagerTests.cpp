@@ -736,3 +736,121 @@ TEST(EventManagerTest, HoverAndFocusDoNotBubble) {
     EXPECT_EQ(rootHover, 0);
     EXPECT_EQ(rootFocus, 0);
 }
+
+// --- Press-gesture cancellation (intercepted MouseDown) ---
+//
+// A MouseDown stopped during the Capture phase means the target never saw the
+// press: the whole gesture must be canceled. The Pressed state is released
+// immediately and the companion Drag/MouseUp/Click events of that press are
+// suppressed, so the target neither looks pressed nor acts on a press that was
+// intercepted before it arrived. A stop in the Target or Bubble phase does not
+// cancel, because the target did see the press there.
+
+TEST(EventManagerTest, CaptureInterceptionCancelsPressGesture) {
+    EventFixture f;
+    int downCalls = 0;
+    int upCalls = 0;
+    int dragCalls = 0;
+    int clickCalls = 0;
+    auto connDown =
+        f.buttonA->on(EventType::MouseDown, [&](DxvEvent&, const UIContext&) { ++downCalls; });
+    auto connUp =
+        f.buttonA->on(EventType::MouseUp, [&](DxvEvent&, const UIContext&) { ++upCalls; });
+    auto connDrag =
+        f.buttonA->on(EventType::Drag, [&](DxvEvent&, const UIContext&) { ++dragCalls; });
+    auto connClick =
+        f.buttonA->on(EventType::Click, [&](DxvEvent&, const UIContext&) { ++clickCalls; });
+    auto intercept = f.root->onCapture(EventType::MouseDown,
+                                       [&](DxvEvent& e, const UIContext&) { e.stopPropagation(); });
+
+    f.pressAt(50, 25);
+    // The pressed state must not even flash: it is released right after the
+    // intercepted dispatch. Hover (set by handleMouseDown) is fine.
+    EXPECT_NE(f.buttonA->getCurrentState(), WidgetState::Pressed);
+    EXPECT_EQ(downCalls, 0);
+
+    // A drag while the (canceled) press is pending must not reach the target.
+    f.moveTo(60, 25, MouseButton::Left);
+    EXPECT_EQ(dragCalls, 0);
+
+    // The release absorbs the canceled gesture silently: no MouseUp, no Click.
+    f.releaseAt(50, 25);
+    EXPECT_EQ(upCalls, 0);
+    EXPECT_EQ(clickCalls, 0);
+    EXPECT_NE(f.buttonA->getCurrentState(), WidgetState::Pressed);
+}
+
+TEST(EventManagerTest, CanceledPressSurvivesMissedButtonUp) {
+    EventFixture f;
+    int clickCalls = 0;
+    auto connClick =
+        f.buttonA->on(EventType::Click, [&](DxvEvent&, const UIContext&) { ++clickCalls; });
+    // Intercept presses on A only, so releases elsewhere never reach A.
+    auto intercept = f.root->onCapture(EventType::MouseDown,
+                                       [&](DxvEvent& e, const UIContext&) { e.stopPropagation(); });
+
+    f.pressAt(50, 25);
+    EXPECT_NE(f.buttonA->getCurrentState(), WidgetState::Pressed);
+
+    // The button-up is missed entirely (e.g. the pointer left the window); a
+    // buttonless move clears any lingering state, and a stale release on empty
+    // space must not ghost-dispatch to A.
+    f.moveTo(400, 400, MouseButton::None);
+    f.releaseAt(400, 400);
+    EXPECT_EQ(clickCalls, 0);
+    EXPECT_NE(f.buttonA->getCurrentState(), WidgetState::Pressed);
+}
+
+TEST(EventManagerTest, TargetPhaseStopKeepsGesture) {
+    EventFixture f;
+    int clickCalls = 0;
+    auto connClick =
+        f.buttonA->on(EventType::Click, [&](DxvEvent&, const UIContext&) { ++clickCalls; });
+    // A's own Target-phase listener stops the MouseDown after the target saw
+    // it: the press must survive and its Click still arrive.
+    auto aDown = f.buttonA->on(EventType::MouseDown,
+                               [&](DxvEvent& e, const UIContext&) { e.stopPropagation(); });
+
+    f.pressAt(50, 25);
+    f.releaseAt(50, 25);
+
+    EXPECT_EQ(clickCalls, 1);
+}
+
+TEST(EventManagerTest, BubblePhaseStopKeepsGesture) {
+    EventFixture f;
+    int clickCalls = 0;
+    auto connClick =
+        f.buttonA->on(EventType::Click, [&](DxvEvent&, const UIContext&) { ++clickCalls; });
+    // A bubble-phase stop on the root happens after the target saw the press:
+    // the gesture must survive and its Click still arrive.
+    auto rootDown = f.root->on(EventType::MouseDown,
+                               [&](DxvEvent& e, const UIContext&) { e.stopPropagation(); });
+
+    f.pressAt(50, 25);
+    f.releaseAt(50, 25);
+
+    EXPECT_EQ(clickCalls, 1);
+}
+
+TEST(EventManagerTest, CanceledPressDoesNotBlockOtherGestures) {
+    EventFixture f;
+    int clickA = 0;
+    int clickB = 0;
+    auto connA = f.buttonA->on(EventType::Click, [&](DxvEvent&, const UIContext&) { ++clickA; });
+    auto connB = f.buttonB->on(EventType::Click, [&](DxvEvent&, const UIContext&) { ++clickB; });
+    // Intercept presses on A only: B must interact normally.
+    auto intercept = f.root->onCapture(EventType::MouseDown, [&](DxvEvent& e, const UIContext&) {
+        if (e.getTarget() == f.buttonA) {
+            e.stopPropagation();
+        }
+    });
+
+    f.pressAt(50, 25);
+    f.releaseAt(50, 25);
+    EXPECT_EQ(clickA, 0);
+
+    f.pressAt(250, 25);
+    f.releaseAt(250, 25);
+    EXPECT_EQ(clickB, 1);
+}

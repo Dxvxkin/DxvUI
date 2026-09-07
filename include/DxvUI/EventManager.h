@@ -194,6 +194,12 @@ class EventManager {
     struct PressRecord {
         std::weak_ptr<SceneNode> node;
         PointI startPosition;
+        // A press whose MouseDown was stopped during the Capture phase never
+        // reached its target: the whole gesture is canceled. The Pressed state
+        // is released right after the dispatch and the companion events (Drag,
+        // the button-up and the synthesized Click) are suppressed, so the
+        // target neither looks pressed nor acts on a press it never saw.
+        bool canceled = false;
     };
     // Maximum pointer travel between press and release that still reports a
     // Click; beyond it the gesture is a drag. Compared against squared distance.

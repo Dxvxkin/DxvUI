@@ -483,6 +483,13 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
      * its target (e.g. a modal layer swallowing pointer events underneath it).
      * Only captureable event types (raw pointer/key/text input) pass through the
      * Capture phase at all.
+     *
+     * Interception and press gestures: stopping a MouseDown during the Capture
+     * phase cancels the press gesture entirely. The target never saw the press,
+     * so its Pressed state is released immediately and the companion Drag,
+     * MouseUp and Click events of that press are suppressed (see the EventManager
+     * for the full contract). A stop in the Target or Bubble phase does not
+     * cancel the gesture.
      * @param type The type of event to listen for (Capture phase).
      * @param callback The function to execute when the event is captured.
      * @return A connection that removes the handler when destroyed.

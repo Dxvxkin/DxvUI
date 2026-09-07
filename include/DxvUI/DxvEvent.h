@@ -239,6 +239,11 @@ struct DxvEvent {
     //   stopPropagation()       stops bubbling to parent nodes
     //   stopImmediatePropagation()  stops the remaining listeners on the current
     //                          node and bubbling; the default action still runs
+    //
+    // Besides listener delivery, one flow-control call changes gesture state: a
+    // MouseDown stopped during the Capture phase cancels the press gesture —
+    // the target's Pressed state is released at once and the companion Drag,
+    // MouseUp and Click of that press never arrive (see the EventManager).
     void stopPropagation() { propagationStopped_ = true; }
     void stopImmediatePropagation() {
         immediatePropagationStopped_ = true;

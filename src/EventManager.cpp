@@ -282,6 +282,12 @@ void EventManager::handleMouseMove(DxvEvent& event) {
     }
 
     for (const auto& [button, record] : pressedNodes) {
+        // A canceled press (see handleMouseDown) produces no drag: the target
+        // never got the initiating press, so it must not receive the drags
+        // that follow it.
+        if (record.canceled) {
+            continue;
+        }
         if (auto pressed = record.node.lock()) {
             DxvEvent dragEvent;
             dragEvent.type = EventType::Drag;
@@ -330,12 +336,30 @@ void EventManager::handleMouseDown(DxvEvent& event) {
 
     if (targetNode) {
         // Only apply 'pressed' state and track the node if it's an interactive element.
-        if (!targetNode->isRoot()) {
+        const bool tracked = !targetNode->isRoot();
+        if (tracked) {
             targetNode->setPressed(true);
             pressedNodes[button] = {targetNode, {event.mouse.x, event.mouse.y}};
         }
         event.target = targetNode;
         dispatch(event);
+
+        // A MouseDown stopped during the Capture phase (e.g. by a capture
+        // listener on an ancestor intercepting the press before it reached the
+        // target) means the target never saw this press: cancel the whole
+        // gesture. The Pressed state is released now, and the record is kept
+        // (marked canceled) so the companion Drag/MouseUp/Click are suppressed
+        // instead of being delivered to a node that did not get the press. A
+        // stop in the Target or Bubble phase does not cancel: the target did
+        // see the press there.
+        if (tracked && (event.isPropagationStopped() || event.isImmediatePropagationStopped()) &&
+            event.getPhase() == EventPhase::Capture) {
+            auto it = pressedNodes.find(button);
+            if (it != pressedNodes.end() && it->second.node.lock() == targetNode) {
+                targetNode->setPressed(false);
+                it->second.canceled = true;
+            }
+        }
     }
 }
 
@@ -355,6 +379,12 @@ void EventManager::handleMouseUp(DxvEvent& event) {
         pressedNodes.erase(pressedIt);
         if (auto pressed = record.node.lock()) {
             pressed->setPressed(false);
+            // A canceled press never dispatched its companions; the record only
+            // lingers so the gesture could be absorbed here. Skip the button-up
+            // dispatch, the drop and the Click synthesis entirely.
+            if (record.canceled) {
+                return;
+            }
             event.target = pressed;
             dispatch(event);
 
