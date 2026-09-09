@@ -51,7 +51,7 @@ class SDLRenderer : public IRenderer {
     void popClipRect() override;
 
     // Texture Rendering
-    void drawTexture(std::shared_ptr<ITexture>& texture, const Rect& dstRect) override;
+    void drawTexture(const std::shared_ptr<ITexture>& texture, const Rect& dstRect) override;
 
     // State Management
     void setDrawColor(const Color& color) override;

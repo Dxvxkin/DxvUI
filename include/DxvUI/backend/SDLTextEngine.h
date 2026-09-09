@@ -48,12 +48,29 @@ class SDLTextEngine : public ITextEngine {
     size_t getTextureCacheCount() const override;
 
     /**
+     * @brief Gets the number of cached text measurements.
+     *
+     * The measurement cache is LRU-bounded (see kMaxMeasureCacheEntries), so
+     * a UI that keeps measuring new strings (typing, live labels, caret
+     * hit-testing) evicts old entries instead of growing without limit.
+     * Exposed for tests and benchmarks to verify the bound.
+     */
+    size_t getMeasureCacheCount() const;
+
+    /**
      * @brief Drops every cached font, measurement and texture.
      *
      * Destroys the cached SDL textures (which reference the SDL renderer), so
      * the owning renderer must call this before destroying the renderer.
      */
     void clearCaches();
+
+    // Cache capacity bounds (entries). Textures are the heavy resource (GPU
+    // memory), measurements are small structs — hence the higher cap: caret
+    // hit-testing on a growing line measures one prefix per keystroke and
+    // benefits from keeping recent prefixes cached.
+    static constexpr size_t kMaxTextureCacheEntries = 1024;
+    static constexpr size_t kMaxMeasureCacheEntries = 4096;
 
    private:
     // Font handle that wraps the raw TTF font plus its cached vertical metrics.
@@ -74,14 +91,20 @@ class SDLTextEngine : public ITextEngine {
     // a family missing here falls back to getDefaultFontFamilyPath(), and
     // registerFontFamily() inserts custom mappings.
     std::map<std::string, std::string> families;
-    std::map<std::pair<const IFont*, std::string>, TextMetrics> measures;
+    // Measurement cache with LRU eviction, mirroring the texture cache below:
+    // a dynamic UI measures unbounded unique (font, text) pairs — prefixes of
+    // a growing line (caret/hit-testing), live labels, per-frame truncation —
+    // so the plain map used to grow without bound. An evicted measurement is
+    // simply recomputed on the next measure() call.
+    using MeasureKey = std::pair<const IFont*, std::string>;
+    std::map<MeasureKey, std::pair<TextMetrics, std::list<MeasureKey>::iterator>> measures;
+    std::list<MeasureKey> measureLru;
     using TextureKey = std::tuple<const IFont*, std::string, uint32_t>;
     // Texture cache with LRU eviction: each entry stores the texture plus the
     // key's position in the recency list. The cap bounds GPU memory for
     // dynamic UIs (scrolling lists, chat, live labels) that otherwise keep
     // every rasterized string forever. Evicting only drops the cache
     // reference; labels still holding the shared_ptr keep the texture alive.
-    static constexpr size_t kMaxTextureCacheEntries = 1024;
     std::map<TextureKey, std::pair<std::shared_ptr<ITexture>, std::list<TextureKey>::iterator>>
         textures;
     std::list<TextureKey> textureLru;
