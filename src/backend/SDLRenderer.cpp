@@ -216,12 +216,36 @@ void SDLRenderer::setCursor(CursorType type) {
 CursorType SDLRenderer::getCursor() const { return currentCursorType; }
 
 void SDLRenderer::pushClipRect(const Rect& rect) {
+    const SDL_bool clipEnabled = SDL_RenderIsClipEnabled(renderer);
     SDL_Rect currentClip;
     SDL_RenderGetClipRect(renderer, &currentClip);
-    clipStack.emplace_back(SDL_RenderIsClipEnabled(renderer) == SDL_TRUE,
+    clipStack.emplace_back(clipEnabled == SDL_TRUE,
                            Rect{currentClip.x, currentClip.y, currentClip.w, currentClip.h});
 
     SDL_Rect r = {rect.x, rect.y, rect.width, rect.height};
+    if (clipEnabled == SDL_TRUE) {
+        // Nested clips must intersect: SDL_RenderSetClipRect *replaces* the
+        // clip rect instead of intersecting it, so without this a child's
+        // clip would re-expose pixels an ancestor's clip had already cut off
+        // (e.g. a TextEdit half-slid out of a ScrollContainer viewport
+        // drawing over the content scrolled below it).
+        SDL_Rect intersection;
+        if (SDL_IntersectRect(&r, &currentClip, &intersection)) {
+            r = intersection;
+        } else {
+            // The intersection is empty: everything must be clipped away.
+            // Passing an empty rect there is version-fragile (older SDL
+            // releases treated an empty rect as "disable clipping"; NULL and
+            // negative sizes still do), so use a 1x1 rect placed just outside
+            // the render target instead. It is a valid non-empty rect that
+            // covers no drawable pixel — backends intersect it with the
+            // target bounds, and a point on/inside the pushed rect could
+            // still re-expose a pixel the previous clip had cut off.
+            int outW = 0, outH = 0;
+            SDL_GetRendererOutputSize(renderer, &outW, &outH);
+            r = {outW, outH, 1, 1};
+        }
+    }
     SDL_RenderSetClipRect(renderer, &r);
 }
 
@@ -304,10 +328,21 @@ Size SDLRenderer::getViewportSize() const {
     return {(float)w, (float)h};
 }
 
-void SDLRenderer::drawTexture(std::shared_ptr<ITexture>& texture, const Rect& dstRect) {
+void SDLRenderer::drawTexture(const std::shared_ptr<ITexture>& texture, const Rect& dstRect) {
     if (!texture) return;
+    // ITexture is backend-neutral, so only textures created by this backend
+    // (through its text engine) can be drawn. A foreign implementation used
+    // to be dynamic_cast to SDLTexture and dereferenced blindly, which
+    // silently produced a null SDL_Texture* (UB); reject it instead.
+    const auto* sdlTexture = dynamic_cast<SDLTexture*>(texture.get());
+    if (!sdlTexture || !sdlTexture->_texture) {
+        Log::error(
+            "SDLRenderer::drawTexture: the texture was not created by this renderer (foreign "
+            "ITexture implementation or a freed handle); skipping");
+        return;
+    }
     SDL_Rect dst = {dstRect.x, dstRect.y, dstRect.width, dstRect.height};
-    SDL_RenderCopy(renderer, dynamic_cast<SDLTexture*>(texture.get())->_texture, nullptr, &dst);
+    SDL_RenderCopy(renderer, sdlTexture->_texture, nullptr, &dst);
 }
 
 void SDLRenderer::setDrawColor(const Color& color) {

@@ -43,8 +43,17 @@ class IRenderer {
     virtual void pushClipRect(const Rect& rect) = 0;
     virtual void popClipRect() = 0;
 
-    // Texture Rendering
-    virtual void drawTexture(std::shared_ptr<ITexture>& texture, const Rect& dstRect) = 0;
+    /**
+     * @brief Draws a texture into the destination rectangle.
+     *
+     * Takes the texture by const reference (a rasterized texture can be drawn
+     * straight from a temporary) and only accepts textures created by this
+     * renderer's backend: a foreign ITexture implementation is rejected with
+     * a logged error instead of being blindly cast.
+     * @param texture The texture to draw; a null texture is a no-op.
+     * @param dstRect The destination rectangle in screen coordinates.
+     */
+    virtual void drawTexture(const std::shared_ptr<ITexture>& texture, const Rect& dstRect) = 0;
 
     // State Management
     virtual void setDrawColor(const Color& color) = 0;

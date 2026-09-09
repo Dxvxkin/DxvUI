@@ -97,9 +97,11 @@ void SDLTextEngine::registerFontFamily(const std::string& family, const std::str
 
 TextMetrics SDLTextEngine::measure(const IFont& font, const std::string& text) {
     const auto* sdlFont = static_cast<const SDLFont*>(&font);
-    const auto key = std::make_pair(static_cast<const IFont*>(&font), text);
+    const MeasureKey key{static_cast<const IFont*>(&font), text};
     if (auto it = measures.find(key); it != measures.end()) {
-        return it->second;
+        // Cache hit: move the key to the front of the recency list.
+        measureLru.splice(measureLru.begin(), measureLru, it->second.second);
+        return it->second.first;
     }
 
     TextMetrics metrics;
@@ -111,7 +113,14 @@ TextMetrics SDLTextEngine::measure(const IFont& font, const std::string& text) {
         metrics.width = w;
         metrics.height = h;
     }
-    measures[key] = metrics;
+    measureLru.push_front(key);
+    measures.emplace(key, std::make_pair(metrics, measureLru.begin()));
+    // Bound the cache: drop the least-recently-used measurement. It is
+    // recomputed if the same (font, text) pair is measured again.
+    if (measures.size() > kMaxMeasureCacheEntries) {
+        measures.erase(measureLru.back());
+        measureLru.pop_back();
+    }
     return metrics;
 }
 
@@ -223,9 +232,12 @@ void SDLTextEngine::clearCaches() {
     textures.clear();
     textureLru.clear();
     measures.clear();
+    measureLru.clear();
     fonts.clear();
 }
 
 size_t SDLTextEngine::getTextureCacheCount() const { return textures.size(); }
+
+size_t SDLTextEngine::getMeasureCacheCount() const { return measures.size(); }
 
 }  // namespace DxvUI
