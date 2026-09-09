@@ -17,7 +17,7 @@ namespace DxvUI {
  *
  * The widget is orientation-agnostic: the concrete orientation (horizontal vs
  * vertical) is supplied by the subclass through a small set of axis hooks, and
- * by the subclass's own onMeasure()/drawContent()/getNodeType().
+ * by the subclass's own onMeasure()/onPaint()/getNodeType().
  *
  * Step semantics: step == 0 means a continuous (free) value, and the wheel/key
  * deltas are a fraction of the range; step > 0 snaps values to multiples of

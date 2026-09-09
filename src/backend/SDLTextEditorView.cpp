@@ -4,7 +4,7 @@
 
 #include <algorithm>
 
-#include "DxvUI/interfaces/IRenderer.h"
+#include "DxvUI/interfaces/ICanvas.h"
 #include "DxvUI/interfaces/ITextEngine.h"
 #include "DxvUI/text/TextEditor.h"
 
@@ -12,9 +12,11 @@ namespace DxvUI {
 
 bool SDLTextEditorView::isCaretVisible() { return (SDL_GetTicks() / kCaretBlinkMs) % 2 == 0; }
 
-void SDLTextEditorView::draw(IRenderer& renderer, ITextEngine& engine, const IFont& font,
-                             const TextEditor& editor, const Rect& contentRect,
-                             const Options& options) {
+void SDLTextEditorView::draw(PaintContext& pc, const IFont& font, const TextEditor& editor,
+                             const Rect& contentRect, const Options& options) {
+    ICanvas& canvas = pc.canvas();
+    ITextEngine& engine = pc.text();
+
     const std::string text = editor.getText();
     const std::string composition = editor.getComposition();
 
@@ -67,7 +69,9 @@ void SDLTextEditorView::draw(IRenderer& renderer, ITextEngine& engine, const IFo
     const size_t visibleStart = engine.charIndexAtX(font, text, scrollOffsetX_);
     const size_t visibleEnd = engine.charIndexAtX(font, text, scrollOffsetX_ + contentRect.width);
 
-    renderer.pushClipRect(contentRect);
+    // The guard pairs the clip push with its pop, so no early return below
+    // can unbalance the canvas' clip stack.
+    ClipGuard clipGuard(canvas, contentRect, true);
 
     // Selection highlight (clipped to the visible window).
     if (editor.hasSelection()) {
@@ -76,8 +80,8 @@ void SDLTextEditorView::draw(IRenderer& renderer, ITextEngine& engine, const IFo
         const int selLeft = std::max(selStart, scrollOffsetX_);
         const int selRight = std::min(selEnd, scrollOffsetX_ + contentRect.width);
         if (selRight > selLeft) {
-            renderer.fillRect(Rect{textAreaX + selLeft - scrollOffsetX_, textY, selRight - selLeft,
-                                   textMetrics.height},
+            canvas.fillRect(Rect{textAreaX + selLeft - scrollOffsetX_, textY, selRight - selLeft,
+                                 textMetrics.height},
                               options.selectionColor);
         }
     }
@@ -87,8 +91,8 @@ void SDLTextEditorView::draw(IRenderer& renderer, ITextEngine& engine, const IFo
         const int sliceX =
             textAreaX - scrollOffsetX_ + engine.measurePrefix(font, text, visibleStart);
         if (auto texture = engine.rasterize(font, visibleText, options.textColor)) {
-            renderer.drawTexture(texture,
-                                 Rect{sliceX, textY, texture->getWidth(), texture->getHeight()});
+            canvas.drawTexture(texture,
+                               Rect{sliceX, textY, texture->getWidth(), texture->getHeight()});
         }
     }
 
@@ -96,8 +100,8 @@ void SDLTextEditorView::draw(IRenderer& renderer, ITextEngine& engine, const IFo
     // position the text would occupy. The caret is still drawn while focused.
     if (showPlaceholder) {
         if (auto texture = engine.rasterize(font, options.placeholder, options.placeholderColor)) {
-            renderer.drawTexture(texture, Rect{textAreaX - scrollOffsetX_, textY,
-                                               texture->getWidth(), texture->getHeight()});
+            canvas.drawTexture(texture, Rect{textAreaX - scrollOffsetX_, textY,
+                                             texture->getWidth(), texture->getHeight()});
         }
     }
 
@@ -107,19 +111,18 @@ void SDLTextEditorView::draw(IRenderer& renderer, ITextEngine& engine, const IFo
             textAreaX - scrollOffsetX_ + engine.measurePrefix(font, text, text.size());
         const int compEnd = compStart + engine.measure(font, composition).width;
         const int underlineY = textY + engine.lineMetrics(font).ascent + 1;
-        renderer.drawLine(compStart, underlineY, compEnd, underlineY, options.compositionColor);
+        canvas.drawLine(compStart, underlineY, compEnd, underlineY, options.compositionColor);
         if (auto texture = engine.rasterize(font, composition, options.textColor)) {
-            renderer.drawTexture(texture,
-                                 Rect{compStart, textY, texture->getWidth(), texture->getHeight()});
+            canvas.drawTexture(texture,
+                               Rect{compStart, textY, texture->getWidth(), texture->getHeight()});
         }
     }
 
     if (options.showCaret && composition.empty() && isCaretVisible()) {
         const int visibleCaretX = textAreaX + caretX - scrollOffsetX_;
-        renderer.drawLine(visibleCaretX, textY, visibleCaretX, textY + textMetrics.height,
-                          options.caretColor);
+        canvas.drawLine(visibleCaretX, textY, visibleCaretX, textY + textMetrics.height,
+                        options.caretColor);
     }
-    renderer.popClipRect();
 }
 
 size_t SDLTextEditorView::hitTestAt(ITextEngine& engine, const IFont& font,

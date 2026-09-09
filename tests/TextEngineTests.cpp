@@ -117,7 +117,7 @@ class FakeClipboard : public IClipboard {
     }
 };
 
-// Minimal IRenderer so Label::onMeasure and Label::drawContent can be exercised
+// Minimal IRenderer so Label::onMeasure and Label::onPaint can be exercised
 // without an SDL backend or a real font file.
 class FakeRenderer : public IRenderer {
    public:

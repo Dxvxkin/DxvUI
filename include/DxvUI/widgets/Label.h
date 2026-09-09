@@ -25,7 +25,7 @@ class Label : public SceneNode {
 
    protected:
     Size onMeasure(const Size& availableSize) override;
-    void drawContent(IRenderer& renderer) override;
+    void onPaint(PaintContext& pc) override;
 };
 
 }  // namespace DxvUI

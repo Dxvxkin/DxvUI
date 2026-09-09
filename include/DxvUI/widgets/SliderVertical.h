@@ -28,7 +28,7 @@ class SliderVertical : public SliderBase {
     SliderVertical(std::string id, float min, float max, float step);
 
     Size onMeasure(const Size& availableSize) override;
-    void drawContent(IRenderer& renderer) override;
+    void onPaint(PaintContext& pc) override;
 
     // --- Axis (vertical: value grows bottom -> top) ---
     int valueToAxisPos(float value, int trackLen) const override;

@@ -97,13 +97,13 @@ void Checkbox::onArrange(const Rect& finalRect) {
     getChildren().front()->arrange(labelRect);
 }
 
-void Checkbox::drawContent(IRenderer& renderer) {
+void Checkbox::onPaint(PaintContext& pc) {
     const auto& appearance = getComputedAppearance();
     const Rect content = LayoutManager::contentRect(*this, getGlobalBounds());
     const Rect boxRect = {content.x, content.y, static_cast<int>(kBoxSize),
                           static_cast<int>(kBoxSize)};
 
-    renderer.fillRoundRect(
+    pc.canvas().fillRoundRect(
         boxRect, 2, Colors::White,
         {.color = appearance.borderColor, .thickness = appearance.borderThickness});
 
@@ -112,8 +112,8 @@ void Checkbox::drawContent(IRenderer& renderer) {
         // размера бокса, залитая часть = 50% — масштабируется вместе с kBoxSize.
         const int inset = static_cast<int>(kBoxSize) / 4;
         const int fillSize = static_cast<int>(kBoxSize) - 2 * inset;
-        renderer.fillRoundRect({boxRect.x + inset, boxRect.y + inset, fillSize, fillSize},
-                               fillSize / 4, appearance.textColor);
+        pc.canvas().fillRoundRect({boxRect.x + inset, boxRect.y + inset, fillSize, fillSize},
+                                  fillSize / 4, appearance.textColor);
     }
 }
 

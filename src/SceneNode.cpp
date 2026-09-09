@@ -8,7 +8,9 @@
 #include "DxvUI/Scene.h"
 #include "DxvUI/UIContext.h"
 #include "DxvUI/Utils.h"
+#include "DxvUI/interfaces/IRenderer.h"
 #include "DxvUI/layout/LayoutManager.h"
+#include "backend/CanvasAdapter.h"
 
 namespace DxvUI {
 
@@ -489,13 +491,22 @@ void SceneNode::arrange(const Rect& finalRect) { LayoutManager::arrangeNode(*thi
 
 void SceneNode::onArrange(const Rect& /*finalRect*/) {}
 
-void SceneNode::draw(IRenderer& renderer) {
-    const Size viewportSize = renderer.getViewportSize();
-    drawImpl(renderer,
-             {0, 0, static_cast<int>(viewportSize.width), static_cast<int>(viewportSize.height)});
+void SceneNode::draw(PaintContext& pc) {
+    drawImpl(pc, pc.frame().viewport);
 }
 
-void SceneNode::drawImpl(IRenderer& renderer, const Rect& viewportRect) {
+void SceneNode::draw(IRenderer& renderer) {
+    // Transitional entry point (see the header): wrap the renderer into the
+    // painting-only canvas view and run the context-driven pass.
+    CanvasAdapter canvas(renderer);
+    const Size viewportSize = renderer.getViewportSize();
+    PaintContext pc(canvas, renderer.getTextEngine(),
+                    FrameInfo{.viewport = {0, 0, static_cast<int>(viewportSize.width),
+                                           static_cast<int>(viewportSize.height)}});
+    draw(pc);
+}
+
+void SceneNode::drawImpl(PaintContext& pc, const Rect& viewportRect) {
     if (!state_.test(NodeState::Flag::Visible)) {
         return;
     }
@@ -508,37 +519,33 @@ void SceneNode::drawImpl(IRenderer& renderer, const Rect& viewportRect) {
         return;
     }
 
-    drawBackground(renderer);
+    onPaintBackground(pc);
 
+    // The guard pairs the clip push with its pop, so no early return or hook
+    // override between them can unbalance the canvas' clip stack.
     const bool clip = getComputedAppearance().clipContent;
-    if (clip) {
-        renderer.pushClipRect(getGlobalBounds());
-    }
+    ClipGuard clipGuard(pc.canvas(), getGlobalBounds(), clip);
 
-    drawContent(renderer);
+    onPaint(pc);
 
     sortChildrenIfDirty();
     for (const auto& child : children) {
-        child->drawImpl(renderer, viewportRect);
-    }
-
-    if (clip) {
-        renderer.popClipRect();
+        child->drawImpl(pc, viewportRect);
     }
 }
 
-void SceneNode::drawBackground(IRenderer& renderer) {
+void SceneNode::onPaintBackground(PaintContext& pc) {
     const auto& computedAppearance = getComputedAppearance();
     if (computedAppearance.backgroundColor.a == 0 && computedAppearance.borderThickness <= 0) {
         return;
     }
 
-    renderer.fillRoundRect(
+    pc.canvas().fillRoundRect(
         getGlobalBounds(), computedAppearance.borderRadius, computedAppearance.backgroundColor,
         {.color = computedAppearance.borderColor, .thickness = computedAppearance.borderThickness});
 }
 
-void SceneNode::drawContent(IRenderer& /*renderer*/) {}
+void SceneNode::onPaint(PaintContext& /*pc*/) {}
 
 void SceneNode::bind(const std::shared_ptr<UIBinding>& binding) {
     connection_.reset();
