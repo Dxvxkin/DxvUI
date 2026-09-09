@@ -5,6 +5,7 @@
 #include "DxvUI/Scene.h"
 #include "DxvUI/backend/SDLTextEditorView.h"
 #include "DxvUI/interfaces/IClipboard.h"
+#include "DxvUI/interfaces/IRenderer.h"
 #include "DxvUI/interfaces/ITextEngine.h"
 #include "DxvUI/layout/LayoutManager.h"
 #include "DxvUI/style/Colors.h"
@@ -121,17 +122,20 @@ Size TextEdit::onMeasure(const Size& availableSize) {
         {static_cast<float>(measured.width), static_cast<float>(height)}, insets);
 }
 
-void TextEdit::drawContent(IRenderer& renderer) {
-    ITextEngine* engine = nullptr;
-    const IFont* font = nullptr;
-    if (!getEditContext(&engine, &font)) {
+void TextEdit::onPaint(PaintContext& pc) {
+    // The paint context carries the scene's text engine, so painting must not
+    // reach back through the renderer (getEditContext is for the mouse/measure
+    // paths that have no context).
+    const auto& appearance = getComputedAppearance();
+    auto font = pc.text().getFontForFamily(appearance.fontFamily, appearance.fontSize);
+    if (!font) {
         return;
     }
 
     const Rect contentRect = LayoutManager::contentRect(*this, getGlobalBounds());
     TextEditorView::Options options;
-    options.textColor = getComputedAppearance().textColor;
-    options.horizontalAlign = getComputedAppearance().textAlign;
+    options.textColor = appearance.textColor;
+    options.horizontalAlign = appearance.textAlign;
     const bool focused = getCurrentState() == WidgetState::Focused;
     options.showCaret = focused;
     // HTML-конвенция: плейсхолдер виден только пока поле пустое и не в фокусе;
@@ -140,7 +144,7 @@ void TextEdit::drawContent(IRenderer& renderer) {
         options.placeholder = placeholder_;
         options.placeholderColor = Colors::Gray;
     }
-    view_->draw(renderer, *engine, *font, editor_, contentRect, options);
+    view_->draw(pc, *font, editor_, contentRect, options);
 }
 
 bool TextEdit::getEditContext(ITextEngine** engine, const IFont** font) {

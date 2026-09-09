@@ -389,7 +389,7 @@ canvas->fillRoundRect(track, radius, brushes().get("slider.track"));
 | # | Что | Затрагивает | Критерий готовности |
 |---|-----|-------------|---------------------|
 | 0 | ✅ **Баги**: пересечение клипа; константный `drawTexture` + проверка типа; LRU-граница `measures`; тест вложенного клипа | `SDLRenderer`, `SDLTextEngine` | новый тест ловит утечку клипа; `text`-сценарий не растит память |
-| 1 | **PaintContext + ICanvas** адаптером поверх текущего `SDLRenderer` (`CanvasAdapter`); `SceneNode::draw(const PaintContext&)` становится невиртуальным; хуки переименовываются `drawContent → onPaint`, `drawBackground → onPaintBackground`; `ClipGuard` | `SceneNode`, все виджеты (механическая миграция ~6 файлов) | все 300+ тестов зелёные; примеры рисуют идентично |
+| 1 | ✅ **PaintContext + ICanvas** адаптером поверх текущего `SDLRenderer` (`CanvasAdapter`); `SceneNode::draw(const PaintContext&)` становится невиртуальным; хуки переименовываются `drawContent → onPaint`, `drawBackground → onPaintBackground`; `ClipGuard` | `SceneNode`, все виджеты (механическая миграция ~6 файлов) | все 300+ тестов зелёные; примеры рисуют идентично |
 | 2 | **Brush-свертка**: `fillRect/strokeRect/fillRoundRect/...` с `Fill/Stroke`; дефолтный `onPaintBackground` на `Brush`; убрать `setDrawColor` из контракта | `IRenderer→ICanvas`, виджеты | в `ICanvas` ≤ 12 методов; перегрузки удалены |
 | 3 | **TextLayout + глиф-атлас**: `ITextRenderer`, `drawLayout` с выравниванием/усечением; tint вместо запечённого цвета; миграция Label/TextEdit/TextEditorView (вид уходит из `backend/`) | `SDLTextEngine → SdlTextRenderer`, Label, TextEdit | бенчмарк `text`/`micro`: медиана не хуже, память кэша −90% ожидаемо |
 | 4 | **Инвалидация состояний**: `setHovered/Pressed/Focused` через style-дифф; юнит-тест «hover не меняет bounds»; `getString()`-хотспот: Label кэширует строку между Change | `SceneNode`, Label | «hover-storm»-сценарий: relayout-ов 0 при неизменной геометрии |
@@ -405,7 +405,7 @@ layout-а на флоат остаётся вне скоупа (см. §7).
 (текст), он изолирован интерфейсом `ITextRenderer`; 4–5 — распределение
 ответственностей; 6 — чистые оптимизации за фасадом.
 
-### 4.1. Реализовано: этап 0 (этап 1+ — нет)
+### 4.1. Реализовано: этап 0 (этапы 1–2 — см. ниже)
 
 - **Пересечение клипов.** `SDLRenderer::pushClipRect` теперь пересекает новый
   клип с текущим (`SDL_IntersectRect`): SDL сам *заменяет* прямоугольник, из-за
@@ -437,6 +437,46 @@ layout-а на флоат остаётся вне скоупа (см. §7).
 билд + `ctest` + A/B бенчмарк — на машине с vcpkg-окружением.
 
 ---
+
+### 4.2. Реализовано: этап 1 (PaintContext/ICanvas)
+
+- **`interfaces/ICanvas.h`** (новый публичный заголовок, добавлен в зонтичный
+  `DxvUI.h`): `ICanvas` — только живопись (клип, текстуры, явные по цвету
+  примитивы; без clear/present, без состояния draw-color, без курсора и
+  клипборда); `FrameInfo` (пока только `viewport` — тайминг/dpi на этапе 5);
+  `PaintContext` = canvas + text + frame (вместо `ITextRenderer` пока
+  `ITextEngine` — до этапа 3); `ClipGuard` (RAII-пара push/pop клипа).
+  Безцветные stateful-перегрузки (`drawRect(rect)` и т.п.) в контракт канваса
+  не вошли сразу.
+- **`src/backend/CanvasAdapter.h`** (внутренний): адаптер `IRenderer →
+  ICanvas`, форвардит 1:1, без состояния; умирает на этапе 5.
+- **`SceneNode`**: `draw(PaintContext&)` — невиртуальный template-метод
+  (контракт прохода больше нельзя сломать переопределением); сохранён
+  переходный невиртуальный `draw(IRenderer&)` (строит адаптер+контекст) —
+  им пользуются `Scene::draw` и тесты, удаляется на этапе 5. Хуки
+  переименованы: `drawBackground → onPaintBackground`, `drawContent →
+  onPaint`; `SceneNode.h` больше не включает `IRenderer.h` (только
+  forward-declaration для шима). Клип в проходе — через `ClipGuard`.
+- **Виджеты**: `Label`, `Checkbox`, `SliderHorizontal/Vertical`, `TextEdit`
+  мигрированы на `onPaint(PaintContext&)`; `TextEdit::onPaint` берёт движок
+  из `pc.text()` (не через renderer); `SDLTextEditorView::draw` принял
+  `PaintContext` (абстрактный `TextEditorView` — тоже, это публичный API).
+  **`Button.cpp`/контейнеры не изменились** — приёмочный критерий «дифф
+  кнопки пуст» выполнен.
+- **Тесты**: `CountingNode` в SceneTests мигрирован на `onPaint`; вызовы
+  `root->draw(fakeRenderer)` работают через шим без правок.
+- **Проверка в песочнице**: syntax-only по всем TU + запускаемый интеграционный
+  харнесс (реальные TU библиотеки минус SDL-бэкенды, фейки IRenderer/
+  ITextEngine, стабы spdlog/SDL_GetTicks): 39 проверок — геометрия
+  центрирования Label, clipContent push/pop + переполняющийся ребёнок, фон
+  кнопки из темы, чекбокс/слайдер/TextEdit (включая плейсхолдер), culling,
+  семантика ClipGuard, шим `draw(IRenderer&)`. Полный `ctest` — на
+  vcpkg-машине.
+
+Отклонения от плана, зафиксированные здесь: `FrameInfo` введён раньше (viewport
+нужен culling'у с первого дня; этап 5 только расширит поля — не breaking);
+шим `draw(IRenderer&)` оставлен (план предполагал чистую замену — шим
+сохраняет совместимость тестов/хостов и удаляется на этапе 5).
 
 ## 5. Совместимость и риски
 

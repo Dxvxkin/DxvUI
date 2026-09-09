@@ -97,7 +97,7 @@ class TextEdit : public SceneNode {
     void onChange(const UIBinding& binding) override;
 
     Size onMeasure(const Size& availableSize) override;
-    void drawContent(IRenderer& renderer) override;
+    void onPaint(PaintContext& pc) override;
     void onEvent(DxvEvent& event) override;
 
    private:

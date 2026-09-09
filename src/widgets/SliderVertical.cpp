@@ -44,7 +44,7 @@ Size SliderVertical::onMeasure(const Size& availableSize) {
                                      LayoutManager::contentInsets(*this));
 }
 
-void SliderVertical::drawContent(IRenderer& renderer) {
+void SliderVertical::onPaint(PaintContext& pc) {
     const Rect content = LayoutManager::contentRect(*this, getGlobalBounds());
     if (content.width <= 0 || content.height <= 0) {
         return;
@@ -56,7 +56,7 @@ void SliderVertical::drawContent(IRenderer& renderer) {
     const int trackRadius = static_cast<int>(kTrackWidth) / 2;
 
     // Track background.
-    renderer.fillRoundRect(track, trackRadius, Colors::LightGray);
+    pc.canvas().fillRoundRect(track, trackRadius, Colors::LightGray);
 
     // Filled portion from the thumb center down to the track end: the value
     // grows upward, so the fill rises from the bottom.
@@ -64,13 +64,13 @@ void SliderVertical::drawContent(IRenderer& renderer) {
     if (thumbCenter < content.y + content.height) {
         const Rect fill = {track.x, thumbCenter, track.width,
                            content.y + content.height - thumbCenter};
-        renderer.fillRoundRect(fill, trackRadius, Colors::CornflowerBlue);
+        pc.canvas().fillRoundRect(fill, trackRadius, Colors::CornflowerBlue);
     }
 
     // Thumb.
     const int radius = static_cast<int>(kThumbDiameter) / 2;
-    renderer.fillCircle(centerX, thumbCenter, radius, Colors::CornflowerBlue,
-                        {.color = Colors::RoyalBlue, .thickness = 1});
+    pc.canvas().fillCircle(centerX, thumbCenter, radius, Colors::CornflowerBlue,
+                           {.color = Colors::RoyalBlue, .thickness = 1});
 }
 
 int SliderVertical::valueToAxisPos(float value, int trackLen) const {
