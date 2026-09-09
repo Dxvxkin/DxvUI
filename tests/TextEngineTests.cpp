@@ -137,7 +137,7 @@ class FakeRenderer : public IRenderer {
     void pushClipRect(const Rect&) override {}
     void popClipRect() override {}
 
-    void drawTexture(std::shared_ptr<ITexture>&, const Rect&) override {}
+    void drawTexture(const std::shared_ptr<ITexture>&, const Rect&) override {}
 
     void setDrawColor(const Color&) override {}
     Color getDrawColor() const override { return {}; }

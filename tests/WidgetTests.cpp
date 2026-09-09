@@ -158,7 +158,7 @@ class FakeRenderer : public IRenderer {
     ITextEngine& getTextEngine() override { return textEngine; }
     IClipboard& getClipboard() override { return clipboard; }
 
-    void drawTexture(std::shared_ptr<ITexture>&, const Rect&) override {}
+    void drawTexture(const std::shared_ptr<ITexture>&, const Rect&) override {}
 
     void setDrawColor(const Color&) override {}
     Color getDrawColor() const override { return {}; }

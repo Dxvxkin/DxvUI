@@ -193,12 +193,19 @@ if(BUILD_TESTING)
             tests/TextEngineTests.cpp
             tests/TextValidatorTests.cpp
             tests/SDLEventSourceTests.cpp
+            tests/SDLRendererTests.cpp
             tests/SceneTests.cpp
             tests/PopupTests.cpp
             tests/SliderTests.cpp
             tests/ScrollContainerTests.cpp
             tests/UIBindingTests.cpp
             tests/UIContextTests.cpp
+    )
+
+    # Backend tests (SDLRendererTests) reach internal backend headers such as
+    # backend/SDLTexture.h, which the library keeps under src/ (PRIVATE).
+    target_include_directories(DxvUITests PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/src
     )
 
     target_link_libraries(DxvUITests PRIVATE
