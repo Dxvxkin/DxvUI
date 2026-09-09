@@ -8,7 +8,7 @@
 
 namespace DxvUI {
 
-class IRenderer;
+class PaintContext;
 class ITextEngine;
 struct IFont;
 class TextEditor;
@@ -58,16 +58,14 @@ class TextEditorView {
      * ITextEngine::measurePrefix()/lineMetrics() and drawn underneath/around the
      * text. A caret is only drawn when it is visible and no composition is
      * active.
-     * @param renderer The renderer to draw with.
-     * @param engine The text engine to measure/rasterize with.
-     * @param font A font obtained from engine.getFont().
+     * @param pc The paint context to draw and measure with.
+     * @param font A font obtained from pc.text().getFont().
      * @param editor The model to render.
      * @param contentRect The box (after padding) the editor occupies.
      * @param options Presentation options.
      */
-    virtual void draw(IRenderer& renderer, ITextEngine& engine, const IFont& font,
-                      const TextEditor& editor, const Rect& contentRect,
-                      const Options& options) = 0;
+    virtual void draw(PaintContext& pc, const IFont& font, const TextEditor& editor,
+                      const Rect& contentRect, const Options& options) = 0;
 
     /**
      * @brief Maps a click inside the content rect to a caret byte offset.

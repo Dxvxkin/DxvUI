@@ -44,7 +44,7 @@ Size SliderHorizontal::onMeasure(const Size& availableSize) {
                                      LayoutManager::contentInsets(*this));
 }
 
-void SliderHorizontal::drawContent(IRenderer& renderer) {
+void SliderHorizontal::onPaint(PaintContext& pc) {
     const Rect content = LayoutManager::contentRect(*this, getGlobalBounds());
     if (content.width <= 0 || content.height <= 0) {
         return;
@@ -56,19 +56,19 @@ void SliderHorizontal::drawContent(IRenderer& renderer) {
     const int trackRadius = static_cast<int>(kTrackHeight) / 2;
 
     // Track background.
-    renderer.fillRoundRect(track, trackRadius, Colors::LightGray);
+    pc.canvas().fillRoundRect(track, trackRadius, Colors::LightGray);
 
     // Filled portion from the track start to the thumb center.
     const int thumbCenter = content.x + valueToAxisPos(getValue(), content.width);
     if (thumbCenter > content.x) {
         const Rect fill = {content.x, track.y, thumbCenter - content.x, track.height};
-        renderer.fillRoundRect(fill, trackRadius, Colors::CornflowerBlue);
+        pc.canvas().fillRoundRect(fill, trackRadius, Colors::CornflowerBlue);
     }
 
     // Thumb.
     const int radius = static_cast<int>(kThumbDiameter) / 2;
-    renderer.fillCircle(thumbCenter, centerY, radius, Colors::CornflowerBlue,
-                        {.color = Colors::RoyalBlue, .thickness = 1});
+    pc.canvas().fillCircle(thumbCenter, centerY, radius, Colors::CornflowerBlue,
+                           {.color = Colors::RoyalBlue, .thickness = 1});
 }
 
 int SliderHorizontal::valueToAxisPos(float value, int trackLen) const {

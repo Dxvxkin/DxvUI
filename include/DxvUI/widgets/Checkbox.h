@@ -42,7 +42,7 @@ class Checkbox : public SceneNode {
 
     Size onMeasure(const Size& availableSize) override;
     void onArrange(const Rect& finalRect) override;
-    void drawContent(IRenderer& renderer) override;
+    void onPaint(PaintContext& pc) override;
     void onEvent(DxvEvent& event) override;
 
    private:

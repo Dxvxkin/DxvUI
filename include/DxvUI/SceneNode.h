@@ -11,7 +11,7 @@
 #include "DxvUI/DxvEvent.h"
 #include "DxvUI/UIBinding.h"
 #include "DxvUI/core.h"
-#include "DxvUI/interfaces/IRenderer.h"
+#include "DxvUI/interfaces/ICanvas.h"
 #include "DxvUI/layout/LayoutData.h"
 #include "DxvUI/style/Style.h"
 
@@ -21,6 +21,7 @@ class Scene;
 class EventManager;
 class StyleManager;
 class LayoutManager;
+class IRenderer;
 
 /**
  * @class SceneNode
@@ -557,12 +558,25 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
      * @brief Draws the node and its children.
      *
      * Template method: it checks visibility and viewport intersection, then
-     * calls the drawBackground() and drawContent() hooks, then draws the
-     * children. Subclasses that only need a styled background/border or simple
-     * content should override the protected hooks instead of this method.
-     * @param renderer The renderer to use for drawing operations.
+     * calls the onPaintBackground() and onPaint() hooks, then draws the
+     * children. Non-virtual, so a subclass cannot break the pass contract;
+     * override the protected hooks instead of this method.
+     * @param pc The paint context (canvas, text engine, frame state).
      */
-    virtual void draw(IRenderer& renderer);
+    void draw(PaintContext& pc);
+
+    /**
+     * @brief Convenience wrapper that builds the paint context over a renderer.
+     *
+     * Wraps @p renderer into a CanvasAdapter (a painting-only ICanvas view of
+     * the renderer), fills the frame info from the renderer's viewport and
+     * runs draw(PaintContext&). Transitional entry point of the rendering
+     * refactoring (stage 1): kept for callers that hold an IRenderer directly
+     * (hosts drawing a subtree, tests); it goes away at stage 5, when backends
+     * implement ICanvas themselves.
+     * @param renderer The renderer to draw with.
+     */
+    void draw(IRenderer& renderer);
 
     ///@}
 
@@ -667,12 +681,13 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
      * @brief Draws the node's background and border.
      *
      * Default implementation fills a rounded rect built from the node's
-     * computed appearance (borderRadius, backgroundColor, border). It is a
-     * no-op when the background is transparent and the border is zero-thick.
-     * Override for widgets with a fully custom background.
-     * @param renderer The renderer to use for drawing operations.
+     * computed appearance (borderRadius, backgroundColor, border) through the
+     * context's canvas. It is a no-op when the background is transparent and
+     * the border is zero-thick. Override for widgets with a fully custom
+     * background.
+     * @param pc The paint context to draw with.
      */
-    virtual void drawBackground(IRenderer& renderer);
+    virtual void onPaintBackground(PaintContext& pc);
 
     /**
      * @brief Draws the node's content, on top of the background and before
@@ -680,9 +695,9 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
      *
      * Default implementation is a no-op. Override to render widget-specific
      * content (e.g. Label draws its text texture here).
-     * @param renderer The renderer to use for drawing operations.
+     * @param pc The paint context to draw with.
      */
-    virtual void drawContent(IRenderer& renderer);
+    virtual void onPaint(PaintContext& pc);
 
     friend class StyleManager;
     friend class LayoutManager;
@@ -724,7 +739,7 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
 
     // Recursive draw used by the public draw(); carries the viewport rect so
     // the whole tree is culled against it in O(visible) instead of O(all nodes).
-    void drawImpl(IRenderer& renderer, const Rect& viewportRect);
+    void drawImpl(PaintContext& pc, const Rect& viewportRect);
 
     std::weak_ptr<Scene> scene;
     bool isHovered = false;

@@ -14,6 +14,7 @@
 #include "core.h"
 
 // Interfaces
+#include "interfaces/ICanvas.h"
 #include "interfaces/IClipboard.h"
 #include "interfaces/IEventSource.h"
 #include "interfaces/IRenderer.h"

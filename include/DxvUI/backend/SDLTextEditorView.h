@@ -10,9 +10,10 @@ namespace DxvUI {
 /**
  * @brief Default TextEditorView implementation.
  *
- * All drawing goes through the backend-neutral IRenderer/ITextEngine pair; the
- * only SDL dependency is the caret blink timer (SDL_GetTicks), which has no
- * portable equivalent in the interfaces. The instance keeps no per-editor
+ * All drawing goes through the backend-neutral PaintContext (canvas + text
+ * engine); the only SDL dependency is the caret blink timer (SDL_GetTicks),
+ * which has no portable equivalent in the interfaces (it moves into FrameInfo
+ * at stage 5 of the rendering refactoring). The instance keeps no per-editor
  * state, so a single view can be shared by every editor in a scene.
  */
 class SDLTextEditorView : public TextEditorView {
@@ -23,7 +24,7 @@ class SDLTextEditorView : public TextEditorView {
     SDLTextEditorView(const SDLTextEditorView&) = delete;
     SDLTextEditorView& operator=(const SDLTextEditorView&) = delete;
 
-    void draw(IRenderer& renderer, ITextEngine& engine, const IFont& font, const TextEditor& editor,
+    void draw(PaintContext& pc, const IFont& font, const TextEditor& editor,
               const Rect& contentRect, const Options& options) override;
 
     size_t hitTestAt(ITextEngine& engine, const IFont& font, const TextEditor& editor,

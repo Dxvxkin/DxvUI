@@ -112,10 +112,10 @@ class FakeRenderer : public IRenderer {
 };
 
 // Counts draw invocations so tests can observe whether Scene::draw reached the
-// tree. Counts in drawContent() — the virtual hook invoked on every node that
+// tree. Counts in onPaint() — the virtual hook invoked on every node that
 // passed visibility and viewport culling — because the recursive traversal
-// (drawImpl) is non-virtual and calls child->drawImpl() directly, bypassing an
-// override of the public draw(). Inherits AbsoluteContainer so children are
+// (drawImpl) is non-virtual and calls child->drawImpl() directly, bypassing
+// the public draw() entry points. Inherits AbsoluteContainer so children are
 // actually arranged and reachable by the draw traversal.
 class CountingNode : public AbsoluteContainer {
    public:
@@ -123,9 +123,9 @@ class CountingNode : public AbsoluteContainer {
     int drawCalls = 0;
 
    protected:
-    void drawContent(IRenderer& renderer) override {
+    void onPaint(PaintContext& pc) override {
         ++drawCalls;
-        AbsoluteContainer::drawContent(renderer);
+        AbsoluteContainer::onPaint(pc);
     }
 };
 
