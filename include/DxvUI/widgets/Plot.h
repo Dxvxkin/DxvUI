@@ -110,7 +110,7 @@ class Plot : public SceneNode {
     explicit Plot(std::string id);
 
     Size onMeasure(const Size& availableSize) override;
-    void drawContent(IRenderer& renderer) override;
+    void onPaint(PaintContext& pc) override;
 
    private:
     struct Series {
@@ -156,7 +156,7 @@ class Plot : public SceneNode {
 
     // Draws the axis tick labels in the left/bottom padding gutters (requires
     // at least 8px of the corresponding inset, otherwise the axis is skipped).
-    void drawAxisLabels(IRenderer& renderer, const Rect& content, const TickInfo& xTicks,
+    void drawAxisLabels(PaintContext& pc, const Rect& content, const TickInfo& xTicks,
                         const TickInfo& yTicks) const;
 
     std::vector<Series> series_;
