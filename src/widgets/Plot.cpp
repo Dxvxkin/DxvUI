@@ -7,7 +7,8 @@
 #include <string>
 #include <utility>
 
-#include "DxvUI/interfaces/IRenderer.h"
+#include "DxvUI/interfaces/ICanvas.h"
+#include "DxvUI/interfaces/ITextEngine.h"
 #include "DxvUI/layout/LayoutManager.h"
 #include "DxvUI/style/Theme.h"
 
@@ -385,13 +386,13 @@ std::vector<PointI> Plot::buildPolyline(const Series& series, const Rect& conten
     return poly;
 }
 
-void Plot::drawAxisLabels(IRenderer& renderer, const Rect& content, const TickInfo& xTicks,
+void Plot::drawAxisLabels(PaintContext& pc, const Rect& content, const TickInfo& xTicks,
                           const TickInfo& yTicks) const {
     if (!showAxisLabels_ || (xTicks.count == 0 && yTicks.count == 0)) {
         return;
     }
     const auto& appearance = getComputedAppearance();
-    auto& engine = renderer.getTextEngine();
+    auto& engine = pc.text();
     auto font = engine.getFontForFamily(appearance.fontFamily, appearance.fontSize);
     if (!font) {
         return;
@@ -412,7 +413,7 @@ void Plot::drawAxisLabels(IRenderer& renderer, const Rect& content, const TickIn
         if (x + w <= box.x || x >= box.x + box.width || y + h <= box.y || y >= box.y + box.height) {
             return;
         }
-        renderer.drawTexture(texture, {x, y, w, h});
+        pc.canvas().drawTexture(texture, {x, y, w, h});
     };
 
     // Y-axis labels: right-aligned into the left padding gutter.
@@ -444,7 +445,7 @@ void Plot::drawAxisLabels(IRenderer& renderer, const Rect& content, const TickIn
     }
 }
 
-void Plot::drawContent(IRenderer& renderer) {
+void Plot::onPaint(PaintContext& pc) {
     const Rect content = LayoutManager::contentRect(*this, getGlobalBounds());
     if (content.width <= 0 || content.height <= 0) {
         return;
@@ -460,27 +461,27 @@ void Plot::drawContent(IRenderer& renderer) {
     const TickInfo xTicks = computeTicks(xMin_, xMax_, targetX);
     const TickInfo yTicks = computeTicks(yMin_, yMax_, targetY);
 
-    renderer.pushClipRect(content);
+    pc.canvas().pushClipRect(content);
 
     if (showGrid_) {
         for (int i = 0; i < xTicks.count; ++i) {
             const int vx = toPixelX(xTicks.first + i * xTicks.step, content);
-            renderer.drawLine(vx, content.y, vx, content.y + content.height - 1, gridColor_);
+            pc.canvas().drawLine(vx, content.y, vx, content.y + content.height - 1, gridColor_);
         }
         for (int i = 0; i < yTicks.count; ++i) {
             const int hy = toPixelY(yTicks.first + i * yTicks.step, content);
-            renderer.drawLine(content.x, hy, content.x + content.width - 1, hy, gridColor_);
+            pc.canvas().drawLine(content.x, hy, content.x + content.width - 1, hy, gridColor_);
         }
     }
 
     // Zero-threshold axes, drawn only when inside the current world bounds.
     if (xMin_ < 0.0f && xMax_ > 0.0f) {
         const int x0 = toPixelX(0.0f, content);
-        renderer.drawLine(x0, content.y, x0, content.y + content.height - 1, axisColor_);
+        pc.canvas().drawLine(x0, content.y, x0, content.y + content.height - 1, axisColor_);
     }
     if (yMin_ < 0.0f && yMax_ > 0.0f) {
         const int y0 = toPixelY(0.0f, content);
-        renderer.drawLine(content.x, y0, content.x + content.width - 1, y0, axisColor_);
+        pc.canvas().drawLine(content.x, y0, content.x + content.width - 1, y0, axisColor_);
     }
 
     for (const auto& series : series_) {
@@ -495,16 +496,16 @@ void Plot::drawContent(IRenderer& renderer) {
             std::vector<PointI> polygon = poly;
             polygon.push_back({content.x + content.width, content.y + content.height});
             polygon.push_back({content.x, content.y + content.height});
-            renderer.fillPolygon(polygon,
-                                 Color(series.color.r, series.color.g, series.color.b, kAreaAlpha));
+            pc.canvas().fillPolygon(polygon,
+                                    Color(series.color.r, series.color.g, series.color.b, kAreaAlpha));
         }
         for (size_t i = 0; i + 1 < poly.size(); ++i) {
-            renderer.drawLine(poly[i].x, poly[i].y, poly[i + 1].x, poly[i + 1].y, series.color);
+            pc.canvas().drawLine(poly[i].x, poly[i].y, poly[i + 1].x, poly[i + 1].y, series.color);
         }
     }
 
-    renderer.popClipRect();
-    drawAxisLabels(renderer, content, xTicks, yTicks);
+    pc.canvas().popClipRect();
+    drawAxisLabels(pc, content, xTicks, yTicks);
 }
 
 }  // namespace DxvUI
