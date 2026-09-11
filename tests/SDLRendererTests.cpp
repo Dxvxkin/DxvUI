@@ -16,6 +16,7 @@
 // Internal to the backend (not installed): the test wraps a raw SDL_Texture
 // the same way the text engine does. Reached through the src/ include path
 // added for the tests target in CMakeLists.txt.
+#include "backend/CanvasAdapter.h"
 #include "backend/SDLTexture.h"
 
 using namespace DxvUI;
@@ -64,9 +65,10 @@ class SDLRendererTest : public ::testing::Test {
     Uint32 pixelAt(int x, int y) {
         SDL_RenderFlush(sdlRenderer);
         Uint32 pixel = 0;
-        std::memcpy(&pixel, static_cast<const Uint8*>(surface->pixels) +
-                                y * surface->pitch + x * sizeof(Uint32),
-                    sizeof(Uint32));
+        std::memcpy(
+            &pixel,
+            static_cast<const Uint8*>(surface->pixels) + y * surface->pitch + x * sizeof(Uint32),
+            sizeof(Uint32));
         return pixel;
     }
 
@@ -87,8 +89,8 @@ class SDLRendererTest : public ::testing::Test {
             return ::testing::AssertionSuccess();
         }
         return ::testing::AssertionFailure()
-               << "clip is {" << actual.x << "," << actual.y << "," << actual.w << ","
-               << actual.h << "}, expected {" << x << "," << y << "," << w << "," << h << "}";
+               << "clip is {" << actual.x << "," << actual.y << "," << actual.w << "," << actual.h
+               << "}, expected {" << x << "," << y << "," << w << "," << h << "}";
     }
 
     SDL_Surface* surface = nullptr;
@@ -205,8 +207,8 @@ TEST_F(SDLRendererTest, DrawTextureRejectsForeignTextureImplementation) {
 TEST_F(SDLRendererTest, DrawTextureRendersTexturePixels) {
     // A texture created against the same SDL renderer, wrapped in the
     // backend's own SDLTexture (the same wrapping the text engine performs).
-    SDL_Texture* raw = SDL_CreateTexture(sdlRenderer, SDL_PIXELFORMAT_RGBA32,
-                                         SDL_TEXTUREACCESS_STATIC, 4, 4);
+    SDL_Texture* raw =
+        SDL_CreateTexture(sdlRenderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, 4, 4);
     ASSERT_NE(raw, nullptr);
     std::array<Uint32, 16> pixels{};
     pixels.fill(mapColor(Colors::Red));
@@ -247,6 +249,56 @@ TEST_F(SDLRendererTest, TextEngineCachesAreLruBounded) {
     engine.clearCaches();
     EXPECT_EQ(engine.getMeasureCacheCount(), 0u);
     EXPECT_EQ(engine.getTextureCacheCount(), 0u);
+}
+// --- Stage 2: the canvas paints through the rewritten backend paths --------
+
+// The Brush-based canvas must reach the SDL paths that stage 2 rewrote:
+// rounded rects through SDL_RenderGeometry (fill + border ring), circles and
+// arcs through the sdl2-gfx rasterizers, thick lines through thickLineRGBA.
+TEST_F(SDLRendererTest, CanvasBrushPaintsRoundRectFillAndBorder) {
+    const Uint32 white = mapColor(Colors::White);
+    const Uint32 red = mapColor(Colors::Red);
+    const Uint32 blue = mapColor(Colors::Blue);
+
+    renderer->fillRect({0, 0, kSurfaceWidth, kSurfaceHeight}, Colors::White);
+
+    CanvasAdapter canvas(*renderer);
+    canvas.fillRoundRect(Rect{20, 20, 60, 40}, 8.0f,
+                         Brush::filledAndStroked(Colors::Red, Stroke{Colors::Blue, 2.0f}));
+
+    EXPECT_EQ(pixelAt(50, 40), red);    // interior is filled
+    EXPECT_EQ(pixelAt(20, 40), blue);   // straight edge carries the border
+    EXPECT_EQ(pixelAt(21, 40), blue);   // ... two pixels thick
+    EXPECT_EQ(pixelAt(20, 20), white);  // the rounded corner is cut away
+}
+
+TEST_F(SDLRendererTest, CanvasBrushPaintsThickLineCircleAndArc) {
+    const Uint32 white = mapColor(Colors::White);
+    const Uint32 red = mapColor(Colors::Red);
+    const Uint32 green = mapColor(Colors::Green);
+    const Uint32 blue = mapColor(Colors::Blue);
+
+    renderer->fillRect({0, 0, kSurfaceWidth, kSurfaceHeight}, Colors::White);
+
+    CanvasAdapter canvas(*renderer);
+
+    // Thick line: a 4px stroke centred on y=10 must cover the neighbouring rows.
+    canvas.drawLine(PointI(10, 10), PointI(90, 10), Stroke{Colors::Green, 4.0f});
+    EXPECT_EQ(pixelAt(50, 10), green);
+    EXPECT_EQ(pixelAt(50, 9), green);
+
+    // Filled circle with a border.
+    canvas.fillCircle(PointI(120, 40), 12.0f,
+                      Brush::filledAndStroked(Colors::Red, Stroke{Colors::Blue, 1.0f}));
+    EXPECT_EQ(pixelAt(120, 40), red);
+    EXPECT_NE(pixelAt(120, 53), red);  // outside the radius stays background
+
+    // Arc: the 0..90 degrees stroke starts at the 0-degree endpoint (80, 100)
+    // and sweeps down; the sdl2-gfx rasterizer covers the pixel right after it.
+    canvas.strokeArc(PointI(60, 100), 20.0f, 0.0f, 90.0f, Stroke{Colors::Blue, 2.0f});
+    const bool arcPainted =
+        pixelAt(79, 101) == blue || pixelAt(80, 101) == blue || pixelAt(80, 100) == blue;
+    EXPECT_TRUE(arcPainted) << "no arc pixel found near the 0-degree endpoint";
 }
 
 }  // namespace

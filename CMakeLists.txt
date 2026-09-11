@@ -184,6 +184,7 @@ if(BUILD_TESTING)
     find_package(GTest REQUIRED)
 
     add_executable(DxvUITests
+            tests/CanvasBrushTests.cpp
             tests/CheckboxTests.cpp
             tests/ColorTests.cpp
             tests/EventManagerTests.cpp
