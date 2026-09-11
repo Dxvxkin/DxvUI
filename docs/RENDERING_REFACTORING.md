@@ -390,7 +390,7 @@ canvas->fillRoundRect(track, radius, brushes().get("slider.track"));
 |---|-----|-------------|---------------------|
 | 0 | ✅ **Баги**: пересечение клипа; константный `drawTexture` + проверка типа; LRU-граница `measures`; тест вложенного клипа | `SDLRenderer`, `SDLTextEngine` | новый тест ловит утечку клипа; `text`-сценарий не растит память |
 | 1 | ✅ **PaintContext + ICanvas** адаптером поверх текущего `SDLRenderer` (`CanvasAdapter`); `SceneNode::draw(const PaintContext&)` становится невиртуальным; хуки переименовываются `drawContent → onPaint`, `drawBackground → onPaintBackground`; `ClipGuard` | `SceneNode`, все виджеты (механическая миграция ~6 файлов) | все 300+ тестов зелёные; примеры рисуют идентично |
-| 2 | **Brush-свертка**: `fillRect/strokeRect/fillRoundRect/...` с `Fill/Stroke`; дефолтный `onPaintBackground` на `Brush`; убрать `setDrawColor` из контракта | `IRenderer→ICanvas`, виджеты | в `ICanvas` ≤ 12 методов; перегрузки удалены |
+| 2 | ✅ **Brush-свертка**: `fillRect/strokeRect/fillRoundRect/...` с `Fill/Stroke`; дефолтный `onPaintBackground` на `Brush`; убрать `setDrawColor` из контракта | `IRenderer→ICanvas`, виджеты | в `ICanvas` ≤ 12 методов; перегрузки удалены |
 | 3 | **TextLayout + глиф-атлас**: `ITextRenderer`, `drawLayout` с выравниванием/усечением; tint вместо запечённого цвета; миграция Label/TextEdit/TextEditorView (вид уходит из `backend/`) | `SDLTextEngine → SdlTextRenderer`, Label, TextEdit | бенчмарк `text`/`micro`: медиана не хуже, память кэша −90% ожидаемо |
 | 4 | **Инвалидация состояний**: `setHovered/Pressed/Focused` через style-дифф; юнит-тест «hover не меняет bounds»; `getString()`-хотспот: Label кэширует строку между Change | `SceneNode`, Label | «hover-storm»-сценарий: relayout-ов 0 при неизменной геометрии |
 | 5 | **Разделение бэкенда**: `IRenderBackend` + `IPlatformServices`; `FrameInfo` сквозь `Scene::draw`; миграция `EventManager` (курсор) | Scene, EventManager, examples | `ICanvas` не знает про окно/курсор/клипборд |
@@ -478,6 +478,59 @@ layout-а на флоат остаётся вне скоупа (см. §7).
 шим `draw(IRenderer&)` оставлен (план предполагал чистую замену — шим
 сохраняет совместимость тестов/хостов и удаляется на этапе 5).
 
+### 4.3. Реализовано: этап 2 (Brush-свёртка + float-канвас)
+
+- **`style/Brush.h`** (новый публичный заголовок, добавлен в зонтирующий
+  `DxvUI.h`): `Fill` (сплошная заливка), `Stroke` (цвет + толщина в пикселях,
+  float), `Brush` (optional fill + optional stroke) с именованными
+  конструкторами `filled/stroked/filledAndStroked`; пустой `Brush` — «не
+  рисовать». Расширять живопись (градиент, тень, opacity) теперь следует здесь,
+  а не перегрузками интерфейса.
+- **`ICanvas` — 10 методов вместо ~20** (`pushClip/popClip`, `drawTexture`,
+  `fillRect(RectF, Fill)`, `strokeRect(RectF, Stroke)`,
+  `fillRoundRect(RectF, radius, Brush)`, `fillCircle(PointF, radius, Brush)`,
+  `strokeArc(PointF, r, a0, a1, Stroke)`, `fillPolygon(span<const PointF>, Fill)`,
+  `drawLine(PointF, PointF, Stroke)`). Состояние рисования и безцветные
+  перегрузки в контракт не входят; безцветных перегрузок больше нет нигде.
+- **Канвас стал флоатным**: `RectF`/`PointF` (в `core.h`, рядом с `Rect`/
+  `PointI`) с неявным расширением из layout-типов (точно для всех int-пикселей)
+  и `rounded()` для перехода к целочисленному бэкенду; края прямоугольника
+  округляются независимо (`x`/`right()`, `y`/`bottom()`), размер вырожденного
+  прямоугольника клампится в 0. Layout остался целочисленным — конверсия только
+  на границе paint→backend, как и планировалось.
+- **`CanvasAdapter`** переводит `Brush` в явные перегрузки бэкенда: fill-only →
+  заливка, stroke-only → контур (`drawRoundRect`/`drawCircle` с `Border`),
+  fill+stroke → комбинированный путь (у rect/circle он есть с этапа 0), плюс
+  округление геометрии и толщины. Пустой `Brush` и полигон из <3 точек —
+  no-op.
+- **`IRenderer` почищен**: удалены `setDrawColor`/`getDrawColor` и все
+  зависевшие от них безцветные перегрузки (draw/fill x rect/circle/arc/
+  roundRect/polygon) — остались только явные цветовые/бордерные пути, которые
+  реально использует адаптер (12 примитивов вместо 24+); `drawLine` получил
+  толщину (`SDL_RenderDrawLine` для 1px, `thickLineRGBA` из sdl2-gfx для
+  широких линий). `SDLRenderer` держит «текущий цвет» только как приватный
+  помощник `setSDLDrawColor` для тех вызовов SDL, что не принимают цвет.
+- **Виджеты**: дефолтный `SceneNode::onPaintBackground` собирает `Brush` из
+  `ComputedAppearanceStyle` (fill — если фон не прозрачен, stroke — если есть
+  рамка); `Checkbox`, `SliderHorizontal/Vertical`, `Label`, `Plot` и
+  `SDLTextEditorView` мигрированы на Brush/float-геометрию. `Plot` заодно
+  переведён с ручного push/pop клипа на `ClipGuard`, а полилиния строится в
+  `std::vector<PointF>` (обрезка по-прежнему в целых пикселях).
+- **Тесты**: новый `tests/CanvasBrushTests.cpp` — Brush-конструкторы, float→
+  pixel округление (`RectF`/`PointF`), выбор пути адаптером для каждой комбинации
+  fill/stroke (rect/roundRect/circle), no-op пустого Brush и короткого полигона,
+  толщина линий и кламп, проброс текстур и клипа, парность `ClipGuard`, а также
+  интеграция «стиль → computed appearance → Brush → вызов бэкенда» для
+  дефолтного фона. Три тестовых фейка `IRenderer` урезаны до нового контракта.
+
+Отклонения от плана, зафиксированные здесь: `ClipToken` из §3.1 не вводился —
+`ClipGuard` (RAII над `pushClip`/`popClip`) уже закрывает балансировку стека, а
+токен имеет смысл только вместе с нетривиальным канвасом. `TextureDraw`
+(srcRect/tint/flip/alpha) отложен до этапа 3, где его требует глиф-атлас:
+сейчас у `drawTexture` прежняя сигнатура, только с `RectF`. `strokeCircle` и
+`strokePolygon` не добавлены — их выражает `Brush`/`drawLine`, и в репозитории
+нет потребителей.
+
 ## 5. Совместимость и риски
 
 - **Публичный API ломается** (`draw`, `IRenderer`): это major-версия пакета
@@ -512,11 +565,12 @@ layout-а на флоат остаётся вне скоупа (см. §7).
 
 ## 7. Открытые вопросы (зафиксировать перед стартом)
 
-1. Имена: `ICanvas` vs `IPainter`; `onPaint` vs сохранить `drawContent`.
+1. ✅ Решено (этап 1): `ICanvas` + `onPaint`/`onPaintBackground`.
 2. `TextureRef` — value-дескриптор или `shared_ptr<ITexture>` с type-тегом?
+   (отложено до этапа 3 вместе с `TextureDraw`.)
 3. Глиф-атлас: один атлас на шрифт или глобальный с аллокатором страниц?
-4. Вводить ли `RectF` в layout сразу (полная миграция) или только в paint
-   (рекомендуется — только в paint).
+4. ✅ Решено (этап 2): `RectF`/`PointF` только в paint, layout остаётся
+   целочисленным; конверсия — на границе paint→backend через `rounded()`.
 5. Идти ли на HarfBuzz сейчас (шейпинг RTL/лигатур) или отложить
    (рекомендуется отложить: кириллица/латиница считаются TTF-метриками).
 6. Нужен ли headless-канвас (запись PaintOps для тестов/скриншот-тестов) как
