@@ -160,43 +160,20 @@ class FakeRenderer : public IRenderer {
 
     void drawTexture(const std::shared_ptr<ITexture>&, const Rect&) override {}
 
-    void setDrawColor(const Color&) override {}
-    Color getDrawColor() const override { return {}; }
-
-    void drawRect(const Rect&) override {}
-    void fillRect(const Rect&) override {}
-    void drawRect(const Rect&, const Color&) override {}
-    void fillRect(const Rect&, const Color&) override {}
+    // Stage-2 IRenderer keeps only explicitly-colored/bordered primitives, so
+    // the stub shrinks to the paths the canvas actually forwards.
     void drawRect(const Rect&, const Border&) override {}
+    void fillRect(const Rect&, const Color&) override {}
     void fillRect(const Rect&, const Color&, const Border&) override {}
-
-    void drawLine(int, int, int, int) override {}
-    void drawLine(int, int, int, int, const Color&) override {}
-
-    void drawCircle(int, int, int) override {}
-    void fillCircle(int, int, int) override {}
-    void drawCircle(int, int, int, const Color&) override {}
-    void fillCircle(int, int, int, const Color&) override {}
+    void drawLine(int, int, int, int, const Color&, int) override {}
     void drawCircle(int, int, int, const Border&) override {}
+    void fillCircle(int, int, int, const Color&) override {}
     void fillCircle(int, int, int, const Color&, const Border&) override {}
-
-    void drawArc(int, int, int, float, float) override {}
-    void drawArc(int, int, int, float, float, const Color&) override {}
     void drawArc(int, int, int, float, float, const Border&) override {}
-
-    void drawRoundRect(const Rect&, int) override {}
-    void fillRoundRect(const Rect&, int) override {}
-    void drawRoundRect(const Rect&, int, const Color&) override {}
-    void fillRoundRect(const Rect&, int, const Color&) override {}
     void drawRoundRect(const Rect&, int, const Border&) override {}
+    void fillRoundRect(const Rect&, int, const Color&) override {}
     void fillRoundRect(const Rect&, int, const Color&, const Border&) override {}
-
-    void drawPolygon(const std::vector<PointI>&) override {}
-    void fillPolygon(const std::vector<PointI>&) override {}
-    void drawPolygon(const std::vector<PointI>&, const Color&) override {}
     void fillPolygon(const std::vector<PointI>&, const Color&) override {}
-    void drawPolygon(const std::vector<PointI>&, const Border&) override {}
-    void fillPolygon(const std::vector<PointI>&, const Color&, const Border&) override {}
 
     FakeTextEngine textEngine;
 };
