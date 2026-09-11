@@ -104,16 +104,19 @@ void Checkbox::onPaint(PaintContext& pc) {
                           static_cast<int>(kBoxSize)};
 
     pc.canvas().fillRoundRect(
-        boxRect, 2, Colors::White,
-        {.color = appearance.borderColor, .thickness = appearance.borderThickness});
+        boxRect, 2.0f,
+        Brush::filledAndStroked(
+            Colors::White,
+            Stroke{appearance.borderColor, static_cast<float>(appearance.borderThickness)}));
 
     if (isChecked()) {
         // Закрашенный скруглённый квадрат, центрированный в боксе: отступ = 25%
         // размера бокса, залитая часть = 50% — масштабируется вместе с kBoxSize.
         const int inset = static_cast<int>(kBoxSize) / 4;
         const int fillSize = static_cast<int>(kBoxSize) - 2 * inset;
-        pc.canvas().fillRoundRect({boxRect.x + inset, boxRect.y + inset, fillSize, fillSize},
-                                  fillSize / 4, appearance.textColor);
+        pc.canvas().fillRoundRect(Rect{boxRect.x + inset, boxRect.y + inset, fillSize, fillSize},
+                                  static_cast<float>(fillSize) / 4.0f,
+                                  Brush::filled(appearance.textColor));
     }
 }
 

@@ -53,54 +53,34 @@ class SDLRenderer : public IRenderer {
     // Texture Rendering
     void drawTexture(const std::shared_ptr<ITexture>& texture, const Rect& dstRect) override;
 
-    // State Management
-    void setDrawColor(const Color& color) override;
-    Color getDrawColor() const override;
-
-    // Primitives
-    void drawRect(const Rect& rect) override;
-    void fillRect(const Rect& rect) override;
-    void drawRect(const Rect& rect, const Color& color) override;
-    void fillRect(const Rect& rect, const Color& color) override;
+    // Primitives (every call states its own color/border — the renderer keeps
+    // no draw-color state)
     void drawRect(const Rect& rect, const Border& border) override;
+    void fillRect(const Rect& rect, const Color& color) override;
     void fillRect(const Rect& rect, const Color& fillColor, const Border& border) override;
-    void drawLine(int x1, int y1, int x2, int y2) override;
-    void drawLine(int x1, int y1, int x2, int y2, const Color& color) override;
-    void drawCircle(int centerX, int centerY, int radius) override;
-    void fillCircle(int centerX, int centerY, int radius) override;
-    void drawCircle(int centerX, int centerY, int radius, const Color& color) override;
-    void fillCircle(int centerX, int centerY, int radius, const Color& color) override;
+    void drawLine(int x1, int y1, int x2, int y2, const Color& color, int thickness = 1) override;
     void drawCircle(int centerX, int centerY, int radius, const Border& border) override;
+    void fillCircle(int centerX, int centerY, int radius, const Color& color) override;
     void fillCircle(int centerX, int centerY, int radius, const Color& fillColor,
                     const Border& border) override;
-    void drawArc(int centerX, int centerY, int radius, float startAngle, float endAngle) override;
-    void drawArc(int centerX, int centerY, int radius, float startAngle, float endAngle,
-                 const Color& color) override;
     void drawArc(int centerX, int centerY, int radius, float startAngle, float endAngle,
                  const Border& border) override;
-    void drawRoundRect(const Rect& rect, int radius) override;
-    void fillRoundRect(const Rect& rect, int radius) override;
-    void drawRoundRect(const Rect& rect, int radius, const Color& color) override;
-    void fillRoundRect(const Rect& rect, int radius, const Color& color) override;
     void drawRoundRect(const Rect& rect, int radius, const Border& border) override;
+    void fillRoundRect(const Rect& rect, int radius, const Color& color) override;
     void fillRoundRect(const Rect& rect, int radius, const Color& fillColor,
                        const Border& border) override;
-    void drawPolygon(const std::vector<PointI>& points) override;
-    void fillPolygon(const std::vector<PointI>& points) override;
-    void drawPolygon(const std::vector<PointI>& points, const Color& color) override;
     void fillPolygon(const std::vector<PointI>& points, const Color& color) override;
-    void drawPolygon(const std::vector<PointI>& points, const Border& border) override;
-    void fillPolygon(const std::vector<PointI>& points, const Color& fillColor,
-                     const Border& border) override;
 
    private:
     SDL_Cursor* getSystemCursor(CursorType type);
+    // Sets the SDL draw color; the only piece of "current state" the backend
+    // needs internally (SDL drawing functions take no color argument).
+    void setSDLDrawColor(const Color& color);
 
     SDL_Window* window = nullptr;
     SDL_Renderer* renderer = nullptr;
     bool ownsResources = false;
 
-    Color currentColor;
     CursorType currentCursorType = CursorType::Arrow;
 
     // Owns the fonts and rasterized-text textures; cleared before the SDL

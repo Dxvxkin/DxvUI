@@ -350,8 +350,10 @@ bool Plot::clipSegment(int& x1, int& y1, int& x2, int& y2, const Rect& rect) {
     return true;
 }
 
-std::vector<PointI> Plot::buildPolyline(const Series& series, const Rect& content) const {
-    std::vector<PointI> poly;
+std::vector<PointF> Plot::buildPolyline(const Series& series, const Rect& content) const {
+    // Clipping runs on whole pixels (the layout space), the result is handed
+    // to the float canvas: the widening is exact.
+    std::vector<PointF> poly;
     if (series.points.size() < 2) {
         return poly;
     }
@@ -372,10 +374,10 @@ std::vector<PointI> Plot::buildPolyline(const Series& series, const Rect& conten
             int by = cur.y;
             if (clipSegment(ax, ay, bx, by, content)) {
                 if (!run) {
-                    poly.push_back({ax, ay});  // where this visible run enters
+                    poly.push_back(PointF(ax, ay));  // where this visible run enters
                     run = true;
                 }
-                poly.push_back({bx, by});
+                poly.push_back(PointF(bx, by));
             } else {
                 run = false;
             }
@@ -413,7 +415,7 @@ void Plot::drawAxisLabels(PaintContext& pc, const Rect& content, const TickInfo&
         if (x + w <= box.x || x >= box.x + box.width || y + h <= box.y || y >= box.y + box.height) {
             return;
         }
-        pc.canvas().drawTexture(texture, {x, y, w, h});
+        pc.canvas().drawTexture(texture, Rect{x, y, w, h});
     };
 
     // Y-axis labels: right-aligned into the left padding gutter.
@@ -461,50 +463,58 @@ void Plot::onPaint(PaintContext& pc) {
     const TickInfo xTicks = computeTicks(xMin_, xMax_, targetX);
     const TickInfo yTicks = computeTicks(yMin_, yMax_, targetY);
 
-    pc.canvas().pushClipRect(content);
+    // The plot body is clipped to the content box; the guard keeps the clip
+    // balanced across the early `continue`s below.
+    {
+        ClipGuard clip(pc.canvas(), content, true);
 
-    if (showGrid_) {
-        for (int i = 0; i < xTicks.count; ++i) {
-            const int vx = toPixelX(xTicks.first + i * xTicks.step, content);
-            pc.canvas().drawLine(vx, content.y, vx, content.y + content.height - 1, gridColor_);
+        if (showGrid_) {
+            for (int i = 0; i < xTicks.count; ++i) {
+                const int vx = toPixelX(xTicks.first + i * xTicks.step, content);
+                pc.canvas().drawLine(PointF(vx, content.y),
+                                     PointF(vx, content.y + content.height - 1),
+                                     Stroke{gridColor_});
+            }
+            for (int i = 0; i < yTicks.count; ++i) {
+                const int hy = toPixelY(yTicks.first + i * yTicks.step, content);
+                pc.canvas().drawLine(PointF(content.x, hy),
+                                     PointF(content.x + content.width - 1, hy), Stroke{gridColor_});
+            }
         }
-        for (int i = 0; i < yTicks.count; ++i) {
-            const int hy = toPixelY(yTicks.first + i * yTicks.step, content);
-            pc.canvas().drawLine(content.x, hy, content.x + content.width - 1, hy, gridColor_);
+
+        // Zero-threshold axes, drawn only when inside the current world bounds.
+        if (xMin_ < 0.0f && xMax_ > 0.0f) {
+            const int x0 = toPixelX(0.0f, content);
+            pc.canvas().drawLine(PointF(x0, content.y), PointF(x0, content.y + content.height - 1),
+                                 Stroke{axisColor_});
+        }
+        if (yMin_ < 0.0f && yMax_ > 0.0f) {
+            const int y0 = toPixelY(0.0f, content);
+            pc.canvas().drawLine(PointF(content.x, y0), PointF(content.x + content.width - 1, y0),
+                                 Stroke{axisColor_});
+        }
+
+        for (const auto& series : series_) {
+            // Clipped polylines keep giant off-widget coordinates out of both
+            // drawLine and fillPolygon, and provide the polygon skeleton for the
+            // area fill.
+            std::vector<PointF> poly = buildPolyline(series, content);
+            if (poly.size() < 2) {
+                continue;
+            }
+            if (areaEnabled_) {
+                std::vector<PointF> polygon = poly;
+                polygon.push_back(PointF(content.x + content.width, content.y + content.height));
+                polygon.push_back(PointF(content.x, content.y + content.height));
+                pc.canvas().fillPolygon(polygon, Fill{Color(series.color.r, series.color.g,
+                                                            series.color.b, kAreaAlpha)});
+            }
+            for (size_t i = 0; i + 1 < poly.size(); ++i) {
+                pc.canvas().drawLine(poly[i], poly[i + 1], Stroke{series.color});
+            }
         }
     }
 
-    // Zero-threshold axes, drawn only when inside the current world bounds.
-    if (xMin_ < 0.0f && xMax_ > 0.0f) {
-        const int x0 = toPixelX(0.0f, content);
-        pc.canvas().drawLine(x0, content.y, x0, content.y + content.height - 1, axisColor_);
-    }
-    if (yMin_ < 0.0f && yMax_ > 0.0f) {
-        const int y0 = toPixelY(0.0f, content);
-        pc.canvas().drawLine(content.x, y0, content.x + content.width - 1, y0, axisColor_);
-    }
-
-    for (const auto& series : series_) {
-        // Clipped polylines keep giant off-widget coordinates out of both
-        // drawLine and fillPolygon, and provide the polygon skeleton for the
-        // area fill.
-        std::vector<PointI> poly = buildPolyline(series, content);
-        if (poly.size() < 2) {
-            continue;
-        }
-        if (areaEnabled_) {
-            std::vector<PointI> polygon = poly;
-            polygon.push_back({content.x + content.width, content.y + content.height});
-            polygon.push_back({content.x, content.y + content.height});
-            pc.canvas().fillPolygon(polygon,
-                                    Color(series.color.r, series.color.g, series.color.b, kAreaAlpha));
-        }
-        for (size_t i = 0; i + 1 < poly.size(); ++i) {
-            pc.canvas().drawLine(poly[i].x, poly[i].y, poly[i + 1].x, poly[i + 1].y, series.color);
-        }
-    }
-
-    pc.canvas().popClipRect();
     drawAxisLabels(pc, content, xTicks, yTicks);
 }
 

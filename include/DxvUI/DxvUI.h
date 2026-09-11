@@ -59,6 +59,7 @@
 #include "layout/LayoutManager.h"
 
 // Style
+#include "style/Brush.h"
 #include "style/Color.h"
 #include "style/Colors.h"
 #include "style/Style.h"

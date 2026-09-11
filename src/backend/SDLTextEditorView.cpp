@@ -82,7 +82,7 @@ void SDLTextEditorView::draw(PaintContext& pc, const IFont& font, const TextEdit
         if (selRight > selLeft) {
             canvas.fillRect(Rect{textAreaX + selLeft - scrollOffsetX_, textY, selRight - selLeft,
                                  textMetrics.height},
-                              options.selectionColor);
+                            Fill{options.selectionColor});
         }
     }
 
@@ -100,8 +100,8 @@ void SDLTextEditorView::draw(PaintContext& pc, const IFont& font, const TextEdit
     // position the text would occupy. The caret is still drawn while focused.
     if (showPlaceholder) {
         if (auto texture = engine.rasterize(font, options.placeholder, options.placeholderColor)) {
-            canvas.drawTexture(texture, Rect{textAreaX - scrollOffsetX_, textY,
-                                             texture->getWidth(), texture->getHeight()});
+            canvas.drawTexture(texture, Rect{textAreaX - scrollOffsetX_, textY, texture->getWidth(),
+                                             texture->getHeight()});
         }
     }
 
@@ -111,7 +111,8 @@ void SDLTextEditorView::draw(PaintContext& pc, const IFont& font, const TextEdit
             textAreaX - scrollOffsetX_ + engine.measurePrefix(font, text, text.size());
         const int compEnd = compStart + engine.measure(font, composition).width;
         const int underlineY = textY + engine.lineMetrics(font).ascent + 1;
-        canvas.drawLine(compStart, underlineY, compEnd, underlineY, options.compositionColor);
+        canvas.drawLine(PointF(compStart, underlineY), PointF(compEnd, underlineY),
+                        Stroke{options.compositionColor});
         if (auto texture = engine.rasterize(font, composition, options.textColor)) {
             canvas.drawTexture(texture,
                                Rect{compStart, textY, texture->getWidth(), texture->getHeight()});
@@ -120,8 +121,9 @@ void SDLTextEditorView::draw(PaintContext& pc, const IFont& font, const TextEdit
 
     if (options.showCaret && composition.empty() && isCaretVisible()) {
         const int visibleCaretX = textAreaX + caretX - scrollOffsetX_;
-        canvas.drawLine(visibleCaretX, textY, visibleCaretX, textY + textMetrics.height,
-                        options.caretColor);
+        canvas.drawLine(PointF(visibleCaretX, textY),
+                        PointF(visibleCaretX, textY + textMetrics.height),
+                        Stroke{options.caretColor});
     }
 }
 

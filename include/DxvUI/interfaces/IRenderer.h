@@ -11,6 +11,22 @@
 
 namespace DxvUI {
 
+/**
+ * @class IRenderer
+ * @brief Backend contract: frame lifecycle, platform services and drawing.
+ *
+ * Widgets never see this interface — the draw pass paints through the narrow
+ * ICanvas/PaintContext contract, and CanvasAdapter bridges the two until the
+ * stage-5 backend split (docs/RENDERING_REFACTORING.md) turns ICanvas into a
+ * real backend surface. What remains here for host apps is the frame
+ * lifecycle (clear/present), the platform services (text engine, clipboard,
+ * cursor) and the explicitly-colored primitives backends must implement.
+ *
+ * Stage 2 removed the implicit draw-color state (setDrawColor/getDrawColor)
+ * and with it every overload that depended on it: a draw call now always
+ * states its own color or border, so no call site can be affected by whoever
+ * painted before it.
+ */
 class IRenderer {
    public:
     virtual ~IRenderer() = default;
@@ -55,51 +71,34 @@ class IRenderer {
      */
     virtual void drawTexture(const std::shared_ptr<ITexture>& texture, const Rect& dstRect) = 0;
 
-    // State Management
-    virtual void setDrawColor(const Color& color) = 0;
-    virtual Color getDrawColor() const = 0;
-
-    // Primitives
-    virtual void drawRect(const Rect& rect) = 0;
-    virtual void fillRect(const Rect& rect) = 0;
-    virtual void drawRect(const Rect& rect, const Color& color) = 0;
-    virtual void fillRect(const Rect& rect, const Color& color) = 0;
+    // Primitives. Each shape exposes exactly the paths the painting contract
+    // needs: a solid fill, a border-only outline, a fill+border pair and, for
+    // lines, a thickness. The canvas (ICanvas) is the place to add gradients,
+    // tints or opacity — extend Fill/Stroke there, not this overload set.
+    ///@{
     virtual void drawRect(const Rect& rect, const Border& border) = 0;
+    virtual void fillRect(const Rect& rect, const Color& color) = 0;
     virtual void fillRect(const Rect& rect, const Color& fillColor, const Border& border) = 0;
 
-    virtual void drawLine(int x1, int y1, int x2, int y2) = 0;
-    virtual void drawLine(int x1, int y1, int x2, int y2, const Color& color) = 0;
+    /// @param thickness Line width in pixels; 1 is a hairline.
+    virtual void drawLine(int x1, int y1, int x2, int y2, const Color& color,
+                          int thickness = 1) = 0;
 
-    virtual void drawCircle(int centerX, int centerY, int radius) = 0;
-    virtual void fillCircle(int centerX, int centerY, int radius) = 0;
-    virtual void drawCircle(int centerX, int centerY, int radius, const Color& color) = 0;
-    virtual void fillCircle(int centerX, int centerY, int radius, const Color& color) = 0;
     virtual void drawCircle(int centerX, int centerY, int radius, const Border& border) = 0;
+    virtual void fillCircle(int centerX, int centerY, int radius, const Color& color) = 0;
     virtual void fillCircle(int centerX, int centerY, int radius, const Color& fillColor,
                             const Border& border) = 0;
 
-    virtual void drawArc(int centerX, int centerY, int radius, float startAngle,
-                         float endAngle) = 0;
-    virtual void drawArc(int centerX, int centerY, int radius, float startAngle, float endAngle,
-                         const Color& color) = 0;
     virtual void drawArc(int centerX, int centerY, int radius, float startAngle, float endAngle,
                          const Border& border) = 0;
 
-    virtual void drawRoundRect(const Rect& rect, int radius) = 0;
-    virtual void fillRoundRect(const Rect& rect, int radius) = 0;
-    virtual void drawRoundRect(const Rect& rect, int radius, const Color& color) = 0;
-    virtual void fillRoundRect(const Rect& rect, int radius, const Color& color) = 0;
     virtual void drawRoundRect(const Rect& rect, int radius, const Border& border) = 0;
+    virtual void fillRoundRect(const Rect& rect, int radius, const Color& color) = 0;
     virtual void fillRoundRect(const Rect& rect, int radius, const Color& fillColor,
                                const Border& border) = 0;
 
-    virtual void drawPolygon(const std::vector<PointI>& points) = 0;
-    virtual void fillPolygon(const std::vector<PointI>& points) = 0;
-    virtual void drawPolygon(const std::vector<PointI>& points, const Color& color) = 0;
     virtual void fillPolygon(const std::vector<PointI>& points, const Color& color) = 0;
-    virtual void drawPolygon(const std::vector<PointI>& points, const Border& border) = 0;
-    virtual void fillPolygon(const std::vector<PointI>& points, const Color& fillColor,
-                             const Border& border) = 0;
+    ///@}
 };
 
 }  // namespace DxvUI

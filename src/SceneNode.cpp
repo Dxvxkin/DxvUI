@@ -491,9 +491,7 @@ void SceneNode::arrange(const Rect& finalRect) { LayoutManager::arrangeNode(*thi
 
 void SceneNode::onArrange(const Rect& /*finalRect*/) {}
 
-void SceneNode::draw(PaintContext& pc) {
-    drawImpl(pc, pc.frame().viewport);
-}
+void SceneNode::draw(PaintContext& pc) { drawImpl(pc, pc.frame().viewport); }
 
 void SceneNode::draw(IRenderer& renderer) {
     // Transitional entry point (see the header): wrap the renderer into the
@@ -540,9 +538,20 @@ void SceneNode::onPaintBackground(PaintContext& pc) {
         return;
     }
 
-    pc.canvas().fillRoundRect(
-        getGlobalBounds(), computedAppearance.borderRadius, computedAppearance.backgroundColor,
-        {.color = computedAppearance.borderColor, .thickness = computedAppearance.borderThickness});
+    // The computed appearance maps onto one Brush: a fill when the background
+    // is not fully transparent, a stroke when a border is set. Both are absent
+    // only in the early-out above, so the brush below is never empty.
+    Brush brush;
+    if (computedAppearance.backgroundColor.a > 0) {
+        brush.fill = Fill{computedAppearance.backgroundColor};
+    }
+    if (computedAppearance.borderThickness > 0) {
+        brush.stroke = Stroke{computedAppearance.borderColor,
+                              static_cast<float>(computedAppearance.borderThickness)};
+    }
+
+    pc.canvas().fillRoundRect(getGlobalBounds(),
+                              static_cast<float>(computedAppearance.borderRadius), brush);
 }
 
 void SceneNode::onPaint(PaintContext& /*pc*/) {}

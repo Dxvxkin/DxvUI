@@ -1,10 +1,13 @@
 #ifndef DXVUI_CANVASADAPTER_H
 #define DXVUI_CANVASADAPTER_H
 
-// Internal to the library (lives under src/, not installed): bridges the new
+// Internal to the library (lives under src/, not installed): bridges the
 // painting-only ICanvas contract onto the existing IRenderer backends.
 
+#include <algorithm>
+#include <cmath>
 #include <memory>
+#include <span>
 #include <vector>
 
 #include "DxvUI/interfaces/ICanvas.h"
@@ -15,13 +18,16 @@ namespace DxvUI {
 /**
  * @brief Adapts an IRenderer backend to the ICanvas painting contract.
  *
- * Transitional glue of the rendering refactoring (stage 1,
- * docs/RENDERING_REFACTORING.md): the draw pass talks to ICanvas, while the
- * existing backends (SDLRenderer, test fakes) still implement IRenderer. The
- * adapter forwards 1:1 and holds no state, so it is created cheaply per frame
- * on the stack of the draw entry points (SceneNode::draw(IRenderer&)). It
- * disappears at stage 5, when the backend split gives ICanvas its own
- * implementations.
+ * Transitional glue of the rendering refactoring (stage 2,
+ * docs/RENDERING_REFACTORING.md): the draw pass talks float Brush-based
+ * ICanvas, while the existing backends still implement the int-based
+ * IRenderer. The adapter therefore does exactly two things — rounds float
+ * geometry at the backend boundary and translates a Brush into the explicit
+ * renderer overloads (fill + border, fill only or border only).
+ *
+ * It holds no state, so it is created cheaply per frame on the stack of the
+ * draw entry points (SceneNode::draw(IRenderer&)). It disappears at stage 5,
+ * when the backend split gives ICanvas its own implementations.
  */
 class CanvasAdapter final : public ICanvas {
    public:
@@ -31,82 +37,94 @@ class CanvasAdapter final : public ICanvas {
     CanvasAdapter& operator=(const CanvasAdapter&) = delete;
 
     // --- ICanvas ---
-    void pushClipRect(const Rect& rect) override { renderer_.pushClipRect(rect); }
-    void popClipRect() override { renderer_.popClipRect(); }
+    void pushClip(const RectF& rect) override { renderer_.pushClipRect(rect.rounded()); }
+    void popClip() override { renderer_.popClipRect(); }
 
-    void drawTexture(const std::shared_ptr<ITexture>& texture, const Rect& dstRect) override {
-        renderer_.drawTexture(texture, dstRect);
-    }
-
-    void drawRect(const Rect& rect, const Color& color) override {
-        renderer_.drawRect(rect, color);
-    }
-    void fillRect(const Rect& rect, const Color& color) override {
-        renderer_.fillRect(rect, color);
-    }
-    void drawRect(const Rect& rect, const Border& border) override {
-        renderer_.drawRect(rect, border);
-    }
-    void fillRect(const Rect& rect, const Color& fillColor, const Border& border) override {
-        renderer_.fillRect(rect, fillColor, border);
+    void drawTexture(const std::shared_ptr<ITexture>& texture, const RectF& dstRect) override {
+        renderer_.drawTexture(texture, dstRect.rounded());
     }
 
-    void drawLine(int x1, int y1, int x2, int y2, const Color& color) override {
-        renderer_.drawLine(x1, y1, x2, y2, color);
+    void fillRect(const RectF& rect, const Fill& fill) override {
+        renderer_.fillRect(rect.rounded(), fill.color);
     }
 
-    void drawCircle(int centerX, int centerY, int radius, const Color& color) override {
-        renderer_.drawCircle(centerX, centerY, radius, color);
-    }
-    void fillCircle(int centerX, int centerY, int radius, const Color& color) override {
-        renderer_.fillCircle(centerX, centerY, radius, color);
-    }
-    void drawCircle(int centerX, int centerY, int radius, const Border& border) override {
-        renderer_.drawCircle(centerX, centerY, radius, border);
-    }
-    void fillCircle(int centerX, int centerY, int radius, const Color& fillColor,
-                    const Border& border) override {
-        renderer_.fillCircle(centerX, centerY, radius, fillColor, border);
+    void strokeRect(const RectF& rect, const Stroke& stroke) override {
+        renderer_.drawRect(rect.rounded(), toBorder(stroke));
     }
 
-    void drawArc(int centerX, int centerY, int radius, float startAngle, float endAngle,
-                 const Color& color) override {
-        renderer_.drawArc(centerX, centerY, radius, startAngle, endAngle, color);
-    }
-    void drawArc(int centerX, int centerY, int radius, float startAngle, float endAngle,
-                 const Border& border) override {
-        renderer_.drawArc(centerX, centerY, radius, startAngle, endAngle, border);
+    void fillRoundRect(const RectF& rect, float radius, const Brush& brush) override {
+        if (brush.isEmpty()) {
+            return;
+        }
+        const Rect pixelRect = rect.rounded();
+        const int pixelRadius = toPixels(radius, /*minimum=*/0);
+
+        if (brush.fill && brush.stroke) {
+            renderer_.fillRoundRect(pixelRect, pixelRadius, brush.fill->color,
+                                    toBorder(*brush.stroke));
+        } else if (brush.fill) {
+            renderer_.fillRoundRect(pixelRect, pixelRadius, brush.fill->color);
+        } else {
+            renderer_.drawRoundRect(pixelRect, pixelRadius, toBorder(*brush.stroke));
+        }
     }
 
-    void drawRoundRect(const Rect& rect, int radius, const Color& color) override {
-        renderer_.drawRoundRect(rect, radius, color);
-    }
-    void fillRoundRect(const Rect& rect, int radius, const Color& color) override {
-        renderer_.fillRoundRect(rect, radius, color);
-    }
-    void drawRoundRect(const Rect& rect, int radius, const Border& border) override {
-        renderer_.drawRoundRect(rect, radius, border);
-    }
-    void fillRoundRect(const Rect& rect, int radius, const Color& fillColor,
-                       const Border& border) override {
-        renderer_.fillRoundRect(rect, radius, fillColor, border);
+    void fillCircle(const PointF& center, float radius, const Brush& brush) override {
+        if (brush.isEmpty()) {
+            return;
+        }
+        const PointI pixelCenter = center.rounded();
+        const int pixelRadius = toPixels(radius, /*minimum=*/0);
+
+        if (brush.fill && brush.stroke) {
+            renderer_.fillCircle(pixelCenter.x, pixelCenter.y, pixelRadius, brush.fill->color,
+                                 toBorder(*brush.stroke));
+        } else if (brush.fill) {
+            renderer_.fillCircle(pixelCenter.x, pixelCenter.y, pixelRadius, brush.fill->color);
+        } else {
+            renderer_.drawCircle(pixelCenter.x, pixelCenter.y, pixelRadius,
+                                 toBorder(*brush.stroke));
+        }
     }
 
-    void drawPolygon(const std::vector<PointI>& points, const Color& color) override {
-        renderer_.drawPolygon(points, color);
+    void strokeArc(const PointF& center, float radius, float startAngle, float endAngle,
+                   const Stroke& stroke) override {
+        const PointI pixelCenter = center.rounded();
+        renderer_.drawArc(pixelCenter.x, pixelCenter.y, toPixels(radius, /*minimum=*/0), startAngle,
+                          endAngle, toBorder(stroke));
     }
-    void fillPolygon(const std::vector<PointI>& points, const Color& color) override {
-        renderer_.fillPolygon(points, color);
+
+    void fillPolygon(std::span<const PointF> points, const Fill& fill) override {
+        // A polygon needs three vertices; anything shorter paints nothing.
+        if (points.size() < 3) {
+            return;
+        }
+        std::vector<PointI> pixelPoints;
+        pixelPoints.reserve(points.size());
+        for (const PointF& point : points) {
+            pixelPoints.push_back(point.rounded());
+        }
+        renderer_.fillPolygon(pixelPoints, fill.color);
     }
-    void drawPolygon(const std::vector<PointI>& points, const Border& border) override {
-        renderer_.drawPolygon(points, border);
-    }
-    void fillPolygon(const std::vector<PointI>& points, const Color& fillColor,
-                     const Border& border) override {
-        renderer_.fillPolygon(points, fillColor, border);
+
+    void drawLine(const PointF& from, const PointF& to, const Stroke& stroke) override {
+        const PointI pixelFrom = from.rounded();
+        const PointI pixelTo = to.rounded();
+        renderer_.drawLine(pixelFrom.x, pixelFrom.y, pixelTo.x, pixelTo.y, stroke.color,
+                           toPixels(stroke.thickness, /*minimum=*/1));
     }
 
    private:
+    /// @brief Converts a float stroke into the backend's int-based border.
+    static Border toBorder(const Stroke& stroke) {
+        return {stroke.color, toPixels(stroke.thickness, /*minimum=*/1)};
+    }
+
+    /// @brief Rounds a float length to whole pixels, clamped to @p minimum.
+    static int toPixels(float value, int minimum) {
+        return std::max(minimum, static_cast<int>(std::lround(value)));
+    }
+
     IRenderer& renderer_;
 };
 
