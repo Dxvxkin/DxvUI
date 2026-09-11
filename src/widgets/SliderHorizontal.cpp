@@ -53,22 +53,22 @@ void SliderHorizontal::onPaint(PaintContext& pc) {
     const int centerY = content.y + content.height / 2;
     const Rect track = {content.x, centerY - static_cast<int>(kTrackHeight) / 2, content.width,
                         static_cast<int>(kTrackHeight)};
-    const int trackRadius = static_cast<int>(kTrackHeight) / 2;
+    const float trackRadius = kTrackHeight / 2.0f;
 
     // Track background.
-    pc.canvas().fillRoundRect(track, trackRadius, Colors::LightGray);
+    pc.canvas().fillRoundRect(track, trackRadius, Brush::filled(Colors::LightGray));
 
     // Filled portion from the track start to the thumb center.
     const int thumbCenter = content.x + valueToAxisPos(getValue(), content.width);
     if (thumbCenter > content.x) {
         const Rect fill = {content.x, track.y, thumbCenter - content.x, track.height};
-        pc.canvas().fillRoundRect(fill, trackRadius, Colors::CornflowerBlue);
+        pc.canvas().fillRoundRect(fill, trackRadius, Brush::filled(Colors::CornflowerBlue));
     }
 
     // Thumb.
-    const int radius = static_cast<int>(kThumbDiameter) / 2;
-    pc.canvas().fillCircle(thumbCenter, centerY, radius, Colors::CornflowerBlue,
-                           {.color = Colors::RoyalBlue, .thickness = 1});
+    pc.canvas().fillCircle(
+        PointF(thumbCenter, centerY), kThumbDiameter / 2.0f,
+        Brush::filledAndStroked(Colors::CornflowerBlue, Stroke{Colors::RoyalBlue, 1.0f}));
 }
 
 int SliderHorizontal::valueToAxisPos(float value, int trackLen) const {

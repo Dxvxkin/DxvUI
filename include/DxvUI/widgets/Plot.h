@@ -152,7 +152,7 @@ class Plot : public SceneNode {
     // Projects the series points to pixels and clips the polyline to the content
     // box. Consecutive vertices are merged so the result has no duplicate
     // boundary points; empty when nothing is visible.
-    std::vector<PointI> buildPolyline(const Series& series, const Rect& content) const;
+    std::vector<PointF> buildPolyline(const Series& series, const Rect& content) const;
 
     // Draws the axis tick labels in the left/bottom padding gutters (requires
     // at least 8px of the corresponding inset, otherwise the axis is skipped).

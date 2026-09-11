@@ -317,7 +317,7 @@ SDL_Cursor* SDLRenderer::getSystemCursor(CursorType type) {
 }
 
 void SDLRenderer::clear(const Color& color) {
-    setDrawColor(color);
+    setSDLDrawColor(color);
     SDL_RenderClear(renderer);
 }
 void SDLRenderer::present() { SDL_RenderPresent(renderer); }
@@ -345,36 +345,23 @@ void SDLRenderer::drawTexture(const std::shared_ptr<ITexture>& texture, const Re
     SDL_RenderCopy(renderer, sdlTexture->_texture, nullptr, &dst);
 }
 
-void SDLRenderer::setDrawColor(const Color& color) {
-    currentColor = color;
+void SDLRenderer::setSDLDrawColor(const Color& color) {
     SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
 }
-Color SDLRenderer::getDrawColor() const { return currentColor; }
 
-void SDLRenderer::drawRect(const Rect& rect) {
-    SDL_Rect r = {rect.x, rect.y, rect.width, rect.height};
-    SDL_RenderDrawRect(renderer, &r);
-}
-void SDLRenderer::fillRect(const Rect& rect) {
-    SDL_Rect r = {rect.x, rect.y, rect.width, rect.height};
-    SDL_RenderFillRect(renderer, &r);
-}
-void SDLRenderer::drawRect(const Rect& rect, const Color& color) {
-    setDrawColor(color);
-    drawRect(rect);
-}
-void SDLRenderer::fillRect(const Rect& rect, const Color& color) {
-    setDrawColor(color);
-    fillRect(rect);
-}
 void SDLRenderer::drawRect(const Rect& rect, const Border& border) {
     if (border.thickness <= 0) return;
-    setDrawColor(border.color);
+    setSDLDrawColor(border.color);
     for (int i = 0; i < border.thickness; ++i) {
         SDL_Rect r = {rect.x + i, rect.y + i, rect.width - 2 * i, rect.height - 2 * i};
         if (r.w <= 0 || r.h <= 0) break;
         SDL_RenderDrawRect(renderer, &r);
     }
+}
+void SDLRenderer::fillRect(const Rect& rect, const Color& color) {
+    setSDLDrawColor(color);
+    SDL_Rect r = {rect.x, rect.y, rect.width, rect.height};
+    SDL_RenderFillRect(renderer, &r);
 }
 void SDLRenderer::fillRect(const Rect& rect, const Color& fillColor, const Border& border) {
     fillRect(rect, fillColor);
@@ -382,23 +369,16 @@ void SDLRenderer::fillRect(const Rect& rect, const Color& fillColor, const Borde
         drawRect(rect, border);
     }
 }
-void SDLRenderer::drawLine(int x1, int y1, int x2, int y2) {
-    SDL_RenderDrawLine(renderer, x1, y1, x2, y2);
-}
-void SDLRenderer::drawLine(int x1, int y1, int x2, int y2, const Color& color) {
-    setDrawColor(color);
-    SDL_RenderDrawLine(renderer, x1, y1, x2, y2);
-}
-void SDLRenderer::drawCircle(int cX, int cY, int r) {
-    aacircleRGBA(renderer, cX, cY, r, currentColor.r, currentColor.g, currentColor.b,
-                 currentColor.a);
-}
-void SDLRenderer::fillCircle(int cX, int cY, int r) {
-    filledCircleRGBA(renderer, cX, cY, r, currentColor.r, currentColor.g, currentColor.b,
-                     currentColor.a);
-}
-void SDLRenderer::drawCircle(int cX, int cY, int r, const Color& color) {
-    aacircleRGBA(renderer, cX, cY, r, color.r, color.g, color.b, color.a);
+void SDLRenderer::drawLine(int x1, int y1, int x2, int y2, const Color& color, int thickness) {
+    if (thickness <= 1) {
+        setSDLDrawColor(color);
+        SDL_RenderDrawLine(renderer, x1, y1, x2, y2);
+        return;
+    }
+    // sdl2-gfx CPU rasterizer, consistent with the other curved primitives;
+    // the width is clamped to the Uint8 the gfx API takes.
+    const auto width = static_cast<Uint8>(std::clamp(thickness, 1, 255));
+    thickLineRGBA(renderer, x1, y1, x2, y2, width, color.r, color.g, color.b, color.a);
 }
 void SDLRenderer::fillCircle(int cX, int cY, int r, const Color& color) {
     filledCircleRGBA(renderer, cX, cY, r, color.r, color.g, color.b, color.a);
@@ -412,81 +392,37 @@ void SDLRenderer::fillCircle(int cX, int cY, int r, const Color& f, const Border
     fillCircle(cX, cY, r, f);
     drawCircle(cX, cY, r, b);
 }
-void SDLRenderer::drawArc(int cX, int cY, int r, float sA, float eA) {
-    arcRGBA(renderer, cX, cY, r, sA, eA, currentColor.r, currentColor.g, currentColor.b,
-            currentColor.a);
-}
-void SDLRenderer::drawArc(int cX, int cY, int r, float sA, float eA, const Color& c) {
-    arcRGBA(renderer, cX, cY, r, sA, eA, c.r, c.g, c.b, c.a);
-}
-void SDLRenderer::drawArc(int cX, int cY, int r, float sA, float eA, const Border& b) {
-    for (int i = 0; i < b.thickness; ++i) drawArc(cX, cY, r - i, sA, eA, b.color);
-}
-void SDLRenderer::drawRoundRect(const Rect& rect, int r) {
-    drawRoundedRectRingGeometry(renderer, rect, r, 1, currentColor);
-}
-void SDLRenderer::fillRoundRect(const Rect& rect, int r) {
-    fillRoundedRectGeometry(renderer, rect, r, currentColor);
-}
-void SDLRenderer::drawRoundRect(const Rect& rect, int r, const Color& c) {
-    setDrawColor(c);
-    drawRoundedRectRingGeometry(renderer, rect, r, 1, currentColor);
-}
-void SDLRenderer::fillRoundRect(const Rect& rect, int r, const Color& c) {
-    setDrawColor(c);
-    fillRoundedRectGeometry(renderer, rect, r, currentColor);
+void SDLRenderer::drawArc(int cX, int cY, int r, float sA, float eA, const Border& border) {
+    // A wide arc is a set of concentric hairlines: sdl2-gfx has no thick-arc
+    // path, and the CPU rasterizer is already the arc's implementation here.
+    for (int i = 0; i < border.thickness; ++i) {
+        arcRGBA(renderer, cX, cY, r - i, sA, eA, border.color.r, border.color.g, border.color.b,
+                border.color.a);
+    }
 }
 void SDLRenderer::drawRoundRect(const Rect& rect, int radius, const Border& border) {
-    setDrawColor(border.color);
     drawRoundedRectRingGeometry(renderer, rect, radius, border.thickness, border.color);
+}
+void SDLRenderer::fillRoundRect(const Rect& rect, int radius, const Color& color) {
+    fillRoundedRectGeometry(renderer, rect, radius, color);
 }
 void SDLRenderer::fillRoundRect(const Rect& rect, int radius, const Color& fillColor,
                                 const Border& border) {
-    setDrawColor(fillColor);
     fillRoundedRectGeometry(renderer, rect, radius, fillColor);
     if (border.thickness > 0) {
-        setDrawColor(border.color);
         drawRoundedRectRingGeometry(renderer, rect, radius, border.thickness, border.color);
     }
 }
-void SDLRenderer::drawPolygon(const std::vector<PointI>& p) {
-    if (p.size() < 2) return;
+void SDLRenderer::fillPolygon(const std::vector<PointI>& points, const Color& color) {
+    if (points.size() < 3) return;
     std::vector<Sint16> vx, vy;
-    vx.reserve(p.size());
-    vy.reserve(p.size());
-    for (const auto& pt : p) {
-        vx.push_back(pt.x);
-        vy.push_back(pt.y);
+    vx.reserve(points.size());
+    vy.reserve(points.size());
+    for (const auto& point : points) {
+        vx.push_back(point.x);
+        vy.push_back(point.y);
     }
-    polygonRGBA(renderer, vx.data(), vy.data(), p.size(), currentColor.r, currentColor.g,
-                currentColor.b, currentColor.a);
-}
-void SDLRenderer::fillPolygon(const std::vector<PointI>& p) {
-    if (p.size() < 3) return;
-    std::vector<Sint16> vx, vy;
-    vx.reserve(p.size());
-    vy.reserve(p.size());
-    for (const auto& pt : p) {
-        vx.push_back(pt.x);
-        vy.push_back(pt.y);
-    }
-    filledPolygonRGBA(renderer, vx.data(), vy.data(), p.size(), currentColor.r, currentColor.g,
-                      currentColor.b, currentColor.a);
-}
-void SDLRenderer::drawPolygon(const std::vector<PointI>& p, const Color& c) {
-    setDrawColor(c);
-    drawPolygon(p);
-}
-void SDLRenderer::fillPolygon(const std::vector<PointI>& p, const Color& c) {
-    setDrawColor(c);
-    fillPolygon(p);
-}
-void SDLRenderer::drawPolygon(const std::vector<PointI>& p, const Border& b) {
-    setDrawColor(b.color);
-    drawPolygon(p);
-}
-void SDLRenderer::fillPolygon(const std::vector<PointI>& p, const Color& f, const Border& b) {
-    fillPolygon(p, f);
-    drawPolygon(p, b);
+    filledPolygonRGBA(renderer, vx.data(), vy.data(), points.size(), color.r, color.g, color.b,
+                      color.a);
 }
 }  // namespace DxvUI

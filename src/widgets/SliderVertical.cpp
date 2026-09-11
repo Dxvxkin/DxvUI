@@ -53,10 +53,10 @@ void SliderVertical::onPaint(PaintContext& pc) {
     const int centerX = content.x + content.width / 2;
     const Rect track = {centerX - static_cast<int>(kTrackWidth) / 2, content.y,
                         static_cast<int>(kTrackWidth), content.height};
-    const int trackRadius = static_cast<int>(kTrackWidth) / 2;
+    const float trackRadius = kTrackWidth / 2.0f;
 
     // Track background.
-    pc.canvas().fillRoundRect(track, trackRadius, Colors::LightGray);
+    pc.canvas().fillRoundRect(track, trackRadius, Brush::filled(Colors::LightGray));
 
     // Filled portion from the thumb center down to the track end: the value
     // grows upward, so the fill rises from the bottom.
@@ -64,13 +64,13 @@ void SliderVertical::onPaint(PaintContext& pc) {
     if (thumbCenter < content.y + content.height) {
         const Rect fill = {track.x, thumbCenter, track.width,
                            content.y + content.height - thumbCenter};
-        pc.canvas().fillRoundRect(fill, trackRadius, Colors::CornflowerBlue);
+        pc.canvas().fillRoundRect(fill, trackRadius, Brush::filled(Colors::CornflowerBlue));
     }
 
     // Thumb.
-    const int radius = static_cast<int>(kThumbDiameter) / 2;
-    pc.canvas().fillCircle(centerX, thumbCenter, radius, Colors::CornflowerBlue,
-                           {.color = Colors::RoyalBlue, .thickness = 1});
+    pc.canvas().fillCircle(
+        PointF(centerX, thumbCenter), kThumbDiameter / 2.0f,
+        Brush::filledAndStroked(Colors::CornflowerBlue, Stroke{Colors::RoyalBlue, 1.0f}));
 }
 
 int SliderVertical::valueToAxisPos(float value, int trackLen) const {

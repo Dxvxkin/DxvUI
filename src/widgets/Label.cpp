@@ -147,7 +147,7 @@ void Label::onPaint(PaintContext& pc) {
                 break;
         }
 
-        pc.canvas().drawTexture(textTexture, {drawX, drawY, drawW, drawH});
+        pc.canvas().drawTexture(textTexture, Rect{drawX, drawY, drawW, drawH});
     }
 }
 
