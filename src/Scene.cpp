@@ -16,6 +16,29 @@ Scene::Scene() = default;
 
 Scene::~Scene() { shutdown(); }
 
+void Scene::addDamageRect(const Rect& rect) {
+    if (rect.width <= 0 || rect.height <= 0) return;
+    if (!hasDamage_) {
+        damageUnion_ = rect;
+        hasDamage_ = true;
+    } else {
+        // Union
+        int x1 = std::min(damageUnion_.x, rect.x);
+        int y1 = std::min(damageUnion_.y, rect.y);
+        int x2 = std::max(damageUnion_.x + damageUnion_.width, rect.x + rect.width);
+        int y2 = std::max(damageUnion_.y + damageUnion_.height, rect.y + rect.height);
+        damageUnion_ = {x1, y1, x2 - x1, y2 - y1};
+    }
+    damageRects_.push_back(rect);
+}
+
+void Scene::clearDamage() {
+    hasDamage_ = false;
+    damageUnion_ = {0, 0, 0, 0};
+    damageRects_.clear();
+    fullRedraw_ = false;
+}
+
 void Scene::shutdown() {
     if (!root) {
         return;
@@ -133,6 +156,9 @@ void Scene::raise(EventType type, const std::shared_ptr<SceneNode>& target) {
 }
 
 void Scene::onNodeRemoved(const std::shared_ptr<SceneNode>& node) {
+    if (node) {
+        addDamageRect(node->getGlobalBounds());
+    }
     if (eventManager) {
         eventManager->onNodeRemoved(node);
     }
@@ -181,7 +207,9 @@ void Scene::draw() {
     IRenderBackend* backend = renderBackend ? renderBackend : renderer;
     if (!backend) return;
 
-    // Stage 5: FrameInfo through Scene::draw, ICanvas from backend
+    // Stage 6b: damage tracking – if no damage and not full redraw, we can skip
+    // For now we still draw full frame but pass damage union in FrameInfo for culling
+    // Future: skip draw when !hasDamage_ && !fullRedraw_ (except caret blink)
     Size viewportSize = backend->getViewportSize();
     const double nowMs = std::chrono::duration<double, std::milli>(
                              std::chrono::steady_clock::now().time_since_epoch())
@@ -193,12 +221,18 @@ void Scene::draw() {
 
     FrameInfo frame{
         .viewport = {0, 0, static_cast<int>(viewportSize.width), static_cast<int>(viewportSize.height)},
-        .timeMs = nowMs};
+        .timeMs = nowMs,
+        .damageUnion = damageUnion_,
+        .hasDamage = hasDamage_,
+        .fullRedraw = fullRedraw_};
 
     PaintContext pc(canvas, backend->getTextEngine(), frame);
     root->draw(pc);
 
     backend->endFrame();
+
+    // Clear damage after frame
+    clearDamage();
 }
 
 }  // namespace DxvUI

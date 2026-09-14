@@ -199,6 +199,10 @@ const Style& SceneNode::getStyle() const { return style; }
 void SceneNode::markStyleDirty() {
     style.markDirty();
     markStyleSubtreeDirty();
+    // Stage 6b: damage – visual change needs repaint of current bounds
+    if (auto sc = scene.lock()) {
+        sc->addDamageRect(getGlobalBounds());
+    }
 }
 
 void SceneNode::markStyleSubtreeDirty() {
@@ -208,6 +212,10 @@ void SceneNode::markStyleSubtreeDirty() {
 }
 
 void SceneNode::markLayoutDirty() {
+    // Stage 6b: before marking dirty, add current bounds to damage (old position)
+    if (auto sc = scene.lock()) {
+        sc->addDamageRect(getGlobalBounds());
+    }
     for (SceneNode* n = this; n != nullptr; n = n->parent.lock().get()) {
         n->layoutData.isSubtreeDirty = true;
     }
@@ -586,6 +594,14 @@ void SceneNode::drawImpl(PaintContext& pc, const Rect& viewportRect) {
 
     if (!getGlobalBounds().intersects(viewportRect)) {
         return;
+    }
+
+    // Stage 6b: damage culling – if we have damage and not full redraw, skip nodes outside damage
+    const auto& frame = pc.frame();
+    if (frame.hasDamage && !frame.fullRedraw) {
+        if (!getGlobalBounds().intersects(frame.damageUnion)) {
+            return;
+        }
     }
 
     onPaintBackground(pc);

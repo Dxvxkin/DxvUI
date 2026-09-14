@@ -29,6 +29,11 @@ struct FrameInfo {
     // Monotonic time of the frame in milliseconds, used for caret blinking and
     // future declarative transitions (stage 5 adds dt/frame/dpi).
     double timeMs = 0.0;
+
+    // Stage 6b: damage tracking – union of dirty rects since last frame
+    Rect damageUnion{0, 0, 0, 0};
+    bool hasDamage = false;
+    bool fullRedraw = true;
 };
 
 /**

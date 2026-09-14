@@ -8,14 +8,42 @@
 namespace DxvUI {
 
 /**
+ * @struct LinearGradient
+ * @brief Linear gradient for Fill (stage 6b).
+ */
+struct LinearGradient {
+    Color start;
+    Color end;
+    float angleDeg = 0.0f; // 0 = left->right, 90 = top->bottom, 45 = diagonal
+};
+
+/**
  * @struct Fill
  * @brief A shape's interior paint.
  *
- * Today a solid color; gradients/patterns extend this struct instead of the
- * canvas interface (see docs/RENDERING_REFACTORING.md §3.1).
+ * Stage 2: solid color; Stage 6b: optional linear gradient.
+ * If gradient is set, solid color is used as fallback / for simple paths.
  */
 struct Fill {
-    Color color;
+    Color color; // solid fallback
+    std::optional<LinearGradient> gradient;
+
+    Fill() = default;
+    Fill(const Color& c) : color(c) {}
+    Fill(const LinearGradient& g) : color(g.start), gradient(g) {}
+
+    bool hasGradient() const { return gradient.has_value(); }
+};
+
+/**
+ * @struct Shadow
+ * @brief Drop shadow for Brush (stage 6b).
+ */
+struct Shadow {
+    Color color{0, 0, 0, 100};
+    float offsetX = 2.0f;
+    float offsetY = 2.0f;
+    float blur = 4.0f; // currently approximated as spread
 };
 
 /**
@@ -51,26 +79,37 @@ struct Brush;
 struct Brush {
     std::optional<Fill> fill;
     std::optional<Stroke> stroke;
+    std::optional<Shadow> shadow;
 
     /// @brief A brush that only fills with @p color.
     static Brush filled(const Color& color) {
-        return {.fill = Fill{color}, .stroke = std::nullopt};
+        return {.fill = Fill{color}, .stroke = std::nullopt, .shadow = std::nullopt};
+    }
+
+    static Brush filled(const LinearGradient& grad) {
+        return {.fill = Fill{grad}, .stroke = std::nullopt, .shadow = std::nullopt};
     }
 
     /// @brief A brush that only strokes with @p color and @p thickness.
     static Brush stroked(const Color& color, float thickness = 1.0f) {
-        return {.fill = std::nullopt, .stroke = Stroke{color, thickness}};
+        return {.fill = std::nullopt, .stroke = Stroke{color, thickness}, .shadow = std::nullopt};
     }
 
     /// @brief A brush that fills with @p fillColor and outlines with @p stroke.
     static Brush filledAndStroked(const Color& fillColor, const Stroke& stroke) {
-        return {.fill = Fill{fillColor}, .stroke = stroke};
+        return {.fill = Fill{fillColor}, .stroke = stroke, .shadow = std::nullopt};
     }
 
     /// @brief A brush that fills with @p fillColor and outlines with @p strokeColor.
     static Brush filledAndStroked(const Color& fillColor, const Color& strokeColor,
                                   float thickness = 1.0f) {
-        return {.fill = Fill{fillColor}, .stroke = Stroke{strokeColor, thickness}};
+        return {.fill = Fill{fillColor}, .stroke = Stroke{strokeColor, thickness}, .shadow = std::nullopt};
+    }
+
+    static Brush withShadow(const Brush& base, const Shadow& sh) {
+        Brush b = base;
+        b.shadow = sh;
+        return b;
     }
 
     /// @brief True when neither a fill nor a stroke is set (nothing to paint).

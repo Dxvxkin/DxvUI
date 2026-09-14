@@ -154,6 +154,105 @@ void drawRoundedRectRingGeometry(SDL_Renderer* renderer, const Rect& rect, int r
 
 inline SDL_Color toSDLColor(const Color& c) { return {c.r, c.g, c.b, c.a}; }
 
+inline SDL_Color lerpColor(const Color& a, const Color& b, float t) {
+    t = std::clamp(t, 0.0f, 1.0f);
+    return {(uint8_t)(a.r + (b.r - a.r) * t),
+            (uint8_t)(a.g + (b.g - a.g) * t),
+            (uint8_t)(a.b + (b.b - a.b) * t),
+            (uint8_t)(a.a + (b.a - a.a) * t)};
+}
+
+void fillRectGradientGeometry(SDL_Renderer* renderer, const Rect& rect, const LinearGradient& grad) {
+    if (rect.width <=0 || rect.height <=0) return;
+    float angle = grad.angleDeg;
+    float rad = degToRad(angle);
+    float gx = std::cos(rad);
+    float gy = std::sin(rad);
+    // Compute dot of corners
+    struct Pt { float x,y; };
+    Pt corners[4] = {
+        {(float)rect.x, (float)rect.y},
+        {(float)rect.x + rect.width, (float)rect.y},
+        {(float)rect.x + rect.width, (float)rect.y + rect.height},
+        {(float)rect.x, (float)rect.y + rect.height}
+    };
+    float dots[4];
+    for (int i=0;i<4;++i) dots[i] = corners[i].x * gx + corners[i].y * gy;
+    float minDot = *std::min_element(dots, dots+4);
+    float maxDot = *std::max_element(dots, dots+4);
+    float range = maxDot - minDot;
+    if (range < 1e-5f) range = 1.0f;
+
+    auto tFor = [&](float x, float y) -> float {
+        float d = x * gx + y * gy;
+        return (d - minDot) / range;
+    };
+
+    SDL_Vertex verts[4];
+    verts[0].position = {corners[0].x, corners[0].y};
+    verts[0].color = lerpColor(grad.start, grad.end, tFor(corners[0].x, corners[0].y));
+    verts[0].tex_coord = {0,0};
+    verts[1].position = {corners[1].x, corners[1].y};
+    verts[1].color = lerpColor(grad.start, grad.end, tFor(corners[1].x, corners[1].y));
+    verts[1].tex_coord = {0,0};
+    verts[2].position = {corners[2].x, corners[2].y};
+    verts[2].color = lerpColor(grad.start, grad.end, tFor(corners[2].x, corners[2].y));
+    verts[2].tex_coord = {0,0};
+    verts[3].position = {corners[3].x, corners[3].y};
+    verts[3].color = lerpColor(grad.start, grad.end, tFor(corners[3].x, corners[3].y));
+    verts[3].tex_coord = {0,0};
+    int indices[6] = {0,1,2,0,2,3};
+    SDL_RenderGeometry(renderer, nullptr, verts, 4, indices, 6);
+}
+
+void fillRoundRectGradientGeometry(SDL_Renderer* renderer, const Rect& rect, int radius, const LinearGradient& grad) {
+    // For rounded rect with gradient, we fallback to per-vertex gradient based on position
+    // Reuse fillRoundedRectGeometry but with gradient colors per vertex
+    const int maxRadius = std::min(rect.width, rect.height) / 2;
+    if (rect.width < 3 || rect.height < 3 || maxRadius <= 1 || radius <= 1) {
+        fillRectGradientGeometry(renderer, rect, grad);
+        return;
+    }
+    int rr = std::min(radius, maxRadius);
+    auto poly = roundedRectPolygon(rect.x, rect.y, rect.x + rect.width - 1, rect.y + rect.height - 1, rr);
+    // Compute gradient dot range for this rect
+    float rad = degToRad(grad.angleDeg);
+    float gx = std::cos(rad);
+    float gy = std::sin(rad);
+    float minDot = 1e9f, maxDot = -1e9f;
+    for (auto& p : poly) {
+        float d = p.x * gx + p.y * gy;
+        minDot = std::min(minDot, d);
+        maxDot = std::max(maxDot, d);
+    }
+    // Include center
+    SDL_FPoint center{static_cast<float>(rect.x) + rect.width * 0.5f, static_cast<float>(rect.y) + rect.height * 0.5f};
+    float centerDot = center.x * gx + center.y * gy;
+    minDot = std::min(minDot, centerDot);
+    maxDot = std::max(maxDot, centerDot);
+    float range = maxDot - minDot;
+    if (range < 1e-5f) range = 1.0f;
+    auto tFor = [&](float x, float y){ return (x * gx + y * gy - minDot) / range; };
+
+    std::array<SDL_Vertex, 53> verts;
+    verts[0].position = center;
+    verts[0].color = lerpColor(grad.start, grad.end, tFor(center.x, center.y));
+    verts[0].tex_coord = {0,0};
+    for (size_t i=0;i<52;++i) {
+        verts[i+1].position = poly[i];
+        verts[i+1].color = lerpColor(grad.start, grad.end, tFor(poly[i].x, poly[i].y));
+        verts[i+1].tex_coord = {0,0};
+    }
+    std::array<int, 156> indices;
+    for (size_t i=0;i<52;++i) {
+        indices[i*3+0]=0;
+        indices[i*3+1]=static_cast<int>(i)+1;
+        indices[i*3+2]=static_cast<int>((i+1)%52)+1;
+    }
+    SDL_RenderGeometry(renderer, nullptr, verts.data(), 53, indices.data(), 156);
+}
+
+
 int circleSegmentsForRadius(int r) {
     if (r <= 2) return 12;
     if (r <= 8) return 16;
@@ -514,6 +613,7 @@ void SDLRenderer::setCursor(CursorType type) {
 CursorType SDLRenderer::getCursor() const { return currentCursorType; }
 
 void SDLRenderer::pushClipRect(const Rect& rect) {
+    flushFillRectBatch();
     const SDL_bool clipEnabled = SDL_RenderIsClipEnabled(renderer);
     SDL_Rect currentClip;
     SDL_RenderGetClipRect(renderer, &currentClip);
@@ -535,6 +635,7 @@ void SDLRenderer::pushClipRect(const Rect& rect) {
 }
 
 void SDLRenderer::popClipRect() {
+    flushFillRectBatch();
     if (clipStack.empty()) {
         Log::error("SDLRenderer::popClipRect called with an empty clip stack");
         return;
@@ -602,10 +703,12 @@ SDL_Cursor* SDLRenderer::getSystemCursor(CursorType type) {
 }
 
 void SDLRenderer::clear(const Color& color) {
+    flushFillRectBatch();
     setSDLDrawColor(color);
     SDL_RenderClear(renderer);
 }
-void SDLRenderer::present() { SDL_RenderPresent(renderer); }
+void SDLRenderer::present() {
+    flushFillRectBatch(); SDL_RenderPresent(renderer); }
 
 Size SDLRenderer::getViewportSize() const {
     int w, h;
@@ -619,6 +722,7 @@ float SDLRenderer::getDpiScale() const {
 }
 
 ICanvas& SDLRenderer::beginFrame(const Color& clearColor) {
+    flushFillRectBatch();
     // Stage 5: frame lifecycle – clear if we own resources, otherwise host does clear
     if (ownsResources) {
         clear(clearColor);
@@ -627,6 +731,7 @@ ICanvas& SDLRenderer::beginFrame(const Color& clearColor) {
 }
 
 void SDLRenderer::endFrame() {
+    flushFillRectBatch();
     if (ownsResources) {
         present();
     }
@@ -660,7 +765,13 @@ void SDLRenderer::drawTexture(const std::shared_ptr<ITexture>& texture, const Te
 }
 
 void SDLRenderer::fillRect(const RectF& rect, const Fill& fill) {
-    fillRect(rect.rounded(), fill.color);
+    flushFillRectBatch();
+    Rect r = rect.rounded();
+    if (fill.gradient) {
+        fillRectGradientGeometry(renderer, r, *fill.gradient);
+    } else {
+        batchFillRect(r, fill.color);
+    }
 }
 
 void SDLRenderer::strokeRect(const RectF& rect, const Stroke& stroke) {
@@ -669,15 +780,48 @@ void SDLRenderer::strokeRect(const RectF& rect, const Stroke& stroke) {
 
 void SDLRenderer::fillRoundRect(const RectF& rect, float radius, const Brush& brush) {
     if (brush.isEmpty()) return;
-    const Rect pixelRect = rect.rounded();
-    const int pixelRadius = std::max(0, static_cast<int>(std::lround(radius)));
+    flushFillRectBatch();
+    Rect pixelRect = rect.rounded();
+    int pixelRadius = std::max(0, static_cast<int>(std::lround(radius)));
     auto toBorder = [](const Stroke& s) -> Border {
         return {s.color, std::max(1, static_cast<int>(std::lround(s.thickness)))};
     };
+
+    // Shadow first
+    if (brush.shadow) {
+        Rect shadowRect{pixelRect.x + static_cast<int>(std::lround(brush.shadow->offsetX)),
+                        pixelRect.y + static_cast<int>(std::lround(brush.shadow->offsetY)),
+                        pixelRect.width, pixelRect.height};
+        // Simple blur approximated as extra spread
+        int blur = static_cast<int>(std::lround(brush.shadow->blur));
+        if (blur > 0) {
+            shadowRect.x -= blur/2;
+            shadowRect.y -= blur/2;
+            shadowRect.width += blur;
+            shadowRect.height += blur;
+        }
+        if (brush.fill && brush.fill->gradient) {
+            // For shadow with gradient, use shadow color solid
+            fillRoundedRectGeometry(renderer, shadowRect, pixelRadius, brush.shadow->color);
+        } else {
+            fillRoundedRectGeometry(renderer, shadowRect, pixelRadius, brush.shadow->color);
+        }
+    }
+
     if (brush.fill && brush.stroke) {
-        fillRoundRect(pixelRect, pixelRadius, brush.fill->color, toBorder(*brush.stroke));
+        // If fill has gradient, use gradient path
+        if (brush.fill->gradient) {
+            fillRoundRectGradientGeometry(renderer, pixelRect, pixelRadius, *brush.fill->gradient);
+            drawRoundedRectRingGeometry(renderer, pixelRect, pixelRadius, toBorder(*brush.stroke).thickness, toBorder(*brush.stroke).color);
+        } else {
+            fillRoundRect(pixelRect, pixelRadius, brush.fill->color, toBorder(*brush.stroke));
+        }
     } else if (brush.fill) {
-        fillRoundRect(pixelRect, pixelRadius, brush.fill->color);
+        if (brush.fill->gradient) {
+            fillRoundRectGradientGeometry(renderer, pixelRect, pixelRadius, *brush.fill->gradient);
+        } else {
+            fillRoundRect(pixelRect, pixelRadius, brush.fill->color);
+        }
     } else {
         drawRoundRect(pixelRect, pixelRadius, toBorder(*brush.stroke));
     }
@@ -685,11 +829,19 @@ void SDLRenderer::fillRoundRect(const RectF& rect, float radius, const Brush& br
 
 void SDLRenderer::fillCircle(const PointF& center, float radius, const Brush& brush) {
     if (brush.isEmpty()) return;
-    const PointI pixelCenter = center.rounded();
-    const int pixelRadius = std::max(0, static_cast<int>(std::lround(radius)));
+    flushFillRectBatch();
+    PointI pixelCenter = center.rounded();
+    int pixelRadius = std::max(0, static_cast<int>(std::lround(radius)));
     auto toBorder = [](const Stroke& s) -> Border {
         return {s.color, std::max(1, static_cast<int>(std::lround(s.thickness)))};
     };
+
+    if (brush.shadow) {
+        PointI shadowCenter{pixelCenter.x + static_cast<int>(std::lround(brush.shadow->offsetX)),
+                            pixelCenter.y + static_cast<int>(std::lround(brush.shadow->offsetY))};
+        fillCircleGeometry(renderer, shadowCenter.x, shadowCenter.y, pixelRadius, brush.shadow->color);
+    }
+
     if (brush.fill && brush.stroke) {
         fillCircle(pixelCenter.x, pixelCenter.y, pixelRadius, brush.fill->color, toBorder(*brush.stroke));
     } else if (brush.fill) {
@@ -735,6 +887,7 @@ void SDLRenderer::drawLine(const PointF& from, const PointF& to, const Stroke& s
 
 
 void SDLRenderer::drawTexture(const std::shared_ptr<ITexture>& texture, const Rect& dstRect) {
+    flushFillRectBatch();
     if (!texture) return;
     const auto* sdlTexture = dynamic_cast<SDLTexture*>(texture.get());
     if (!sdlTexture || !sdlTexture->_texture) {
@@ -751,6 +904,7 @@ void SDLRenderer::drawTexture(const std::shared_ptr<ITexture>& texture, const Re
 
 void SDLRenderer::drawTexture(const std::shared_ptr<ITexture>& texture,
                               const TextureDrawDesc& desc) {
+    flushFillRectBatch();
     if (!texture) return;
     const auto* sdlTexture = dynamic_cast<SDLTexture*>(texture.get());
     if (!sdlTexture || !sdlTexture->_texture) {
@@ -789,7 +943,58 @@ void SDLRenderer::setSDLDrawColor(const Color& color) {
     SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
 }
 
+void SDLRenderer::flushFillRectBatch() {
+    if (!fillRectBatch_ || fillRectBatch_->rects.empty()) {
+        fillRectBatch_.reset();
+        return;
+    }
+    const auto& batch = *fillRectBatch_;
+    SDL_Color c = toSDLColor(batch.color);
+    std::vector<SDL_Vertex> verts;
+    verts.reserve(batch.rects.size() * 4);
+    std::vector<int> indices;
+    indices.reserve(batch.rects.size() * 6);
+    int v = 0;
+    for (const auto& r : batch.rects) {
+        if (r.width <= 0 || r.height <= 0) continue;
+        SDL_FPoint p0{static_cast<float>(r.x), static_cast<float>(r.y)};
+        SDL_FPoint p1{static_cast<float>(r.x + r.width), static_cast<float>(r.y)};
+        SDL_FPoint p2{static_cast<float>(r.x + r.width), static_cast<float>(r.y + r.height)};
+        SDL_FPoint p3{static_cast<float>(r.x), static_cast<float>(r.y + r.height)};
+        verts.push_back({p0, c, {0, 0}});
+        verts.push_back({p1, c, {0, 0}});
+        verts.push_back({p2, c, {0, 0}});
+        verts.push_back({p3, c, {0, 0}});
+        indices.push_back(v + 0);
+        indices.push_back(v + 1);
+        indices.push_back(v + 2);
+        indices.push_back(v + 0);
+        indices.push_back(v + 2);
+        indices.push_back(v + 3);
+        v += 4;
+    }
+    if (!verts.empty()) {
+        SDL_RenderGeometry(renderer, nullptr, verts.data(), static_cast<int>(verts.size()),
+                           indices.data(), static_cast<int>(indices.size()));
+    }
+    fillRectBatch_.reset();
+}
+
+void SDLRenderer::batchFillRect(const Rect& rect, const Color& color) {
+    if (rect.width <= 0 || rect.height <= 0) return;
+    if (!fillRectBatch_ || !(fillRectBatch_->color == color)) {
+        flushFillRectBatch();
+        fillRectBatch_ = FillRectBatch{color, {}};
+    }
+    fillRectBatch_->rects.push_back(rect);
+    // Flush if batch too large to avoid huge buffers
+    if (fillRectBatch_->rects.size() >= 256) {
+        flushFillRectBatch();
+    }
+}
+
 void SDLRenderer::drawRect(const Rect& rect, const Border& border) {
+    flushFillRectBatch();
     if (border.thickness <= 0) return;
     setSDLDrawColor(border.color);
     for (int i = 0; i < border.thickness; ++i) {
@@ -799,50 +1004,59 @@ void SDLRenderer::drawRect(const Rect& rect, const Border& border) {
     }
 }
 void SDLRenderer::fillRect(const Rect& rect, const Color& color) {
-    setSDLDrawColor(color);
-    SDL_Rect r = {rect.x, rect.y, rect.width, rect.height};
-    SDL_RenderFillRect(renderer, &r);
+    batchFillRect(rect, color);
 }
 void SDLRenderer::fillRect(const Rect& rect, const Color& fillColor, const Border& border) {
-    fillRect(rect, fillColor);
+    batchFillRect(rect, fillColor);
     if (border.thickness > 0) {
+        flushFillRectBatch();
         drawRect(rect, border);
     }
 }
 void SDLRenderer::drawLine(int x1, int y1, int x2, int y2, const Color& color, int thickness) {
+    flushFillRectBatch();
     drawThickLineGeometry(renderer, x1, y1, x2, y2, thickness, color);
 }
 void SDLRenderer::fillCircle(int cX, int cY, int r, const Color& color) {
+    flushFillRectBatch();
     fillCircleGeometry(renderer, cX, cY, r, color);
 }
 void SDLRenderer::drawCircle(int cX, int cY, int r, const Border& border) {
+    flushFillRectBatch();
     drawCircleRingGeometry(renderer, cX, cY, r, border.thickness, border.color);
 }
 void SDLRenderer::fillCircle(int cX, int cY, int r, const Color& f, const Border& b) {
+    flushFillRectBatch();
     fillCircle(cX, cY, r, f);
     drawCircle(cX, cY, r, b);
 }
 void SDLRenderer::drawArc(int cX, int cY, int r, float sA, float eA, const Border& border) {
+    flushFillRectBatch();
     drawArcRingGeometry(renderer, cX, cY, r, sA, eA, border.thickness, border.color);
 }
 void SDLRenderer::drawRoundRect(const Rect& rect, int radius, const Border& border) {
+    flushFillRectBatch();
     drawRoundedRectRingGeometry(renderer, rect, radius, border.thickness, border.color);
 }
 void SDLRenderer::fillRoundRect(const Rect& rect, int radius, const Color& color) {
+    flushFillRectBatch();
     fillRoundedRectGeometry(renderer, rect, radius, color);
 }
 void SDLRenderer::fillRoundRect(const Rect& rect, int radius, const Color& fillColor,
                                 const Border& border) {
+    flushFillRectBatch();
     fillRoundedRectGeometry(renderer, rect, radius, fillColor);
     if (border.thickness > 0) {
         drawRoundedRectRingGeometry(renderer, rect, radius, border.thickness, border.color);
     }
 }
 void SDLRenderer::fillPolygon(const std::vector<PointI>& points, const Color& color) {
+    flushFillRectBatch();
     fillPolygonGeometry(renderer, points, color);
 }
 
 std::shared_ptr<ITexture> SDLRenderer::createTexture(const ImageData& data) {
+    flushFillRectBatch();
     if (!data.isValid()) {
         Log::error("SDLRenderer::createTexture: invalid ImageData");
         return nullptr;
@@ -888,6 +1102,7 @@ std::shared_ptr<ITexture> SDLRenderer::createTexture(const ImageData& data) {
 }
 
 std::shared_ptr<ITexture> SDLRenderer::createRenderTarget(int width, int height) {
+    flushFillRectBatch();
     if (width <= 0 || height <= 0) {
         Log::error("SDLRenderer::createRenderTarget: invalid size {}x{}", width, height);
         return nullptr;
@@ -903,6 +1118,7 @@ std::shared_ptr<ITexture> SDLRenderer::createRenderTarget(int width, int height)
 }
 
 void SDLRenderer::beginRenderTarget(const std::shared_ptr<ITexture>& target) {
+    flushFillRectBatch();
     auto* sdlTex = dynamic_cast<SDLTexture*>(target.get());
     if (!sdlTex || !sdlTex->_texture) {
         Log::error("SDLRenderer::beginRenderTarget: foreign texture");
@@ -918,6 +1134,7 @@ void SDLRenderer::beginRenderTarget(const std::shared_ptr<ITexture>& target) {
 }
 
 void SDLRenderer::endRenderTarget() {
+    flushFillRectBatch();
     if (renderTargetStack.empty()) {
         Log::error("SDLRenderer::endRenderTarget: stack empty, resetting to default");
         SDL_SetRenderTarget(renderer, nullptr);

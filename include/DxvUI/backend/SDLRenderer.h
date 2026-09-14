@@ -122,6 +122,15 @@ class SDLRenderer : public IRenderer, public ICanvas {
     // Render-target stack for createRenderTarget/begin/end (stage 6b)
     std::vector<SDL_Texture*> renderTargetStack;
 
+    // Simple batching for fillRect (stage 6b) – accumulates rects of same color
+    struct FillRectBatch {
+        Color color;
+        std::vector<Rect> rects;
+    };
+    std::optional<FillRectBatch> fillRectBatch_;
+    void flushFillRectBatch();
+    void batchFillRect(const Rect& rect, const Color& color);
+
     std::map<CursorType, SDL_Cursor*> cursorCache;
 };
 

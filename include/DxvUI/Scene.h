@@ -115,6 +115,14 @@ class Scene : public std::enable_shared_from_this<Scene> {
 
     void shutdown();
 
+    // --- Damage tracking (stage 6b) ---
+    void addDamageRect(const Rect& rect);
+    void clearDamage();
+    Rect getDamageUnion() const { return damageUnion_; }
+    bool hasDamage() const { return hasDamage_; }
+    bool needsFullRedraw() const { return fullRedraw_; }
+    void setFullRedraw(bool v) { fullRedraw_ = v; }
+
    private:
     Scene();
     void init();
@@ -127,6 +135,12 @@ class Scene : public std::enable_shared_from_this<Scene> {
     IRenderer* renderer = nullptr; // legacy, kept for compat
     IRenderBackend* renderBackend = nullptr;
     IPlatformServices* platformServices = nullptr;
+
+    // Damage tracking (stage 6b): union of dirty bounds since last draw
+    Rect damageUnion_{0, 0, 0, 0};
+    bool hasDamage_ = false;
+    bool fullRedraw_ = true; // first frame needs full redraw
+    std::vector<Rect> damageRects_; // optional list for future multi-rect
 };
 
 }  // namespace DxvUI
