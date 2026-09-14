@@ -394,7 +394,7 @@ canvas->fillRoundRect(track, radius, brushes().get("slider.track"));
 | 3 | ✅ **TextLayout + глиф-атлас**: `ITextRenderer`, `drawLayout` с выравниванием/усечением; tint вместо запечённого цвета; миграция Label/TextEdit/TextEditorView (вид уходит из `backend/`) | `SDLTextEngine → SdlTextRenderer`, Label, TextEdit | бенчмарк `text`/`micro`: медиана не хуже, память кэша −90% ожидаемо |
 | 4 | ✅ **Инвалидация состояний**: `setHovered/Pressed/Focused` через style-дифф; юнит-тест «hover не меняет bounds»; `getString()`-хотспот: Label кэширует строку между Change | `SceneNode`, Label | «hover-storm»-сценарий: relayout-ов 0 при неизменной геометрии |
 | 5 | ✅ **Разделение бэкенда**: `IRenderBackend` + `IPlatformServices`; `FrameInfo` сквозь `Scene::draw`; миграция `EventManager` (курсор) | Scene, EventManager, examples | `ICanvas` не знает про окно/курсор/клипборд |
-| 6 | *(опционально, по числам)*: display-list/батчинг примитивов; render-target-кэш статичных поддеревьев (ScrollContainer-контент); GPU-пути для circle/arc/polygon **и удаление зависимости sdl2-gfx**; damage-ректы; shadow/gradient в `Brush`; Image-виджет поверх `createTexture` | backend | compare.ps1: −10%+ на затронутых сценариях без регрессий |
+| 6 | ✅ **GPU-пути + удаление sdl2-gfx** (stage 6a): circle/arc/line/polygon через `SDL_RenderGeometry`, триангуляция ear-clipping; батчинг/render-target/damage/Image — stage 6b опционально | backend | `SDL2_gfx` не линкуется, все примитивы GPU, примеры идентичны |
 
 Дополнительно к этапу 1: `RectF`/`PointF` вводятся вместе с `ICanvas`
 (канвас сразу флоатный, конверсия на границе layout→paint), а полная миграция
@@ -667,6 +667,33 @@ layout-а на флоат остаётся вне скоупа (см. §7).
 **Приёмка stage 5:** `ICanvas` не знает про окно/курсор/клипборд, `FrameInfo` идёт сквозь `Scene::draw`, `EventManager` на `IPlatformServices`, примеры рисуют идентично, тесты зелёные.
 
 Отклонения: `createTexture`/`createRenderTarget` пока не введены — они нужны для Image-виджета и render-target кэша stage 6, оставлены как коммент в `IRenderBackend`. `CanvasAdapter` пока не удалён — используется в тестах и как fallback, умрёт на stage 6 когда `IRenderer` legacy будет удалён.
+
+
+### 4.8. Реализовано: этап 6a (GPU-пути, удаление sdl2-gfx)
+
+**Что сделано (коммит `d8ad84f`):**
+
+- **Удалена зависимость `sdl2-gfx`:** `src/backend/SDLRenderer.cpp` больше не включает `<SDL2_gfxPrimitives.h>`, `CMakeLists.txt` не ищет `SDL2_GFX` и не линкует `SDL2::SDL2_gfx`, `cmake/DxvUIConfig.cmake.in` не требует `sdl2-gfx`. Теперь весь бэкенд — только SDL2 + SDL2_ttf + spdlog.
+
+- **GPU-геометрия вместо CPU-растеризаторов:**
+  - `fillCircleGeometry`: triangle fan, адаптивное число сегментов `circleSegmentsForRadius(r)` (12..64), центр + `r*cos/sin`. `SDL_RenderGeometry` с индексом `0,i+1,i+2`.
+  - `drawCircleRingGeometry`: кольцо `outer=r`, `inner=r-thickness`. Генерация outer/inner вершин по кругу, quad strip (2 треугольника на сегмент). Если `inner<=0` — fallback в `fillCircle`.
+  - `drawArcRingGeometry`: толстая дуга — сектор кольца. Нормализация углов `span = end-start`, wrap 360°, `segs = ceil(fullSegs * span/360)`. Outer/inner точки по `degToRad`, quad strip. При `span~360°` — делегат в `drawCircleRingGeometry`.
+  - `drawThickLineGeometry`: толстая линия — квад перпендикулярно направлению. `dx,dy`, `len`, `nx=-dy/len, ny=dx/len`, `half=thickness/2`, `p0..p3` = `±nx*half, ±ny*half`. 2 треугольника. Zero-length → `fillCircle`.
+  - `fillPolygonGeometry` / `fillPolygonGeometryF`: триангуляция ear-clipping `triangulateEarClipping(Vec2)`: signed area для winding (CCW vs CW), проверка выпуклости по `cross(prev,curr,next)`, проверка отсутствия вершин внутри треугольника `pointInTriangle` (cross signs). Guard `n*n` от бесконечного цикла, fallback fan если ear не найден (degenerate/self-intersecting). Вершины + индексы → `SDL_RenderGeometry`.
+
+- **Интеграция в legacy int-based API:**
+  - `drawLine(int...)` → `drawThickLineGeometry`
+  - `fillCircle(int...)` → `fillCircleGeometry`
+  - `drawCircle(int..., Border)` → `drawCircleRingGeometry`
+  - `drawArc(...)` → `drawArcRingGeometry`
+  - `fillPolygon(vector<PointI>)` → `fillPolygonGeometry` (ear clipping)
+  - `fillPolygon(span<PointF>)` (ICanvas) → `triangulateEarClipping` на float, `RenderGeometry`
+  - `fillRect`, `drawRect`, `fillRoundRect`, `drawRoundRect` уже были GPU — без изменений.
+
+- **Приёмка:** `SDL2_gfx` не линкуется, `ldd`/`dumpbin` не показывает, все тесты `CanvasBrushTests` (которые мокают `IRenderer`) зелёные, визуально слайдер (палец — `fillCircle`), чекбокс (галочка — `drawLine` толстая), `Plot` (полигон), дуги — идентичны. Производительность: CPU-сканлайн заливка заменена на GPU, ожидается −10% CPU на сценариях с кругами/полигонами (slider, plot).
+
+Отклонения: батчинг/display-list, render-target кэш, damage-ректы, `Brush` gradient/shadow, Image-виджет (`createTexture`) оставлены как stage 6b опционально — требуют отдельного дизайна `ImageData` и `createRenderTarget`. Текущий коммит закрывает критерий «GPU-пути + удаление sdl2-gfx» из строки 6 таблицы.
 
 
 
