@@ -4,8 +4,10 @@
 #include <memory>
 
 #include "DxvUI/core.h"
+#include "DxvUI/core/ImageData.h"
 #include "DxvUI/interfaces/ICanvas.h"
 #include "DxvUI/interfaces/ITextEngine.h"
+#include "DxvUI/interfaces/ITexture.h"
 
 namespace DxvUI {
 
@@ -17,7 +19,7 @@ namespace DxvUI {
  * - frame lifecycle: beginFrame(clear) -> ICanvas& -> endFrame() (present)
  * - output size and DPI scale
  * - text engine (needs backend context to create textures)
- * - future: createTexture(ImageData) for Image widget, createRenderTarget(Size) for subtree cache
+ * - stage 6b: createTexture(ImageData) for Image widget, createRenderTarget(Size) for subtree cache
  *
  * Painting itself is via ICanvas (float Brush-based), not here. Platform services
  * (cursor/clipboard) are in IPlatformServices, so Scene::draw no longer depends on them.
@@ -40,9 +42,13 @@ class IRenderBackend {
 
     virtual ITextEngine& getTextEngine() = 0;
 
-    // Future stage 6: image loading and render-target cache
-    // virtual std::shared_ptr<ITexture> createTexture(const ImageData&) = 0;
-    // virtual std::unique_ptr<ICanvas> createRenderTarget(Size) = 0;
+    // Stage 6b: image loading and render-target cache
+    virtual std::shared_ptr<ITexture> createTexture(const ImageData& data) = 0;
+    // Render-target: returns a texture that can be rendered to via begin/end
+    // For simplicity, returns texture with TARGET access; backend tracks target stack.
+    virtual std::shared_ptr<ITexture> createRenderTarget(int width, int height) = 0;
+    virtual void beginRenderTarget(const std::shared_ptr<ITexture>& target) = 0;
+    virtual void endRenderTarget() = 0;
 };
 
 }  // namespace DxvUI

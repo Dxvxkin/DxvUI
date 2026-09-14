@@ -38,6 +38,10 @@ class SDLRenderer : public IRenderer, public ICanvas {
     ICanvas& beginFrame(const Color& clearColor) override;
     void endFrame() override;
     float getDpiScale() const override;
+    std::shared_ptr<ITexture> createTexture(const ImageData& data) override;
+    std::shared_ptr<ITexture> createRenderTarget(int width, int height) override;
+    void beginRenderTarget(const std::shared_ptr<ITexture>& target) override;
+    void endRenderTarget() override;
 
     // --- IRenderer implementation (legacy int-based, kept for compat) ---
     void clear(const Color& color) override;
@@ -114,6 +118,9 @@ class SDLRenderer : public IRenderer, public ICanvas {
     // records whether the saved clip was enabled at push time, so popClipRect()
     // can restore the exact previous state (SDL treats a disabled clip as null).
     std::vector<std::pair<bool, Rect>> clipStack;
+
+    // Render-target stack for createRenderTarget/begin/end (stage 6b)
+    std::vector<SDL_Texture*> renderTargetStack;
 
     std::map<CursorType, SDL_Cursor*> cursorCache;
 };

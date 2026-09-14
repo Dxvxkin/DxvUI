@@ -841,4 +841,93 @@ void SDLRenderer::fillRoundRect(const Rect& rect, int radius, const Color& fillC
 void SDLRenderer::fillPolygon(const std::vector<PointI>& points, const Color& color) {
     fillPolygonGeometry(renderer, points, color);
 }
+
+std::shared_ptr<ITexture> SDLRenderer::createTexture(const ImageData& data) {
+    if (!data.isValid()) {
+        Log::error("SDLRenderer::createTexture: invalid ImageData");
+        return nullptr;
+    }
+    // Convert to RGBA8
+    std::vector<uint8_t> rgba;
+    rgba.reserve(data.width * data.height * 4);
+    if (data.channels == 4) {
+        rgba = data.pixels;
+    } else if (data.channels == 3) {
+        rgba.resize(data.width * data.height * 4);
+        for (int i = 0; i < data.width * data.height; ++i) {
+            rgba[i * 4 + 0] = data.pixels[i * 3 + 0];
+            rgba[i * 4 + 1] = data.pixels[i * 3 + 1];
+            rgba[i * 4 + 2] = data.pixels[i * 3 + 2];
+            rgba[i * 4 + 3] = 255;
+        }
+    } else if (data.channels == 1) {
+        rgba.resize(data.width * data.height * 4);
+        for (int i = 0; i < data.width * data.height; ++i) {
+            uint8_t v = data.pixels[i];
+            rgba[i * 4 + 0] = v;
+            rgba[i * 4 + 1] = v;
+            rgba[i * 4 + 2] = v;
+            rgba[i * 4 + 3] = 255;
+        }
+    }
+
+    SDL_Texture* tex = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32,
+                                         SDL_TEXTUREACCESS_STATIC, data.width, data.height);
+    if (!tex) {
+        Log::error("SDLRenderer::createTexture: SDL_CreateTexture failed: {}", SDL_GetError());
+        return nullptr;
+    }
+    SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_BLEND);
+    // SDL_UpdateTexture expects pitch = width * bytesPerPixel
+    if (SDL_UpdateTexture(tex, nullptr, rgba.data(), data.width * 4) != 0) {
+        Log::error("SDLRenderer::createTexture: SDL_UpdateTexture failed: {}", SDL_GetError());
+        SDL_DestroyTexture(tex);
+        return nullptr;
+    }
+    return std::make_shared<SDLTexture>(tex);
+}
+
+std::shared_ptr<ITexture> SDLRenderer::createRenderTarget(int width, int height) {
+    if (width <= 0 || height <= 0) {
+        Log::error("SDLRenderer::createRenderTarget: invalid size {}x{}", width, height);
+        return nullptr;
+    }
+    SDL_Texture* tex = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888,
+                                         SDL_TEXTUREACCESS_TARGET, width, height);
+    if (!tex) {
+        Log::error("SDLRenderer::createRenderTarget: SDL_CreateTexture TARGET failed: {}", SDL_GetError());
+        return nullptr;
+    }
+    SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_BLEND);
+    return std::make_shared<SDLTexture>(tex);
+}
+
+void SDLRenderer::beginRenderTarget(const std::shared_ptr<ITexture>& target) {
+    auto* sdlTex = dynamic_cast<SDLTexture*>(target.get());
+    if (!sdlTex || !sdlTex->_texture) {
+        Log::error("SDLRenderer::beginRenderTarget: foreign texture");
+        return;
+    }
+    // Push current target
+    SDL_Texture* current = SDL_GetRenderTarget(renderer);
+    renderTargetStack.push_back(current);
+    if (SDL_SetRenderTarget(renderer, sdlTex->_texture) != 0) {
+        Log::error("SDLRenderer::beginRenderTarget: SDL_SetRenderTarget failed: {}", SDL_GetError());
+        renderTargetStack.pop_back();
+    }
+}
+
+void SDLRenderer::endRenderTarget() {
+    if (renderTargetStack.empty()) {
+        Log::error("SDLRenderer::endRenderTarget: stack empty, resetting to default");
+        SDL_SetRenderTarget(renderer, nullptr);
+        return;
+    }
+    SDL_Texture* prev = renderTargetStack.back();
+    renderTargetStack.pop_back();
+    if (SDL_SetRenderTarget(renderer, prev) != 0) {
+        Log::error("SDLRenderer::endRenderTarget: SDL_SetRenderTarget restore failed: {}", SDL_GetError());
+    }
+}
+
 }  // namespace DxvUI

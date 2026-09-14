@@ -44,6 +44,7 @@ target_sources(DxvUI PRIVATE
         src/widgets/SliderHorizontal.cpp
         src/widgets/SliderVertical.cpp
         src/widgets/TextEdit.cpp
+        src/widgets/Image.cpp
         src/widgets/Popup.cpp
         src/containers/CenterContainer.cpp
         src/containers/AbsoluteContainer.cpp

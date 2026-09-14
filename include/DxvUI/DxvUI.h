@@ -14,6 +14,7 @@
 #include "UIContext.h"
 #include "Utils.h"
 #include "core.h"
+#include "core/ImageData.h"
 
 // Interfaces
 #include "interfaces/ICanvas.h"
@@ -56,6 +57,7 @@
 #include "widgets/SliderHorizontal.h"
 #include "widgets/SliderVertical.h"
 #include "widgets/TextEdit.h"
+#include "widgets/Image.h"
 
 // Layout
 #include "layout/LayoutData.h"

@@ -108,6 +108,11 @@ class RecordingRenderer : public IRenderer, public ICanvas {
     ICanvas& beginFrame(const Color&) override { return *this; }
     void endFrame() override {}
 
+    std::shared_ptr<ITexture> createTexture(const ImageData&) override { return nullptr; }
+    std::shared_ptr<ITexture> createRenderTarget(int, int) override { return nullptr; }
+    void beginRenderTarget(const std::shared_ptr<ITexture>&) override {}
+    void endRenderTarget() override {}
+
     // ICanvas float-based (stage 5) – no-op for fake
     void pushClip(const RectF&) override {}
     void popClip() override {}
