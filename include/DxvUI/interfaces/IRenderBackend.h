@@ -28,6 +28,10 @@ class IRenderBackend {
 
     // Frame lifecycle – host that owns resources clears/presents here.
     // External mode (wrapping external SDL_Renderer) may ignore clear/present – host does it.
+    // Legacy clear/present kept for backward compat with hosts that call them directly.
+    virtual void clear(const Color& color) = 0;
+    virtual void present() = 0;
+
     virtual ICanvas& beginFrame(const Color& clearColor) = 0;
     virtual void endFrame() = 0;
 
