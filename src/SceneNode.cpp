@@ -1,6 +1,7 @@
 #include "DxvUI/SceneNode.h"
 
 #include <algorithm>
+#include <chrono>
 #include <string>
 #include <utility>
 
@@ -31,9 +32,6 @@ void SceneNode::addChild(const std::shared_ptr<SceneNode>& child) {
     children.push_back(child);
     child->parent = shared_from_this();
     child->setScene(this->getScene());
-    // The child may be freshly constructed (its style is dirty from birth) or
-    // be added to a scene-less tree where setScene() early-returns. Either way
-    // its dirty flag must propagate up so the StyleManager finds it.
     child->markStyleDirty();
     child->onAttach();
     if (auto s = child->getScene()) {
@@ -41,8 +39,6 @@ void SceneNode::addChild(const std::shared_ptr<SceneNode>& child) {
     }
     childrenOrderDirty = true;
     markLayoutDirty();
-    // A new sibling can now cover the node under the cursor, so the event
-    // manager's hit-test cache must not survive the structural change.
     if (auto s = scene.lock()) s->invalidateHitTestCache();
 }
 
@@ -59,10 +55,6 @@ void SceneNode::removeChild(const std::shared_ptr<SceneNode>& child) {
         child->parent.reset();
         child->setScene(nullptr);
         markLayoutDirty();
-        // A removed sibling can uncover a node under the cursor, and the removed
-        // node (or a descendant) may be the hovered/pressed/focused node: clear
-        // that state so detached-but-alive nodes stop receiving events and
-        // widgets do not stay stuck in Hovered/Pressed.
         if (auto s = scene.lock()) {
             s->onNodeRemoved(child);
             s->invalidateHitTestCache();
@@ -89,7 +81,7 @@ void SceneNode::setScene(const std::shared_ptr<Scene>& newScene) {
 
     scene = newScene;
 
-    markStyleDirty();  // When scene changes, styles need re-evaluation
+    markStyleDirty();
     markLayoutDirty();
     for (const auto& child : children) {
         child->setScene(newScene);
@@ -124,10 +116,6 @@ std::shared_ptr<SceneNode> SceneNode::findNodeAt(int x, int y) {
     if (!state_.test(NodeState::Flag::Visible) || !getGlobalBounds().contains(x, y)) {
         return nullptr;
     }
-    // An opaque (hit-testable) node is an atomic target: it accepts the hit
-    // itself and never recurses into its children, even though they may cover
-    // the point visually. Used by composite leaf widgets (Button, Checkbox,
-    // Slider...) that draw their own content and must be clicked as a unit.
     if (hitTestable_) {
         return shared_from_this();
     }
@@ -145,8 +133,6 @@ void SceneNode::setHitTestable(bool hitTestable) {
         return;
     }
     hitTestable_ = hitTestable;
-    // The hit-test cache may hold the result for a point that now (or no
-    // longer) resolves to this node; force the next hit-test to rescan.
     if (auto sc = scene.lock()) {
         sc->invalidateHitTestCache();
     }
@@ -155,11 +141,6 @@ void SceneNode::setHitTestable(bool hitTestable) {
 bool SceneNode::isHitTestable() const { return hitTestable_; }
 
 bool SceneNode::hasNodeInFront(const Rect& bounds) {
-    // Children are kept in draw order (later = drawn on top). A sibling drawn
-    // in front of this node can cover the cursor without any relayout, so walk
-    // the ancestor chain and report whether any visible sibling intersects the
-    // given bounds. Rect-based because it is computed once per hit-test cache
-    // rebuild instead of per event, where the sibling walk would dominate.
     const SceneNode* pathChild = this;
     for (auto ancestor = parent.lock(); ancestor; ancestor = ancestor->parent.lock()) {
         ancestor->sortChildrenIfDirty();
@@ -179,7 +160,7 @@ bool SceneNode::hasNodeInFront(const Rect& bounds) {
 
 void SceneNode::setStyle(const StyleRule& rule, WidgetState state) {
     const StyleRule* old = style.get(state);
-    if (old && *old == rule) return;  // No-op write: nothing to invalidate.
+    if (old && *old == rule) return;
     const bool layoutChanged =
         old ? detail::layoutPropsDiffer(*old, rule) : detail::hasLayoutProps(rule);
     const bool textMetricsChanged =
@@ -187,9 +168,6 @@ void SceneNode::setStyle(const StyleRule& rule, WidgetState state) {
     style.set(rule, state);
     markStyleDirty();
     if (textMetricsChanged) {
-        // fontSize/fontFamily are inherited, so a change re-measures this node
-        // and every text-bearing descendant; a plain markLayoutDirty() would
-        // leave clean child subtrees pruned out of the layout pass.
         markLayoutDirtyRecursive();
     } else if (layoutChanged) {
         markLayoutDirty();
@@ -199,13 +177,12 @@ void SceneNode::setStyle(const StyleRule& rule, WidgetState state) {
 void SceneNode::updateStyle(const StyleRule& updates, WidgetState state) {
     const StyleRule* old = style.get(state);
     if (!old) {
-        // No existing rule for the state: creating one is equivalent to a set.
         setStyle(updates, state);
         return;
     }
     StyleRule merged = *old;
     merged.merge(updates);
-    if (merged == *old) return;  // No-op merge.
+    if (merged == *old) return;
     const bool layoutChanged = detail::layoutPropsDiffer(*old, merged);
     const bool textMetricsChanged = detail::textMetricsPropsDiffer(*old, merged);
     style.update(updates, state);
@@ -225,25 +202,12 @@ void SceneNode::markStyleDirty() {
 }
 
 void SceneNode::markStyleSubtreeDirty() {
-    // Always walk all the way up to the root. An early stop on an already-marked
-    // node is only valid while every ancestor of a marked node is marked too,
-    // but that invariant is broken whenever the parent chain changes: a node can
-    // be styled while it has no parent yet (setStyle() on a freshly constructed
-    // node) or a dirty subtree can be detached and re-attached elsewhere. In both
-    // cases the node's flag is already set while its new ancestors are clean, so
-    // an early stop would leave the root unflagged and the StyleManager's prune
-    // pass would skip the subtree entirely.
     for (SceneNode* n = this; n != nullptr; n = n->parent.lock().get()) {
         n->style.markSubtreeDirty();
     }
 }
 
 void SceneNode::markLayoutDirty() {
-    // Like markStyleSubtreeDirty, always walk all the way up to the root. An
-    // early stop on an already-marked node is only valid while every ancestor
-    // of a marked node is marked too, but that invariant is broken whenever the
-    // parent chain changes: a dirty subtree can be detached and re-attached
-    // elsewhere, leaving its new ancestors unflagged.
     for (SceneNode* n = this; n != nullptr; n = n->parent.lock().get()) {
         n->layoutData.isSubtreeDirty = true;
     }
@@ -327,8 +291,6 @@ void SceneNode::setEnabled(bool enabled) {
     if (state_.take(NodeState::Flag::Enabled, enabled)) {
         markLayoutDirty();
         if (!enabled) {
-            // A disabled node (or its focused descendant) must stop holding
-            // hover/press/focus and stop receiving interaction events right away.
             if (auto s = scene.lock()) {
                 s->onNodeDisabled(shared_from_this());
             }
@@ -340,7 +302,6 @@ void SceneNode::setZIndex(int newZIndex) {
     if (zIndex != newZIndex) {
         zIndex = newZIndex;
         if (auto p = parent.lock()) p->childrenOrderDirty = true;
-        // A re-sorted sibling can now cover the node under the cursor.
         if (auto s = scene.lock()) s->invalidateHitTestCache();
     }
 }
@@ -368,9 +329,6 @@ SceneNode::Connection::~Connection() {
     }
 }
 
-// The compatibility entry point: dispatches the event to this node in the
-// Target phase without walking the tree (the Scene/EventManager owns the walk).
-// Used by application code that dispatches directly to a node.
 void SceneNode::dispatchEvent(DxvEvent& event) {
     if (!event.getTarget()) {
         return;
@@ -382,10 +340,6 @@ void SceneNode::dispatchEvent(DxvEvent& event, EventPhase phase) {
     if (!event.getTarget()) {
         return;
     }
-    // Capture-phase listeners run on the descent (only for captureable events,
-    // which is the only case the EventManager walks into capture). Fast path:
-    // the vast majority of nodes hold no capture listeners, so bail out before
-    // the per-node bookkeeping below.
     if (phase == EventPhase::Capture) {
         if (!target_.hasAnyCaptureHandlers()) {
             return;
@@ -403,9 +357,6 @@ void SceneNode::dispatchEvent(DxvEvent& event, EventPhase phase) {
         return;
     }
 
-    // Regular listeners run in the Target and Bubble phases. Bubble-phase nodes
-    // with no listeners for this type skip the per-node bookkeeping (current
-    // target, phase, UIContext construction) — the common case on big trees.
     const EventType eventType = event.type;
     if (phase == EventPhase::Bubble) {
         if (!target_.hasHandler(eventType)) {
@@ -422,11 +373,6 @@ void SceneNode::dispatchEvent(DxvEvent& event, EventPhase phase) {
         target_.runHandlers(eventType, event, ctx);
     }
 
-    // Default action runs only on the target, after the user listeners, and is
-    // cancelled by preventDefault() (stopPropagation/stopImmediatePropagation
-    // do not cancel it, per DOM semantics). Per the DOM UI Events model the
-    // default action does not stop propagation. The type is restored first so
-    // the hook always sees the originally raised event.
     if (phase == EventPhase::Target) {
         event.type = eventType;
         if (event.cancelable() && !event.isDefaultPrevented()) {
@@ -447,7 +393,7 @@ const ComputedAppearanceStyle& SceneNode::getComputedAppearance(WidgetState stat
     }
     Log::error(
         "FATAL: getComputedAppearance failed for node '{}' (state {}). Cache not populated "
-        "before use. This indicates a severe logic error in the layout/style update cycle.",
+        "before use.",
         id, (int)state);
     static const ComputedAppearanceStyle empty{};
     return empty;
@@ -463,7 +409,7 @@ const ComputedLayoutStyle& SceneNode::getComputedLayout(WidgetState state) const
     }
     Log::error(
         "FATAL: getComputedLayout failed for node '{}' (state {}). Cache not populated before "
-        "use. This indicates a severe logic error in the layout/style update cycle.",
+        "use.",
         id, (int)state);
     static constexpr ComputedLayoutStyle empty{};
     return empty;
@@ -494,13 +440,15 @@ void SceneNode::onArrange(const Rect& /*finalRect*/) {}
 void SceneNode::draw(PaintContext& pc) { drawImpl(pc, pc.frame().viewport); }
 
 void SceneNode::draw(IRenderer& renderer) {
-    // Transitional entry point (see the header): wrap the renderer into the
-    // painting-only canvas view and run the context-driven pass.
     CanvasAdapter canvas(renderer);
     const Size viewportSize = renderer.getViewportSize();
+    const double nowMs = std::chrono::duration<double, std::milli>(
+                             std::chrono::steady_clock::now().time_since_epoch())
+                             .count();
     PaintContext pc(canvas, renderer.getTextEngine(),
                     FrameInfo{.viewport = {0, 0, static_cast<int>(viewportSize.width),
-                                           static_cast<int>(viewportSize.height)}});
+                                           static_cast<int>(viewportSize.height)},
+                              .timeMs = nowMs});
     draw(pc);
 }
 
@@ -509,18 +457,12 @@ void SceneNode::drawImpl(PaintContext& pc, const Rect& viewportRect) {
         return;
     }
 
-    // Viewport culling: skip everything (background, content and children)
-    // once the node is fully outside the visible area. A descendant could
-    // theoretically overflow back on screen (absolute anchoring/overflow), but
-    // only while its parent is entirely off-screen, which is the rare case.
     if (!getGlobalBounds().intersects(viewportRect)) {
         return;
     }
 
     onPaintBackground(pc);
 
-    // The guard pairs the clip push with its pop, so no early return or hook
-    // override between them can unbalance the canvas' clip stack.
     const bool clip = getComputedAppearance().clipContent;
     ClipGuard clipGuard(pc.canvas(), getGlobalBounds(), clip);
 
@@ -538,9 +480,6 @@ void SceneNode::onPaintBackground(PaintContext& pc) {
         return;
     }
 
-    // The computed appearance maps onto one Brush: a fill when the background
-    // is not fully transparent, a stroke when a border is set. Both are absent
-    // only in the early-out above, so the brush below is never empty.
     Brush brush;
     if (computedAppearance.backgroundColor.a > 0) {
         brush.fill = Fill{computedAppearance.backgroundColor};
@@ -558,7 +497,7 @@ void SceneNode::onPaint(PaintContext& /*pc*/) {}
 
 void SceneNode::bind(const std::shared_ptr<UIBinding>& binding) {
     connection_.reset();
-    binding_ = binding;  // TODO: binding присваиваеться без проверки, возможно требует проверок
+    binding_ = binding;
     if (binding_) {
         connection_ =
             binding_->subscribe([this](const UIBinding& value) { this->onBindingChange(value); });
@@ -569,9 +508,6 @@ std::shared_ptr<UIBinding> SceneNode::getBinding() const { return binding_; }
 
 void SceneNode::onBindingChange(const UIBinding& binding) {
     onChange(binding);
-    // Change is raised through the scene so the event manager controls the
-    // propagation. A node outside the scene (attached-after-bind or detached)
-    // has no scene to route through; its Change is not delivered.
     if (auto s = scene.lock()) {
         s->raise(EventType::Change, shared_from_this());
     }

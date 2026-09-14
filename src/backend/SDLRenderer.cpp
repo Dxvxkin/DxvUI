@@ -72,6 +72,7 @@ void fillRoundedRectGeometry(SDL_Renderer* renderer, const Rect& rect, int radiu
                              const Color& color) {
     const int maxRadius = std::min(rect.width, rect.height) / 2;
     if (rect.width < 3 || rect.height < 3 || maxRadius <= 1 || radius <= 1) {
+        SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
         SDL_Rect r = {rect.x, rect.y, rect.width, rect.height};
         SDL_RenderFillRect(renderer, &r);
         return;
@@ -105,8 +106,7 @@ void drawRoundedRectRingGeometry(SDL_Renderer* renderer, const Rect& rect, int r
     if (w < 3 || h < 3 || thickness <= 0) return;
     const int maxRadius = std::min(w, h) / 2;
     if (radius <= 1 || maxRadius <= 1) {
-        // Square corners: concentric 1px outlines (same pixels as the previous
-        // roundedRectangleRGBA(radius=0) loop).
+        SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
         SDL_Rect r = {rect.x, rect.y, rect.width, rect.height};
         for (int i = 0; i < thickness; ++i) {
             SDL_RenderDrawRect(renderer, &r);
@@ -119,7 +119,6 @@ void drawRoundedRectRingGeometry(SDL_Renderer* renderer, const Rect& rect, int r
         return;
     }
     const int outerR = std::min(radius, maxRadius);
-    // Leave at least a 1px hole so the inner polygon stays non-degenerate.
     const int t = std::max(1, std::min(thickness, maxRadius - 1));
     const int innerR = std::max(1, outerR - t);
     const auto outer = roundedRectPolygon(rect.x, rect.y, rect.x + w - 1, rect.y + h - 1, outerR);
@@ -176,17 +175,12 @@ SDLRenderer::SDLRenderer(SDL_Renderer* externalRenderer)
     : window(nullptr), renderer(externalRenderer), ownsResources(false) {
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
     if (!renderer) throw std::invalid_argument("externalRenderer cannot be null.");
-    // Same blend-mode setup as the self-contained constructor: without it,
-    // translucent clears, fills and text render incorrectly against the host's
-    // content on an external renderer.
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
     textEngine = std::make_unique<SDLTextEngine>(renderer);
     setCursor(CursorType::Arrow);
 }
 
 SDLRenderer::~SDLRenderer() {
-    // Cached text textures reference the SDL renderer, so they must be freed
-    // before the renderer itself is destroyed.
     if (textEngine) {
         textEngine->clearCaches();
     }
@@ -224,23 +218,10 @@ void SDLRenderer::pushClipRect(const Rect& rect) {
 
     SDL_Rect r = {rect.x, rect.y, rect.width, rect.height};
     if (clipEnabled == SDL_TRUE) {
-        // Nested clips must intersect: SDL_RenderSetClipRect *replaces* the
-        // clip rect instead of intersecting it, so without this a child's
-        // clip would re-expose pixels an ancestor's clip had already cut off
-        // (e.g. a TextEdit half-slid out of a ScrollContainer viewport
-        // drawing over the content scrolled below it).
         SDL_Rect intersection;
         if (SDL_IntersectRect(&r, &currentClip, &intersection)) {
             r = intersection;
         } else {
-            // The intersection is empty: everything must be clipped away.
-            // Passing an empty rect there is version-fragile (older SDL
-            // releases treated an empty rect as "disable clipping"; NULL and
-            // negative sizes still do), so use a 1x1 rect placed just outside
-            // the render target instead. It is a valid non-empty rect that
-            // covers no drawable pixel — backends intersect it with the
-            // target bounds, and a point on/inside the pushed rect could
-            // still re-expose a pixel the previous clip had cut off.
             int outW = 0, outH = 0;
             SDL_GetRendererOutputSize(renderer, &outW, &outH);
             r = {outW, outH, 1, 1};
@@ -330,10 +311,6 @@ Size SDLRenderer::getViewportSize() const {
 
 void SDLRenderer::drawTexture(const std::shared_ptr<ITexture>& texture, const Rect& dstRect) {
     if (!texture) return;
-    // ITexture is backend-neutral, so only textures created by this backend
-    // (through its text engine) can be drawn. A foreign implementation used
-    // to be dynamic_cast to SDLTexture and dereferenced blindly, which
-    // silently produced a null SDL_Texture* (UB); reject it instead.
     const auto* sdlTexture = dynamic_cast<SDLTexture*>(texture.get());
     if (!sdlTexture || !sdlTexture->_texture) {
         Log::error(
@@ -342,7 +319,45 @@ void SDLRenderer::drawTexture(const std::shared_ptr<ITexture>& texture, const Re
         return;
     }
     SDL_Rect dst = {dstRect.x, dstRect.y, dstRect.width, dstRect.height};
+    SDL_SetTextureColorMod(sdlTexture->_texture, 255, 255, 255);
+    SDL_SetTextureAlphaMod(sdlTexture->_texture, 255);
     SDL_RenderCopy(renderer, sdlTexture->_texture, nullptr, &dst);
+}
+
+void SDLRenderer::drawTexture(const std::shared_ptr<ITexture>& texture,
+                              const TextureDrawDesc& desc) {
+    if (!texture) return;
+    const auto* sdlTexture = dynamic_cast<SDLTexture*>(texture.get());
+    if (!sdlTexture || !sdlTexture->_texture) {
+        Log::error(
+            "SDLRenderer::drawTexture(tinted): the texture was not created by this renderer "
+            "(foreign ITexture implementation or a freed handle); skipping");
+        return;
+    }
+
+    SDL_Rect dst = {desc.dst.x, desc.dst.y, desc.dst.width, desc.dst.height};
+    SDL_Rect src;
+    SDL_Rect* srcPtr = nullptr;
+    if (desc.src) {
+        src = {desc.src->x, desc.src->y, desc.src->width, desc.src->height};
+        srcPtr = &src;
+    }
+
+    if (desc.tint) {
+        SDL_SetTextureColorMod(sdlTexture->_texture, desc.tint->r, desc.tint->g, desc.tint->b);
+        const float a = desc.tint->a / 255.0f * desc.alpha;
+        SDL_SetTextureAlphaMod(sdlTexture->_texture,
+                               static_cast<Uint8>(std::clamp(a * 255.0f, 0.0f, 255.0f)));
+    } else {
+        SDL_SetTextureColorMod(sdlTexture->_texture, 255, 255, 255);
+        SDL_SetTextureAlphaMod(sdlTexture->_texture,
+                               static_cast<Uint8>(std::clamp(desc.alpha * 255.0f, 0.0f, 255.0f)));
+    }
+
+    SDL_RenderCopy(renderer, sdlTexture->_texture, srcPtr, &dst);
+
+    SDL_SetTextureColorMod(sdlTexture->_texture, 255, 255, 255);
+    SDL_SetTextureAlphaMod(sdlTexture->_texture, 255);
 }
 
 void SDLRenderer::setSDLDrawColor(const Color& color) {
@@ -375,8 +390,6 @@ void SDLRenderer::drawLine(int x1, int y1, int x2, int y2, const Color& color, i
         SDL_RenderDrawLine(renderer, x1, y1, x2, y2);
         return;
     }
-    // sdl2-gfx CPU rasterizer, consistent with the other curved primitives;
-    // the width is clamped to the Uint8 the gfx API takes.
     const auto width = static_cast<Uint8>(std::clamp(thickness, 1, 255));
     thickLineRGBA(renderer, x1, y1, x2, y2, width, color.r, color.g, color.b, color.a);
 }
@@ -393,8 +406,6 @@ void SDLRenderer::fillCircle(int cX, int cY, int r, const Color& f, const Border
     drawCircle(cX, cY, r, b);
 }
 void SDLRenderer::drawArc(int cX, int cY, int r, float sA, float eA, const Border& border) {
-    // A wide arc is a set of concentric hairlines: sdl2-gfx has no thick-arc
-    // path, and the CPU rasterizer is already the arc's implementation here.
     for (int i = 0; i < border.thickness; ++i) {
         arcRGBA(renderer, cX, cY, r - i, sA, eA, border.color.r, border.color.g, border.color.b,
                 border.color.a);

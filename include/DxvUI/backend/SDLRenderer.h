@@ -50,8 +50,10 @@ class SDLRenderer : public IRenderer {
     void pushClipRect(const Rect& rect) override;
     void popClipRect() override;
 
-    // Texture Rendering
+    // Texture Rendering (stage 3: tinted + src rect for glyph atlas)
     void drawTexture(const std::shared_ptr<ITexture>& texture, const Rect& dstRect) override;
+    void drawTexture(const std::shared_ptr<ITexture>& texture,
+                     const TextureDrawDesc& desc) override;
 
     // Primitives (every call states its own color/border — the renderer keeps
     // no draw-color state)

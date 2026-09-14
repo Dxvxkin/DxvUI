@@ -3,20 +3,17 @@
 #include <utility>
 
 #include "DxvUI/Scene.h"
-#include "DxvUI/backend/SDLTextEditorView.h"
 #include "DxvUI/interfaces/IClipboard.h"
 #include "DxvUI/interfaces/IRenderer.h"
 #include "DxvUI/interfaces/ITextEngine.h"
 #include "DxvUI/layout/LayoutManager.h"
 #include "DxvUI/style/Colors.h"
 #include "DxvUI/style/Theme.h"
+#include "DxvUI/text/DefaultTextEditorView.h"
 
 namespace DxvUI {
 
-// --- Self-registration of default styles ---
 namespace {
-// Единый источник имени типа: используется и в getNodeType(), и как ключ
-// регистрации стилей, чтобы строка не могла разойтись с типом виджета.
 constexpr const char* kWidgetType = "TextEdit";
 
 struct TextEditStyleRegistrar {
@@ -29,8 +26,6 @@ struct TextEditStyleRegistrar {
                .borderColor = Colors::Gray,
                .borderThickness = 1,
                .cursor = CursorType::IBeam,
-               // Overflowing text is clipped to the
-               // field instead of drawing over siblings.
                .clipContent = true,
                .textAlign = Alignment::Start,
                .padding = {{2, 4, 2, 4}}}},
@@ -53,30 +48,14 @@ std::shared_ptr<TextEdit> TextEdit::create(std::string id, std::string text) {
 
 TextEdit::TextEdit(std::string id, std::string text)
     : SceneNode(std::move(id)), editor_(std::move(text)) {
-    view_ = std::make_unique<SDLTextEditorView>();
-    // Mirror the model text into a bound UIBinding so the value is observable
-    // through EventType::Change like the other data-bearing widgets (Label,
-    // Checkbox, Slider). The model stays the source of truth; the binding is a
-    // kept-in-sync projection used to dispatch the Change event (and to let
-    // consumers read event.getTarget()->getBinding()->getString()).
+    view_ = std::make_unique<DefaultTextEditorView>();
     bind(UIBinding::create(editor_.getText()));
     editor_.setChangeCallback([this] { getBinding()->set(editor_.getText()); });
 }
 
-void TextEdit::onChange(const UIBinding& /*binding*/) {
-    // Every text mutation flows through the model -> binding mirror -> here, so
-    // a single invalidation point replaces the scattered markLayoutDirty() calls
-    // in the editing handlers. Caret/selection moves do not change the text and
-    // need no relayout (their bounds are unchanged; redraw happens every frame).
-    markLayoutDirty();
-}
+void TextEdit::onChange(const UIBinding& /*binding*/) { markLayoutDirty(); }
 
 void TextEdit::onEvent(DxvEvent& event) {
-    // Default action of the field's own Target phase, run after the user
-    // listeners (and skipped when one called preventDefault()). Per the DOM UI
-    // Events model the field consumes the *meaning* of the editing keys here but
-    // does not stop propagation: the keys still bubble so an ancestor can react
-    // to shortcuts while the field edits.
     switch (event.type) {
         case EventType::KeyDown:
             handleKeyDown(event);
@@ -113,19 +92,17 @@ Size TextEdit::onMeasure(const Size& availableSize) {
         return LayoutManager::addPadding({0, 0}, insets);
     }
 
-    const TextMetrics measured = (*engine).measure(*font, editor_.getText());
-    // An empty buffer measures zero height, but the field still needs the font's
-    // line height to be clickable and to align the caret.
-    const LineMetrics line = (*engine).lineMetrics(*font);
-    const int height = line.lineHeight > 0 ? line.lineHeight : measured.height;
-    return LayoutManager::addPadding(
-        {static_cast<float>(measured.width), static_cast<float>(height)}, insets);
+    // Stage 3: measure via TextLayout (glyph atlas)
+    TextLayout layout = engine->layoutText(*font, editor_.getText());
+    const int width = layout.metrics.width;
+    const LineMetrics line = engine->lineMetrics(*font);
+    const int height = line.lineHeight > 0 ? line.lineHeight
+                     : (layout.metrics.height > 0 ? layout.metrics.height : 0);
+    return LayoutManager::addPadding({static_cast<float>(width), static_cast<float>(height)},
+                                     insets);
 }
 
 void TextEdit::onPaint(PaintContext& pc) {
-    // The paint context carries the scene's text engine, so painting must not
-    // reach back through the renderer (getEditContext is for the mouse/measure
-    // paths that have no context).
     const auto& appearance = getComputedAppearance();
     auto font = pc.text().getFontForFamily(appearance.fontFamily, appearance.fontSize);
     if (!font) {
@@ -138,8 +115,6 @@ void TextEdit::onPaint(PaintContext& pc) {
     options.horizontalAlign = appearance.textAlign;
     const bool focused = getCurrentState() == WidgetState::Focused;
     options.showCaret = focused;
-    // HTML-конвенция: плейсхолдер виден только пока поле пустое и не в фокусе;
-    // при фокусе исчезает (остаётся только каретка).
     if (editor_.empty() && !focused) {
         options.placeholder = placeholder_;
         options.placeholderColor = Colors::Gray;
@@ -269,8 +244,6 @@ void TextEdit::handleMouseDown(DxvEvent& event) {
     selectionAnchor_ = index;
     editor_.setCaret(index);
     editor_.clearSelection();
-    // Mouse events intentionally keep bubbling (e.g. for ancestor-level
-    // click-outside handling); the editor state is set above regardless.
 }
 
 void TextEdit::handleMouseDrag(DxvEvent& event) {

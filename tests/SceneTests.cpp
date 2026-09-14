@@ -39,6 +39,8 @@ class FakeTextEngine : public ITextEngine {
         return nullptr;
     }
     size_t getTextureCacheCount() const override { return 0; }
+    TextLayout layoutText(const IFont&, std::string_view) override { return {}; }
+    void drawLayout(ICanvas&, const TextLayout&, const RectF&, const TextPaint&) override {}
 };
 
 class FakeClipboard : public IClipboard {
@@ -69,9 +71,8 @@ class FakeRenderer : public IRenderer {
     IClipboard& getClipboard() override { return clipboard; }
 
     void drawTexture(const std::shared_ptr<ITexture>&, const Rect&) override {}
+    void drawTexture(const std::shared_ptr<ITexture>&, const TextureDrawDesc&) override {}
 
-    // Stage-2 IRenderer keeps only explicitly-colored/bordered primitives, so
-    // the stub shrinks to the paths the canvas actually forwards.
     void drawRect(const Rect&, const Border&) override {}
     void fillRect(const Rect&, const Color&) override {}
     void fillRect(const Rect&, const Color&, const Border&) override {}

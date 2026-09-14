@@ -1,6 +1,7 @@
-// Stage-2 tests (docs/RENDERING_REFACTORING.md): the Brush-based painting
+// Stage-2/3 tests (docs/RENDERING_REFACTORING.md): the Brush-based painting
 // contract and the CanvasAdapter that maps it onto the backend's explicitly
-// colored/bordered primitives, including the float -> pixel boundary.
+// colored/bordered primitives, including the float -> pixel boundary and the
+// stage-3 tinted texture path.
 
 #include <gtest/gtest.h>
 
@@ -34,6 +35,8 @@ class StubTextEngine : public ITextEngine {
         return nullptr;
     }
     size_t getTextureCacheCount() const override { return 0; }
+    TextLayout layoutText(const IFont&, std::string_view) override { return {}; }
+    void drawLayout(ICanvas&, const TextLayout&, const RectF&, const TextPaint&) override {}
 };
 
 class StubClipboard : public IClipboard {
@@ -44,16 +47,13 @@ class StubClipboard : public IClipboard {
 
 /**
  * @brief IRenderer stub that records every backend call the adapter makes.
- *
- * One vector per renderer path, so a test can assert not only the arguments
- * but also *which* overload the canvas picked for a given Brush.
  */
 class RecordingRenderer : public IRenderer {
    public:
     struct RectCall {
         Rect rect;
         Color color;
-        int thickness = 0;  // 0 = no border argument was passed
+        int thickness = 0;
     };
     struct CircleCall {
         int centerX = 0, centerY = 0, radius = 0;
@@ -75,13 +75,19 @@ class RecordingRenderer : public IRenderer {
         std::vector<PointI> points;
         Color color;
     };
+    struct TextureCall {
+        Rect dst;
+        std::optional<Rect> src;
+        std::optional<Color> tint;
+        float alpha = 1.0f;
+    };
 
-    std::vector<RectCall> filledRects;               // fillRect(color)
-    std::vector<RectCall> filledBorderedRects;       // fillRect(color, border)
-    std::vector<RectCall> strokedRects;              // drawRect(border)
-    std::vector<RectCall> filledRoundRects;          // fillRoundRect(color)
-    std::vector<RectCall> filledBorderedRoundRects;  // fillRoundRect(color, border)
-    std::vector<RectCall> strokedRoundRects;         // drawRoundRect(border)
+    std::vector<RectCall> filledRects;
+    std::vector<RectCall> filledBorderedRects;
+    std::vector<RectCall> strokedRects;
+    std::vector<RectCall> filledRoundRects;
+    std::vector<RectCall> filledBorderedRoundRects;
+    std::vector<RectCall> strokedRoundRects;
     std::vector<CircleCall> filledCircles;
     std::vector<CircleCall> filledBorderedCircles;
     std::vector<CircleCall> strokedCircles;
@@ -89,10 +95,10 @@ class RecordingRenderer : public IRenderer {
     std::vector<LineCall> lines;
     std::vector<PolygonCall> polygons;
     std::vector<Rect> textures;
+    std::vector<TextureCall> tintedTextures;
     std::vector<Rect> clipPushes;
     int clipPops = 0;
 
-    // --- IRenderer ---
     void clear(const Color&) override {}
     void present() override {}
     Size getViewportSize() const override { return {800, 600}; }
@@ -104,6 +110,10 @@ class RecordingRenderer : public IRenderer {
     void popClipRect() override { ++clipPops; }
     void drawTexture(const std::shared_ptr<ITexture>&, const Rect& dstRect) override {
         textures.push_back(dstRect);
+    }
+    void drawTexture(const std::shared_ptr<ITexture>&, const TextureDrawDesc& desc) override {
+        tintedTextures.push_back({desc.dst, desc.src, desc.tint, desc.alpha});
+        textures.push_back(desc.dst);
     }
 
     void drawRect(const Rect& rect, const Border& border) override {
@@ -154,8 +164,6 @@ class RecordingRenderer : public IRenderer {
 
 }  // namespace
 
-// --- Brush / Fill / Stroke -------------------------------------------------
-
 TEST(BrushTest, NamedConstructorsBuildExpectedBrushes) {
     const Brush filled = Brush::filled(Colors::Red);
     ASSERT_TRUE(filled.fill.has_value());
@@ -183,22 +191,17 @@ TEST(BrushTest, DefaultBrushIsEmpty) {
     EXPECT_FALSE(Brush::stroked(Colors::Red).isEmpty());
 }
 
-// --- Float geometry --------------------------------------------------------
-
 TEST(GeometryTest, RectFConvertsFromLayoutRectWithoutLoss) {
     const Rect layout{3, 4, 5, 6};
-    const RectF painting = layout;  // implicit widening
+    const RectF painting = layout;
     EXPECT_EQ(painting, RectF(3.0f, 4.0f, 5.0f, 6.0f));
     EXPECT_FLOAT_EQ(painting.right(), 8.0f);
     EXPECT_FLOAT_EQ(painting.bottom(), 10.0f);
 }
 
 TEST(GeometryTest, RectFRoundsEdgesIndependently) {
-    // x/right and y/bottom are rounded separately, so the size keeps the
-    // intended pixel coverage instead of accumulating the rounding error.
     EXPECT_EQ(RectF(1.4f, 2.6f, 10.0f, 20.0f).rounded(), (Rect{1, 3, 10, 20}));
     EXPECT_EQ(RectF(0.0f, 0.0f, 0.4f, 0.4f).rounded(), (Rect{0, 0, 0, 0}));
-    // Negative extents cannot produce a negative size.
     EXPECT_EQ(RectF(10.0f, 10.0f, -5.0f, -5.0f).rounded(), (Rect{10, 10, 0, 0}));
 }
 
@@ -207,14 +210,10 @@ TEST(GeometryTest, PointFRoundsToNearestPixel) {
     EXPECT_EQ(PointI(7, 9), PointF(PointI(7, 9)).rounded());
 }
 
-// --- CanvasAdapter: primitives --------------------------------------------
-
 TEST(CanvasAdapterTest, FillRectForwardsColor) {
     RecordingRenderer renderer;
     CanvasAdapter canvas(renderer);
-
     canvas.fillRect(RectF(1.2f, 2.8f, 10.0f, 20.0f), Fill{Colors::Red});
-
     ASSERT_EQ(renderer.filledRects.size(), 1u);
     EXPECT_EQ(renderer.filledRects[0].rect, (Rect{1, 3, 10, 20}));
     EXPECT_EQ(renderer.filledRects[0].color, Colors::Red);
@@ -223,9 +222,7 @@ TEST(CanvasAdapterTest, FillRectForwardsColor) {
 TEST(CanvasAdapterTest, StrokeRectForwardsBorder) {
     RecordingRenderer renderer;
     CanvasAdapter canvas(renderer);
-
     canvas.strokeRect(Rect{0, 0, 10, 10}, Stroke{Colors::Black, 3.0f});
-
     ASSERT_EQ(renderer.strokedRects.size(), 1u);
     EXPECT_EQ(renderer.strokedRects[0].color, Colors::Black);
     EXPECT_EQ(renderer.strokedRects[0].thickness, 3);
@@ -234,12 +231,10 @@ TEST(CanvasAdapterTest, StrokeRectForwardsBorder) {
 TEST(CanvasAdapterTest, RoundRectPicksThePathMatchingTheBrush) {
     RecordingRenderer renderer;
     CanvasAdapter canvas(renderer);
-
     canvas.fillRoundRect(Rect{0, 0, 10, 10}, 4.0f, Brush::filled(Colors::Red));
     canvas.fillRoundRect(Rect{0, 0, 10, 10}, 4.0f, Brush::stroked(Colors::Green, 2.0f));
     canvas.fillRoundRect(Rect{0, 0, 10, 10}, 4.0f,
                          Brush::filledAndStroked(Colors::White, Stroke{Colors::Black, 1.0f}));
-
     ASSERT_EQ(renderer.filledRoundRects.size(), 1u);
     EXPECT_EQ(renderer.filledRoundRects[0].color, Colors::Red);
     ASSERT_EQ(renderer.strokedRoundRects.size(), 1u);
@@ -253,10 +248,8 @@ TEST(CanvasAdapterTest, RoundRectPicksThePathMatchingTheBrush) {
 TEST(CanvasAdapterTest, EmptyBrushPaintsNothing) {
     RecordingRenderer renderer;
     CanvasAdapter canvas(renderer);
-
     canvas.fillRoundRect(Rect{0, 0, 10, 10}, 4.0f, Brush{});
     canvas.fillCircle(PointI(5, 5), 3.0f, Brush{});
-
     EXPECT_TRUE(renderer.filledRoundRects.empty());
     EXPECT_TRUE(renderer.strokedRoundRects.empty());
     EXPECT_TRUE(renderer.filledBorderedRoundRects.empty());
@@ -267,22 +260,18 @@ TEST(CanvasAdapterTest, EmptyBrushPaintsNothing) {
 TEST(CanvasAdapterTest, CirclePicksThePathMatchingTheBrush) {
     RecordingRenderer renderer;
     CanvasAdapter canvas(renderer);
-
     canvas.fillCircle(PointF(2.5f, 3.5f), 4.0f, Brush::filled(Colors::Red));
     canvas.fillCircle(PointI(10, 20), 5.0f, Brush::stroked(Colors::Blue, 2.0f));
     canvas.fillCircle(PointI(30, 40), 6.6f,
                       Brush::filledAndStroked(Colors::White, Stroke{Colors::Black, 1.0f}));
-
     ASSERT_EQ(renderer.filledCircles.size(), 1u);
     EXPECT_EQ(renderer.filledCircles[0].centerX, 3);
     EXPECT_EQ(renderer.filledCircles[0].centerY, 4);
     EXPECT_EQ(renderer.filledCircles[0].radius, 4);
     EXPECT_EQ(renderer.filledCircles[0].color, Colors::Red);
-
     ASSERT_EQ(renderer.strokedCircles.size(), 1u);
     EXPECT_EQ(renderer.strokedCircles[0].color, Colors::Blue);
     EXPECT_EQ(renderer.strokedCircles[0].thickness, 2);
-
     ASSERT_EQ(renderer.filledBorderedCircles.size(), 1u);
     EXPECT_EQ(renderer.filledBorderedCircles[0].radius, 7);
     EXPECT_EQ(renderer.filledBorderedCircles[0].color, Colors::White);
@@ -291,9 +280,7 @@ TEST(CanvasAdapterTest, CirclePicksThePathMatchingTheBrush) {
 TEST(CanvasAdapterTest, ArcForwardsAnglesAndBorder) {
     RecordingRenderer renderer;
     CanvasAdapter canvas(renderer);
-
     canvas.strokeArc(PointI(10, 20), 6.0f, 0.0f, 180.0f, Stroke{Colors::Blue, 2.4f});
-
     ASSERT_EQ(renderer.arcs.size(), 1u);
     EXPECT_EQ(renderer.arcs[0].centerX, 10);
     EXPECT_EQ(renderer.arcs[0].radius, 6);
@@ -305,11 +292,9 @@ TEST(CanvasAdapterTest, ArcForwardsAnglesAndBorder) {
 TEST(CanvasAdapterTest, LineThicknessIsClampedToOnePixel) {
     RecordingRenderer renderer;
     CanvasAdapter canvas(renderer);
-
     canvas.drawLine(PointI(0, 0), PointI(10, 0), Stroke{Colors::Red, 1.0f});
     canvas.drawLine(PointI(0, 0), PointI(10, 0), Stroke{Colors::Red, 3.0f});
     canvas.drawLine(PointI(0, 0), PointI(10, 0), Stroke{Colors::Red, 0.2f});
-
     ASSERT_EQ(renderer.lines.size(), 3u);
     EXPECT_EQ(renderer.lines[0].thickness, 1);
     EXPECT_EQ(renderer.lines[1].thickness, 3);
@@ -320,12 +305,10 @@ TEST(CanvasAdapterTest, LineThicknessIsClampedToOnePixel) {
 TEST(CanvasAdapterTest, PolygonRoundsPointsAndNeedsThreeVertices) {
     RecordingRenderer renderer;
     CanvasAdapter canvas(renderer);
-
     const std::vector<PointF> triangle = {PointF(0.4f, 0.6f), PointF(10.0f, 0.0f),
                                           PointF(0.0f, 10.0f)};
     canvas.fillPolygon(triangle, Fill{Colors::Green});
     canvas.fillPolygon(std::vector<PointF>{PointF(0, 0), PointF(1, 1)}, Fill{Colors::Green});
-
     ASSERT_EQ(renderer.polygons.size(), 1u);
     ASSERT_EQ(renderer.polygons[0].points.size(), 3u);
     EXPECT_EQ(renderer.polygons[0].points[0], (PointI{0, 1}));
@@ -336,13 +319,9 @@ TEST(CanvasAdapterTest, PolygonRoundsPointsAndNeedsThreeVertices) {
 TEST(CanvasAdapterTest, TextureAndClipForwardToTheBackend) {
     RecordingRenderer renderer;
     CanvasAdapter canvas(renderer);
-
     canvas.drawTexture(nullptr, RectF(1.4f, 2.6f, 4.0f, 4.0f));
-    // Edges are rounded independently: 0.5 -> 1 and 9.5 -> 10, so the pushed
-    // clip covers [1, 10) rather than the naive 8px size.
     canvas.pushClip(RectF(0.5f, 0.5f, 9.0f, 9.0f));
     canvas.popClip();
-
     ASSERT_EQ(renderer.textures.size(), 1u);
     EXPECT_EQ(renderer.textures[0], (Rect{1, 3, 4, 4}));
     ASSERT_EQ(renderer.clipPushes.size(), 1u);
@@ -350,31 +329,37 @@ TEST(CanvasAdapterTest, TextureAndClipForwardToTheBackend) {
     EXPECT_EQ(renderer.clipPops, 1);
 }
 
+TEST(CanvasAdapterTest, TintedTextureForwardsTintAndAlpha) {
+    RecordingRenderer renderer;
+    CanvasAdapter canvas(renderer);
+    ICanvas::TextureDraw td;
+    td.dst = RectF(0, 0, 10, 10);
+    td.tint = Colors::Red;
+    td.alpha = 0.5f;
+    canvas.drawTexture(nullptr, td);
+    ASSERT_EQ(renderer.tintedTextures.size(), 1u);
+    EXPECT_EQ(renderer.tintedTextures[0].tint, Colors::Red);
+    EXPECT_FLOAT_EQ(renderer.tintedTextures[0].alpha, 0.5f);
+}
+
 TEST(CanvasAdapterTest, ClipGuardPairsPushAndPop) {
     RecordingRenderer renderer;
     CanvasAdapter canvas(renderer);
-
     {
         ClipGuard guard(canvas, Rect{1, 2, 3, 4}, true);
         EXPECT_EQ(renderer.clipPushes.size(), 1u);
         EXPECT_EQ(renderer.clipPops, 0);
     }
-
     EXPECT_EQ(renderer.clipPops, 1);
-
     {
         ClipGuard disabled(canvas, Rect{1, 2, 3, 4}, false);
     }
-
     EXPECT_EQ(renderer.clipPushes.size(), 1u);
     EXPECT_EQ(renderer.clipPops, 1);
 }
 
-// --- Integration: the default background becomes a Brush -------------------
-
 TEST(CanvasAdapterTest, DefaultBackgroundMapsComputedAppearanceToBrush) {
     Log::init();
-
     auto scene = Scene::create();
     auto root = scene->getRoot();
     auto node = std::make_shared<SceneNode>("styled");
@@ -384,15 +369,12 @@ TEST(CanvasAdapterTest, DefaultBackgroundMapsComputedAppearanceToBrush) {
                     .borderThickness = 2,
                     .borderRadius = 4},
                    WidgetState::Normal);
-
     Theme theme;
     StyleManager manager{theme};
     manager.resolveDirtyStyles(root);
     node->arrange(Rect{0, 0, 100, 50});
-
     RecordingRenderer renderer;
     node->draw(renderer);
-
     ASSERT_EQ(renderer.filledBorderedRoundRects.size(), 1u);
     const auto& call = renderer.filledBorderedRoundRects[0];
     EXPECT_EQ(call.color, Colors::White);
@@ -402,22 +384,18 @@ TEST(CanvasAdapterTest, DefaultBackgroundMapsComputedAppearanceToBrush) {
 
 TEST(CanvasAdapterTest, TransparentBackgroundWithoutBorderPaintsNothing) {
     Log::init();
-
     auto scene = Scene::create();
     auto root = scene->getRoot();
     auto node = std::make_shared<SceneNode>("plain");
     root->addChild(node);
     node->setStyle({.backgroundColor = Color(0, 0, 0, 0), .borderThickness = 0},
                    WidgetState::Normal);
-
     Theme theme;
     StyleManager manager{theme};
     manager.resolveDirtyStyles(root);
     node->arrange(Rect{0, 0, 100, 50});
-
     RecordingRenderer renderer;
     node->draw(renderer);
-
     EXPECT_TRUE(renderer.filledRoundRects.empty());
     EXPECT_TRUE(renderer.strokedRoundRects.empty());
     EXPECT_TRUE(renderer.filledBorderedRoundRects.empty());

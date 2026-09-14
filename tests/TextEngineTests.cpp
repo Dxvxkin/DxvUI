@@ -23,9 +23,6 @@ using namespace DxvUI;
 
 namespace {
 
-// SceneNode's destructor logs via DxvUI::Log, which requires an initialized
-// logger. Install a global test environment so the logger exists for the whole
-// test binary (same pattern as WidgetTests.cpp).
 class LoggerEnvironment : public ::testing::Environment {
    public:
     void SetUp() override { Log::init(); }
@@ -45,12 +42,13 @@ class FakeTexture : public ITexture {
     int h_;
 };
 
-// Backend-neutral fake with the same caching contract as the real engine: one
-// font per (path, size), measurement = 8px per UTF-8 byte with height 16, and
-// rasterize() counts every actually created texture (a cache hit does not).
+// Fake engine with glyph atlas semantics: layout cached per (font,text), glyphs per (font,codepoint),
+// color NOT part of key. Rasterize path kept for legacy but not used by Label.
 class FakeTextEngine : public ITextEngine {
    public:
     int rasterCount = 0;
+    int layoutCount = 0;
+    int glyphCount = 0;
 
     std::shared_ptr<IFont> getFont(const std::string& path, int size) override {
         if (path.empty() || size <= 0) return nullptr;
@@ -70,17 +68,19 @@ class FakeTextEngine : public ITextEngine {
 
     void registerFontFamily(const std::string&, const std::string&) override {}
 
-    TextMetrics measure(const IFont&, const std::string& text) override {
-        return {static_cast<int>(text.size()) * 8, 16};
+    TextMetrics measure(const IFont& font, const std::string& text) override {
+        auto layout = layoutText(font, text);
+        return layout.metrics;
     }
 
-    int measurePrefix(const IFont&, const std::string& text, size_t byteCount) override {
-        return static_cast<int>(std::min(byteCount, text.size())) * 8;
+    int measurePrefix(const IFont& font, const std::string& text, size_t byteCount) override {
+        auto layout = layoutText(font, text);
+        return layout.caretXAt(std::min(byteCount, text.size()));
     }
 
-    size_t charIndexAtX(const IFont&, const std::string& text, int maxWidth) override {
-        if (maxWidth <= 0) return 0;
-        return std::min(text.size(), static_cast<size_t>(maxWidth / 8));
+    size_t charIndexAtX(const IFont& font, const std::string& text, int maxWidth) override {
+        auto layout = layoutText(font, text);
+        return layout.charIndexAtX(maxWidth);
     }
 
     LineMetrics lineMetrics(const IFont&) override { return {12, 4, 16}; }
@@ -100,13 +100,84 @@ class FakeTextEngine : public ITextEngine {
 
     size_t getTextureCacheCount() const override { return textures.size(); }
 
+    // Stage 3
+    TextLayout layoutText(const IFont& font, std::string_view text) override {
+        std::string s(text);
+        auto key = std::make_pair(&font, s);
+        if (auto it = layouts.find(key); it != layouts.end()) {
+            return it->second;
+        }
+        layoutCount++;
+
+        TextLayout layout;
+        layout.text = s;
+        layout.lineMetrics = lineMetrics(font);
+        layout.metrics.width = static_cast<int>(s.size()) * 8;
+        layout.metrics.height = 16;
+
+        // Build glyphs: one per byte for simplicity (fake engine uses 8px per byte)
+        for (size_t i = 0; i < s.size();) {
+            size_t start = i;
+            // handle UTF-8 code point boundaries for fake: treat each codepoint as 1 byte for ASCII,
+            // but for multi-byte, count bytes until next start.
+            size_t next = start + 1;
+            while (next < s.size() && (static_cast<unsigned char>(s[next]) & 0xC0) == 0x80) {
+                ++next;
+            }
+            size_t len = next - start;
+            uint32_t cp = static_cast<unsigned char>(s[start]);
+            // Get or create glyph
+            auto gkey = std::make_pair(&font, cp);
+            if (glyphs.find(gkey) == glyphs.end()) {
+                glyphCount++;
+                Glyph g;
+                g.codepoint = cp;
+                g.texture = std::make_shared<FakeTexture>(8, 16);
+                g.width = 8;
+                g.height = 16;
+                g.advance = 8;
+                g.minX = 0;
+                g.maxX = 8;
+                g.minY = -4;
+                g.maxY = 12;
+                glyphs[gkey] = g;
+            }
+            layout.glyphs.push_back(glyphs[gkey]);
+            layout.xOffsets.push_back(static_cast<int>(start) * 8);
+            layout.byteOffsets.push_back(start);
+            layout.byteLengths.push_back(len);
+            i = next;
+        }
+
+        layouts[key] = layout;
+        return layout;
+    }
+
+    void drawLayout(ICanvas& canvas, const TextLayout& layout, const RectF& box,
+                    const TextPaint& paint) override {
+        // Simulate drawing each glyph via canvas.drawTexture with tint
+        for (size_t i = 0; i < layout.glyphs.size(); ++i) {
+            const auto& g = layout.glyphs[i];
+            if (!g.texture) continue;
+            float x = box.x + layout.xOffsets[i];
+            float y = box.y;
+            ICanvas::TextureDraw td;
+            td.dst = RectF(x, y, static_cast<float>(g.width), static_cast<float>(g.height));
+            td.tint = paint.color;
+            canvas.drawTexture(g.texture, td);
+        }
+    }
+
+    size_t getGlyphCacheCount() const override { return glyphs.size(); }
+    size_t getLayoutCacheCount() const override { return layouts.size(); }
+
    private:
     std::map<std::string, std::shared_ptr<IFont>> fonts;
     std::map<std::tuple<const IFont*, std::string, uint32_t>, std::shared_ptr<ITexture>> textures;
+    std::map<std::pair<const IFont*, std::string>, TextLayout> layouts;
+    std::map<std::pair<const IFont*, uint32_t>, Glyph> glyphs;
 };
 
-// Backend-neutral clipboard stub so FakeRenderer satisfies IRenderer. These
-// tests never touch the clipboard; the member only exists for the interface.
 class FakeClipboard : public IClipboard {
    public:
     std::string text;
@@ -117,8 +188,6 @@ class FakeClipboard : public IClipboard {
     }
 };
 
-// Minimal IRenderer so Label::onMeasure and Label::onPaint can be exercised
-// without an SDL backend or a real font file.
 class FakeRenderer : public IRenderer {
    public:
     FakeTextEngine engine;
@@ -138,9 +207,8 @@ class FakeRenderer : public IRenderer {
     void popClipRect() override {}
 
     void drawTexture(const std::shared_ptr<ITexture>&, const Rect&) override {}
+    void drawTexture(const std::shared_ptr<ITexture>&, const TextureDrawDesc&) override {}
 
-    // Stage-2 IRenderer keeps only explicitly-colored/bordered primitives, so
-    // the stub shrinks to the paths the canvas actually forwards.
     void drawRect(const Rect&, const Border&) override {}
     void fillRect(const Rect&, const Color&) override {}
     void fillRect(const Rect&, const Color&, const Border&) override {}
@@ -166,8 +234,6 @@ struct LabelFixture {
     LabelFixture() {
         root->setStyle({.fontSize = 16, .fontFamily = "Sans"}, WidgetState::Normal);
         root->addChild(label);
-        // The label measures text through the renderer's engine, so the
-        // renderer must be attached before the tree is measured.
         scene->setRenderer(&renderer);
         manager.resolveDirtyStyles(root);
         root->measure({800, 600});
@@ -177,39 +243,40 @@ struct LabelFixture {
 
 }  // namespace
 
-TEST(LabelTextEngineTest, RasterizesOnceThenRerasterizesOnChange) {
+TEST(LabelTextEngineTest, LayoutCachedAndColorDoesNotRecreate) {
     LabelFixture f;
 
-    // Two draws with the same (font, text, color) must not re-rasterize: the
-    // texture cache lives in the text engine, not in the Label.
     f.root->draw(f.renderer);
     f.root->draw(f.renderer);
-    EXPECT_EQ(f.renderer.engine.rasterCount, 1);
+    EXPECT_EQ(f.renderer.engine.layoutCount, 1);
+    // Glyph cache: 'H','e','l','o' = 4 distinct codepoints
+    EXPECT_EQ(f.renderer.engine.glyphCount, 4);
 
-    // Changing the text changes the cache key, so a new texture is created.
     f.label->setText("World");
     f.root->draw(f.renderer);
-    EXPECT_EQ(f.renderer.engine.rasterCount, 2);
+    EXPECT_EQ(f.renderer.engine.layoutCount, 2);
+    // 'W','o','r','l','d' adds W,r,d (o,l already cached) => total 7
+    EXPECT_EQ(f.renderer.engine.glyphCount, 7);
 
-    // A different color is also a different cache key.
+    // Different color must NOT create new layout (tint path)
     f.label->setStyle({.textColor = Colors::White}, WidgetState::Normal);
     f.manager.resolveDirtyStyles(f.root);
     f.root->draw(f.renderer);
-    EXPECT_EQ(f.renderer.engine.rasterCount, 3);
+    EXPECT_EQ(f.renderer.engine.layoutCount, 2);
+    EXPECT_EQ(f.renderer.engine.glyphCount, 7);
 }
 
 TEST(LabelTextEngineTest, MeasureComesFromEngine) {
     LabelFixture f;
-    // "Hello" is 5 UTF-8 bytes -> 5*8 = 40 wide, 16 tall in the fake engine.
     EXPECT_FLOAT_EQ(f.label->getGlobalBounds().width, 40);
     EXPECT_FLOAT_EQ(f.label->getGlobalBounds().height, 16);
 }
 
-TEST(LabelTextEngineTest, EmptyTextSkipsRasterization) {
+TEST(LabelTextEngineTest, EmptyTextSkipsLayout) {
     LabelFixture f;
     f.label->setText("");
     f.root->draw(f.renderer);
-    EXPECT_EQ(f.renderer.engine.rasterCount, 0);
+    EXPECT_EQ(f.renderer.engine.layoutCount, 0);
 }
 
 TEST(TextEngineCacheCountTest, TracksDistinctRasterizations) {
@@ -221,24 +288,40 @@ TEST(TextEngineCacheCountTest, TracksDistinctRasterizations) {
     auto texB = engine.rasterize(*font, "Two", Colors::Black);
     EXPECT_EQ(engine.getTextureCacheCount(), 2u);
 
-    // A cache hit does not grow the cache.
     engine.rasterize(*font, "One", Colors::Black);
     EXPECT_EQ(engine.getTextureCacheCount(), 2u);
 
-    // A different color is a different cache key.
     engine.rasterize(*font, "One", Colors::White);
     EXPECT_EQ(engine.getTextureCacheCount(), 3u);
 
-    // Empty text is never cached.
     engine.rasterize(*font, "", Colors::Black);
     EXPECT_EQ(engine.getTextureCacheCount(), 3u);
     EXPECT_NE(texA, nullptr);
     EXPECT_NE(texB, nullptr);
 }
 
+TEST(TextEngineGlyphCacheTest, GlyphCacheKeyWithoutColor) {
+    FakeTextEngine engine;
+    auto font = engine.getFont("fake.ttf", 16);
+    ASSERT_NE(font, nullptr);
+
+    engine.layoutText(*font, "Hello");
+    EXPECT_EQ(engine.getGlyphCacheCount(), 4u); // H,e,l,o
+
+    engine.layoutText(*font, "Hello"); // cached
+    EXPECT_EQ(engine.getGlyphCacheCount(), 4u);
+    EXPECT_EQ(engine.getLayoutCacheCount(), 1u);
+
+    engine.layoutText(*font, "World");
+    // Adds W,r,d (o,l already)
+    EXPECT_EQ(engine.getGlyphCacheCount(), 7u);
+    EXPECT_EQ(engine.getLayoutCacheCount(), 2u);
+
+    // Same text different color would be same layout if we used drawLayout, but layoutText itself
+    // does not include color, so no new glyphs.
+}
+
 TEST(LabelTextEngineTest, MissingFontMeasuresZero) {
-    // The fake engine resolves an empty family to no font; a Label must then
-    // degrade gracefully to a zero-size box instead of drawing garbage.
     LabelFixture f;
     f.label->setStyle({.fontFamily = ""}, WidgetState::Normal);
     f.manager.resolveDirtyStyles(f.root);
@@ -250,61 +333,47 @@ TEST(LabelTextEngineTest, MissingFontMeasuresZero) {
 
 TEST(TextEngineFamilyTest, FamilyResolvesToFont) {
     FakeTextEngine engine;
-    // Empty family and invalid size resolve to no font.
     EXPECT_EQ(engine.getFontForFamily("", 16), nullptr);
     EXPECT_EQ(engine.getFontForFamily("Sans", 0), nullptr);
-    // A non-empty family always yields a fake font handle.
     auto font = engine.getFontForFamily("Sans", 16);
     ASSERT_NE(font, nullptr);
-    // The same family and size is cached like the path-based API.
     EXPECT_EQ(engine.getFontForFamily("Sans", 16), font);
 }
 
 namespace {
-// A minimal fixture for the prefix-measure/hit-test API of the fake engine:
-// measurement is 8px per UTF-8 byte.
 struct PrefixFixture {
     FakeTextEngine engine;
-    // The fake engine always creates a font for a non-empty path + valid size.
     std::shared_ptr<IFont> font = engine.getFont("fake.ttf", 16);
 };
 }  // namespace
 
 TEST(TextEnginePrefixTest, MeasurePrefixWidths) {
     PrefixFixture f;
-    // "Hello" = 5 bytes -> prefix widths are byteCount * 8.
     EXPECT_EQ(f.engine.measurePrefix(*f.font, "Hello", 0), 0);
     EXPECT_EQ(f.engine.measurePrefix(*f.font, "Hello", 3), 24);
     EXPECT_EQ(f.engine.measurePrefix(*f.font, "Hello", 5), 40);
-    // byteCount beyond the text length is clamped.
     EXPECT_EQ(f.engine.measurePrefix(*f.font, "Hello", 100), 40);
 }
 
 TEST(TextEnginePrefixTest, CharIndexAtX) {
     PrefixFixture f;
-    // "Hello" = 5 bytes at 8px each.
     EXPECT_EQ(f.engine.charIndexAtX(*f.font, "Hello", 0), 0u);
     EXPECT_EQ(f.engine.charIndexAtX(*f.font, "Hello", 16), 2u);
     EXPECT_EQ(f.engine.charIndexAtX(*f.font, "Hello", 40), 5u);
-    // Wider than the text -> the whole text fits.
     EXPECT_EQ(f.engine.charIndexAtX(*f.font, "Hello", 1000), 5u);
-    // Non-positive width maps to the start.
     EXPECT_EQ(f.engine.charIndexAtX(*f.font, "Hello", -1), 0u);
-    // Empty text maps to the start.
     EXPECT_EQ(f.engine.charIndexAtX(*f.font, "", 100), 0u);
 }
 
 TEST(TextEnginePrefixTest, CharIndexAtXNeverSplitsCodePoint) {
     PrefixFixture f;
-    // "Аб" = 4 UTF-8 bytes; byte offsets are always whole code points.
     const std::string cyrillic = "\xD0\x90\xD0\xB1";
-    // 16px fits exactly two bytes ("А"); the next two bytes ("б") would need
-    // 32px.
     EXPECT_EQ(f.engine.charIndexAtX(*f.font, cyrillic, 16), 2u);
     EXPECT_EQ(f.engine.charIndexAtX(*f.font, cyrillic, 33), 4u);
 }
 
-// --- TextEdit widget integration (measure, focus, keyboard/mouse editing) ---
+// --- TextEdit widget integration ---
+
 namespace {
 
 struct TextEditFixture {
@@ -318,8 +387,6 @@ struct TextEditFixture {
     TextEditFixture() {
         root->setStyle({.fontSize = 16, .fontFamily = "Sans"}, WidgetState::Normal);
         root->addChild(field);
-        // The field measures and hit-tests through the renderer's engine, so the
-        // renderer must be attached before the tree is measured.
         scene->setRenderer(&renderer);
         manager.resolveDirtyStyles(root);
         root->measure({800, 600});
@@ -373,11 +440,7 @@ struct TextEditFixture {
 
 TEST(TextEditTest, MeasuresTextPlusPadding) {
     TextEditFixture f;
-    // "Hello" = 5 bytes -> 40px text; default padding is 4 left + 4 right and
-    // the default border is 1px per side (2px total), so the measured box covers both
-    // (contentRect subtracts padding + border when drawing the text).
     EXPECT_FLOAT_EQ(f.field->getGlobalBounds().width, 50);
-    // Font line height 16 + 2 top + 2 bottom padding + 2 border.
     EXPECT_FLOAT_EQ(f.field->getGlobalBounds().height, 22);
 }
 
@@ -397,8 +460,6 @@ TEST(TextEditTest, MeasureAccountsForExplicitBorder) {
     root->measure({800, 600});
     root->arrange({0, 0, 800, 600});
 
-    // "Hello" = 40px + padding 4+4 + border 2+2 = 52; line height 16 + padding
-    // 2+2 + border 2+2 = 24. Without the border term the text would be clipped.
     EXPECT_FLOAT_EQ(field->getGlobalBounds().width, 52);
     EXPECT_FLOAT_EQ(field->getGlobalBounds().height, 24);
 }
@@ -416,8 +477,7 @@ TEST(TextEditTest, PlaceholderShownWhileEmptyAndUnfocused) {
     f.field->setText("");
     f.field->setPlaceholder("Hint");
     f.root->draw(f.renderer);
-    // Empty buffer: only the placeholder is rasterized.
-    EXPECT_EQ(f.renderer.engine.rasterCount, 1);
+    EXPECT_EQ(f.renderer.engine.getLayoutCacheCount(), 1u);
 }
 
 TEST(TextEditTest, PlaceholderHiddenWhenFocused) {
@@ -427,25 +487,20 @@ TEST(TextEditTest, PlaceholderHiddenWhenFocused) {
     f.press(10, 10);
     f.release(10, 10);
     f.root->draw(f.renderer);
-    // Focused empty field: the placeholder disappears (only the caret blinks).
-    EXPECT_EQ(f.renderer.engine.rasterCount, 0);
+    EXPECT_EQ(f.renderer.engine.getLayoutCacheCount(), 0u);
 }
 
 TEST(TextEditTest, PlaceholderHiddenWhenTextPresent) {
     TextEditFixture f;
     f.field->setPlaceholder("Hint");
     f.root->draw(f.renderer);
-    // Non-empty buffer: the text is rasterized, the placeholder is not.
-    EXPECT_EQ(f.renderer.engine.rasterCount, 1);
+    EXPECT_EQ(f.renderer.engine.getLayoutCacheCount(), 1u);
 }
 
 TEST(TextEditTest, MouseDownPlacesCaretAndFocuses) {
     TextEditFixture f;
-    // Click the middle of "Hello" (padding 4px + 20px of text) -> caret 2.
     f.press(24, 10);
     f.release(24, 10);
-    // While the button is held the widget reports Pressed; after the release
-    // the Focused style/state (and the caret) take over.
     EXPECT_EQ(f.field->getCurrentState(), WidgetState::Focused);
     EXPECT_EQ(f.field->getEditor().getCaret(), 2u);
     EXPECT_FALSE(f.field->getEditor().hasSelection());
@@ -453,11 +508,11 @@ TEST(TextEditTest, MouseDownPlacesCaretAndFocuses) {
 
 TEST(TextEditTest, KeyboardEditingWhileFocused) {
     TextEditFixture f;
-    f.press(4, 10);  // focus + caret at 0
+    f.press(4, 10);
     f.release(4, 10);
     ASSERT_EQ(f.field->getCurrentState(), WidgetState::Focused);
 
-    f.keyDown(KeyCode::Backspace);  // no-op at start
+    f.keyDown(KeyCode::Backspace);
     EXPECT_EQ(f.field->getText(), "Hello");
 
     f.typeText("!");
@@ -475,7 +530,6 @@ TEST(TextEditTest, KeyboardEditingWhileFocused) {
     f.typeText("!");
     EXPECT_EQ(f.field->getText(), "ello!");
 
-    // Undo/redo through the keyboard.
     f.keyDown(KeyCode::Z, KeyModifier::Ctrl);
     EXPECT_EQ(f.field->getText(), "ello");
     f.keyDown(KeyCode::Y, KeyModifier::Ctrl);
@@ -490,7 +544,7 @@ TEST(TextEditTest, KeyboardIgnoredWithoutFocus) {
 
 TEST(TextEditTest, SelectAllAndSubmit) {
     TextEditFixture f;
-    f.press(4, 10);  // focus
+    f.press(4, 10);
     f.keyDown(KeyCode::A, KeyModifier::Ctrl);
     EXPECT_TRUE(f.field->getEditor().hasSelection());
     EXPECT_EQ(f.field->getEditor().selectedText(), "Hello");
@@ -503,9 +557,8 @@ TEST(TextEditTest, SelectAllAndSubmit) {
 
 TEST(TextEditTest, MouseDragExtendsSelection) {
     TextEditFixture f;
-    // Press at the start of the text, drag to the middle.
     f.press(4, 10);
-    f.dragTo(24, 10);  // caret lands at 2 (20px of text, 8px/byte)
+    f.dragTo(24, 10);
     const auto& editor = f.field->getEditor();
     EXPECT_TRUE(editor.hasSelection());
     EXPECT_EQ(editor.getSelectionStart(), 0u);
@@ -514,10 +567,10 @@ TEST(TextEditTest, MouseDragExtendsSelection) {
 
 TEST(TextEditTest, BackspaceDeletesWholeUtf8CodePoint) {
     TextEditFixture f;
-    f.field->setText("\xD0\x90\xD0\xB1");  // "Аб"
+    f.field->setText("\xD0\x90\xD0\xB1");
     f.root->measure({800, 600});
     f.root->arrange({0, 0, 800, 600});
-    f.press(4, 10);  // focus, caret at 0
+    f.press(4, 10);
     f.keyDown(KeyCode::End);
     f.keyDown(KeyCode::Backspace);
     EXPECT_EQ(f.field->getText(), "\xD0\x90");
@@ -526,15 +579,12 @@ TEST(TextEditTest, BackspaceDeletesWholeUtf8CodePoint) {
 TEST(TextEditTest, ValidatorBlocksTypingAtWidgetLevel) {
     TextEditFixture f;
     using validators::digitsOnly;
-    // The fixture starts with "Hello"; a digits-only field would reject every
-    // edit while that text is in the buffer, so start clean.
     f.field->setText("");
     f.field->setValidator(digitsOnly());
-    f.press(4, 10);  // focus
-    // typeText() sends one TextInput event per call, like a keypress.
+    f.press(4, 10);
     f.typeText("1");
     f.typeText("2");
-    f.typeText("a");  // rejected by the validator
+    f.typeText("a");
     f.typeText("3");
     f.typeText("4");
     EXPECT_EQ(f.field->getText(), "1234");
@@ -545,13 +595,13 @@ TEST(TextEditTest, ValidatorBlocksPasteWhole) {
     using validators::range;
     f.field->setValidator(range(0, 100));
     f.field->setText("75");
-    f.press(4, 10);                            // focus
-    f.keyDown(KeyCode::A, KeyModifier::Ctrl);  // select all
-    f.renderer.clipboard.text = "abc";         // would produce rejected text
-    f.keyDown(KeyCode::V, KeyModifier::Ctrl);  // paste
+    f.press(4, 10);
+    f.keyDown(KeyCode::A, KeyModifier::Ctrl);
+    f.renderer.clipboard.text = "abc";
+    f.keyDown(KeyCode::V, KeyModifier::Ctrl);
     EXPECT_EQ(f.field->getText(), "75");
 
-    f.renderer.clipboard.text = "42";  // in range
+    f.renderer.clipboard.text = "42";
     f.keyDown(KeyCode::V, KeyModifier::Ctrl);
     EXPECT_EQ(f.field->getText(), "42");
 }
@@ -562,24 +612,19 @@ TEST(TextEditTest, FiresChangeOnTextMutation) {
     std::unique_ptr<DxvUI::SceneNode::Connection> conn = f.field->on(
         DxvUI::EventType::Change, [&](DxvUI::DxvEvent&, const DxvUI::UIContext&) { ++changes; });
 
-    // Initial subscription must not fire.
     EXPECT_EQ(changes, 0);
 
-    // Typing fires Change and the binding mirrors the new text.
-    f.press(4, 10);  // focus
+    f.press(4, 10);
     f.release(4, 10);
     f.typeText("X");
     EXPECT_EQ(changes, 1);
 
-    // Programmatic setText to a new value fires Change.
     f.field->setText("Hello");
     EXPECT_EQ(changes, 2);
 
-    // setText to the same value is a no-op (no Change).
     f.field->setText("Hello");
     EXPECT_EQ(changes, 2);
 
-    // Undo/redo through the keyboard fire Change too.
     f.keyDown(KeyCode::Z, KeyModifier::Ctrl);
     EXPECT_EQ(changes, 3);
     f.keyDown(KeyCode::Y, KeyModifier::Ctrl);
@@ -594,9 +639,7 @@ TEST(TextEditTest, ChangeCarriesBindingStringValue) {
             observed = e.getTarget()->getBinding()->getString();
         });
 
-    // The binding mirrors the model text, so the standard "read the value from
-    // getBinding()->getString()" idiom works for TextEdit, like for Label.
-    f.press(4, 10);  // focus
+    f.press(4, 10);
     f.release(4, 10);
     f.typeText("!");
     EXPECT_EQ(observed, "!Hello");

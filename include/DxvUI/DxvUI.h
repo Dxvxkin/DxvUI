@@ -24,6 +24,7 @@
 #include "interfaces/ITexture.h"
 
 // Text
+#include "text/DefaultTextEditorView.h"
 #include "text/ITextValidator.h"
 #include "text/TextEditor.h"
 #include "text/TextEditorView.h"

@@ -2,6 +2,7 @@
 #define DXVUI_IRENDERER_H
 
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "DxvUI/core.h"
@@ -26,6 +27,10 @@ namespace DxvUI {
  * and with it every overload that depended on it: a draw call now always
  * states its own color or border, so no call site can be affected by whoever
  * painted before it.
+ *
+ * Stage 3 adds a tinted, src-rect-aware texture draw for the glyph atlas:
+ * white glyphs are tinted at draw time instead of baking the color into the
+ * cache key.
  */
 class IRenderer {
    public:
@@ -40,7 +45,7 @@ class IRenderer {
      *
      * Fonts, text measurement and text rasterization live behind the
      * ITextEngine interface instead of the renderer itself, so the renderer
-     * never exposes implicit "current font/color" state to widgets.
+     * never exposes implicit \"current font/color\" state to widgets.
      */
     virtual ITextEngine& getTextEngine() = 0;
 
@@ -70,6 +75,23 @@ class IRenderer {
      * @param dstRect The destination rectangle in screen coordinates.
      */
     virtual void drawTexture(const std::shared_ptr<ITexture>& texture, const Rect& dstRect) = 0;
+
+    /**
+     * @brief Draws a (sub)texture with optional tint and alpha (glyph atlas).
+     *
+     * Stage 3: white glyphs are rasterized once and tinted per draw call.
+     * srcRect selects a sub-rectangle of the texture (atlas), tint modulates
+     * it, alpha is an extra opacity multiplier (1 = opaque). A null texture is
+     * a no-op; a null src means the whole texture.
+     */
+    struct TextureDrawDesc {
+        Rect dst;
+        std::optional<Rect> src;
+        std::optional<Color> tint;
+        float alpha = 1.0f;
+    };
+    virtual void drawTexture(const std::shared_ptr<ITexture>& texture,
+                             const TextureDrawDesc& desc) = 0;
 
     // Primitives. Each shape exposes exactly the paths the painting contract
     // needs: a solid fill, a border-only outline, a fill+border pair and, for

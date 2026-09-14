@@ -65,7 +65,6 @@ target_sources(DxvUI PRIVATE
         src/layout/LayoutManager.cpp
         src/backend/SDLRenderer.cpp
         src/backend/SDLTextEngine.cpp
-        src/backend/SDLTextEditorView.cpp
         src/backend/SDLClipboard.cpp
         src/backend/SDLEventSource.cpp
         src/style/Color.cpp
@@ -73,6 +72,7 @@ target_sources(DxvUI PRIVATE
         src/style/Theme.cpp
         src/text/TextEditor.cpp
         src/text/TextValidator.cpp
+        src/text/DefaultTextEditorView.cpp
 )
 
 target_include_directories(DxvUI PUBLIC

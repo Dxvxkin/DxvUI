@@ -403,46 +403,44 @@ void Plot::drawAxisLabels(PaintContext& pc, const Rect& content, const TickInfo&
     const Thickness insets = LayoutManager::contentInsets(*this);
     const Rect box = getGlobalBounds();
 
-    // Rasterizes (cached by the engine) and draws a label at its top-left
-    // corner, skipping it when it would overflow the widget box.
+    // Stage 3: axis labels via TextLayout + tinted glyphs
     const auto placeLabel = [&](const std::string& text, int x, int y) {
-        auto texture = engine.rasterize(*font, text, axisColor_);
-        if (!texture) {
-            return;
-        }
-        const int w = texture->getWidth();
-        const int h = texture->getHeight();
+        TextLayout layout = engine.layoutText(*font, text);
+        if (layout.glyphs.empty() && text.empty()) return;
+        const int w = layout.metrics.width;
+        const int h = layout.metrics.height > 0 ? layout.metrics.height : layout.lineMetrics.lineHeight;
         if (x + w <= box.x || x >= box.x + box.width || y + h <= box.y || y >= box.y + box.height) {
             return;
         }
-        pc.canvas().drawTexture(texture, Rect{x, y, w, h});
+        TextPaint paint;
+        paint.color = axisColor_;
+        paint.align = Alignment::Start;
+        paint.verticalAlign = Alignment::Start;
+        paint.truncate = false;
+        engine.drawLayout(pc.canvas(), layout,
+                          RectF(static_cast<float>(x), static_cast<float>(y),
+                                static_cast<float>(w), static_cast<float>(h)),
+                          paint);
     };
 
-    // Y-axis labels: right-aligned into the left padding gutter.
     if (insets.left >= kLabelGutterPx) {
         for (int i = 0; i < yTicks.count; ++i) {
             const float value = yTicks.first + i * yTicks.step;
             const std::string text = std::format("{:.{}f}", value, yTicks.decimals);
-            auto texture = engine.rasterize(*font, text, axisColor_);
-            if (!texture) {
-                continue;
-            }
+            TextLayout layout = engine.layoutText(*font, text);
             const int ty = toPixelY(value, content);
-            placeLabel(text, content.x - 5 - texture->getWidth(), ty - texture->getHeight() / 2);
+            placeLabel(text, content.x - 5 - layout.metrics.width,
+                       ty - (layout.metrics.height > 0 ? layout.metrics.height / 2 : 0));
         }
     }
 
-    // X-axis labels: centered under each tick in the bottom padding gutter.
     if (insets.bottom >= kLabelGutterPx) {
         for (int i = 0; i < xTicks.count; ++i) {
             const float value = xTicks.first + i * xTicks.step;
             const std::string text = std::format("{:.{}f}", value, xTicks.decimals);
-            auto texture = engine.rasterize(*font, text, axisColor_);
-            if (!texture) {
-                continue;
-            }
+            TextLayout layout = engine.layoutText(*font, text);
             const int tx = toPixelX(value, content);
-            placeLabel(text, tx - texture->getWidth() / 2, content.y + content.height + 5);
+            placeLabel(text, tx - layout.metrics.width / 2, content.y + content.height + 5);
         }
     }
 }

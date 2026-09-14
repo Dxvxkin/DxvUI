@@ -2,6 +2,7 @@
 #define DXVUI_ICANVAS_H
 
 #include <memory>
+#include <optional>
 #include <span>
 
 #include "DxvUI/core.h"
@@ -19,32 +20,35 @@ class ITextEngine;
  * Stage 5 of the rendering refactoring (docs/RENDERING_REFACTORING.md)
  * extends this with the frame time, delta, frame counter and the DPI scale;
  * the viewport comes first because the draw pass needs it for culling from
- * day one.
+ * day one. Stage 3 already adds timeMs for the caret blink, so the text view
+ * no longer depends on SDL_GetTicks().
  */
 struct FrameInfo {
     // The visible area in screen coordinates, used for viewport culling.
     Rect viewport;
+    // Monotonic time of the frame in milliseconds, used for caret blinking and
+    // future declarative transitions (stage 5 adds dt/frame/dpi).
+    double timeMs = 0.0;
 };
 
 /**
  * @class ICanvas
  * @brief Backend-neutral, painting-only surface.
  *
- * The narrow contract the draw pass uses, and the stage-2 shape of the
- * rendering refactoring (docs/RENDERING_REFACTORING.md §3.1):
+ * The narrow contract the draw pass uses, and the stage-3 shape of the
+ * rendering refactoring (docs/RENDERING_REFACTORING.md §3.1 + §3.3):
  *
  * - painting only: no frame lifecycle (clear/present), no cursor/clipboard;
  * - no implicit draw-color state — every method carries its Fill/Stroke/Brush,
- *   so the old "set color, then draw" pairing and its combinatorial overload
+ *   so the old \"set color, then draw\" pairing and its combinatorial overload
  *   set (fill/draw x color/border x 6 shapes) are gone;
  * - float geometry (RectF/PointF): the canvas is float, layout stays integer,
  *   and the backend rounds at its own boundary;
  * - clipping intersects the current clip (scissors semantics) and must be
- *   balanced: prefer ClipGuard over manual push/pop.
- *
- * What is deliberately still missing (later stages): texture source rects,
- * tint/flip/alpha (stage 3 glyph atlas), a clip token returned by pushClip and
- * strokePolygon/strokeCircle until a caller needs them.
+ *   balanced: prefer ClipGuard over manual push/pop;
+ * - stage 3 adds TextureDraw with srcRect/tint/alpha for the glyph atlas:
+ *   white glyphs are tinted at draw time instead of baking the color into the
+ *   texture.
  */
 class ICanvas {
    public:
@@ -59,7 +63,28 @@ class ICanvas {
     ///@}
 
     // --- Textures ---
+    /**
+     * @brief Parameters for a textured draw (stage 3: tint + srcRect).
+     *
+     * dst is the destination rect in screen space. src, when set, selects a
+     * sub-rectangle of the texture (glyph atlas, 9-slice, visible slice). tint,
+     * when set, modulates a white (or grayscale) source — the glyph atlas path:
+     * glyphs are rasterized once as white and tinted per draw call instead of
+     * baking the color into the cache key. alpha is an extra opacity multiplier.
+     */
+    struct TextureDraw {
+        RectF dst;
+        std::optional<RectF> src;
+        std::optional<Color> tint;
+        float alpha = 1.0f;
+        float rotationDeg = 0.0f;
+        bool flipX = false;
+        bool flipY = false;
+    };
+
     virtual void drawTexture(const std::shared_ptr<ITexture>& texture, const RectF& dstRect) = 0;
+    virtual void drawTexture(const std::shared_ptr<ITexture>& texture,
+                             const TextureDraw& draw) = 0;
 
     // --- Rectangles ---
     ///@{
@@ -84,7 +109,7 @@ class ICanvas {
     virtual void drawLine(const PointF& from, const PointF& to, const Stroke& stroke) = 0;
 };
 
-/**
+ /**
  * @class PaintContext
  * @brief Everything a node needs while painting.
  *

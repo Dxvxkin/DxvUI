@@ -36,11 +36,6 @@ class LoggerEnvironment : public ::testing::Environment {
 constexpr int kSurfaceWidth = 200;
 constexpr int kSurfaceHeight = 160;
 
-// The whole suite runs against an SDL software renderer bound to a plain
-// surface: no window, no video subsystem, fully headless. SDLRenderer's
-// constructor paths (cursor setup, TTF init) are safe without an initialized
-// video driver: SDL_CreateSystemCursor() returns null and SDL_SetCursor(null)
-// is a documented no-op when no driver provides cursors.
 class SDLRendererTest : public ::testing::Test {
    protected:
     void SetUp() override {
@@ -53,15 +48,11 @@ class SDLRendererTest : public ::testing::Test {
     }
 
     void TearDown() override {
-        // Destroy the DxvUI wrapper first: its destructor frees cached text
-        // textures, which must happen while the SDL renderer is still alive.
         renderer.reset();
         SDL_DestroyRenderer(sdlRenderer);
         SDL_FreeSurface(surface);
     }
 
-    // Reads a pixel of the surface the software renderer draws into. Flushes
-    // the render command queue first so the read reflects every issued call.
     Uint32 pixelAt(int x, int y) {
         SDL_RenderFlush(sdlRenderer);
         Uint32 pixel = 0;
@@ -73,7 +64,6 @@ class SDLRendererTest : public ::testing::Test {
     }
 
     Uint32 mapColor(const Color& color) const {
-        // All colors used here are opaque, so the alpha byte is always 0xFF.
         return SDL_MapRGB(surface->format, color.r, color.g, color.b);
     }
 
@@ -99,18 +89,13 @@ class SDLRendererTest : public ::testing::Test {
 };
 
 TEST_F(SDLRendererTest, PushClipRectIntersectsWithCurrentClip) {
-    // First push on a fresh renderer: clipping was disabled, so the exact
-    // rect must be installed as-is.
     renderer->pushClipRect({10, 10, 100, 100});
     EXPECT_TRUE(SDL_RenderIsClipEnabled(sdlRenderer));
     EXPECT_TRUE(expectRectEq(currentClip(), 10, 10, 100, 100));
 
-    // Second push must INTERSECT with the outer clip (SDL itself would
-    // replace the rect, re-exposing pixels the outer clip had cut off).
     renderer->pushClipRect({60, 60, 100, 100});
     EXPECT_TRUE(expectRectEq(currentClip(), 60, 60, 50, 50));
 
-    // Pops restore the previous clip exactly, down to "disabled".
     renderer->popClipRect();
     EXPECT_TRUE(expectRectEq(currentClip(), 10, 10, 100, 100));
     renderer->popClipRect();
@@ -125,23 +110,18 @@ TEST_F(SDLRendererTest, NestedClipConstrainsDrawingToIntersection) {
 
     renderer->fillRect({0, 0, kSurfaceWidth, kSurfaceHeight}, Colors::White);
 
-    // Outer clip A = {10,10,100,100}: only A turns red.
     renderer->pushClipRect({10, 10, 100, 100});
     renderer->fillRect({0, 0, kSurfaceWidth, kSurfaceHeight}, Colors::Red);
-    EXPECT_EQ(pixelAt(5, 5), white);      // outside A
-    EXPECT_EQ(pixelAt(50, 50), red);      // inside A
-    EXPECT_EQ(pixelAt(150, 150), white);  // outside A
+    EXPECT_EQ(pixelAt(5, 5), white);
+    EXPECT_EQ(pixelAt(50, 50), red);
+    EXPECT_EQ(pixelAt(150, 150), white);
 
-    // Inner clip B = {60,60,100,100}: green only inside A∩B = {60,60,50,50}.
     renderer->pushClipRect({60, 60, 100, 100});
     renderer->fillRect({0, 0, kSurfaceWidth, kSurfaceHeight}, Colors::Green);
-    EXPECT_EQ(pixelAt(70, 70), green);    // inside A∩B
-    EXPECT_EQ(pixelAt(50, 50), red);      // inside A, outside B: must NOT be
-                                          // repainted (B may not extend A's cut)
-    EXPECT_EQ(pixelAt(150, 150), white);  // inside B, outside A: must NOT be
-                                          // painted (A still constrains)
+    EXPECT_EQ(pixelAt(70, 70), green);
+    EXPECT_EQ(pixelAt(50, 50), red);
+    EXPECT_EQ(pixelAt(150, 150), white);
 
-    // Pop back to A: the full A area becomes blue again.
     renderer->popClipRect();
     renderer->fillRect({0, 0, kSurfaceWidth, kSurfaceHeight}, Colors::Blue);
     EXPECT_EQ(pixelAt(5, 5), white);
@@ -149,7 +129,6 @@ TEST_F(SDLRendererTest, NestedClipConstrainsDrawingToIntersection) {
     EXPECT_EQ(pixelAt(70, 70), blue);
     EXPECT_EQ(pixelAt(150, 150), white);
 
-    // Pop everything: drawing is unconstrained again.
     renderer->popClipRect();
     renderer->fillRect({0, 0, kSurfaceWidth, kSurfaceHeight}, Colors::Black);
     EXPECT_EQ(pixelAt(150, 150), mapColor(Colors::Black));
@@ -160,26 +139,21 @@ TEST_F(SDLRendererTest, DisjointNestedClipClipsEverything) {
 
     renderer->fillRect({0, 0, kSurfaceWidth, kSurfaceHeight}, Colors::White);
     renderer->pushClipRect({10, 10, 50, 50});
-    renderer->pushClipRect({100, 100, 50, 50});  // no overlap with the outer clip
+    renderer->pushClipRect({100, 100, 50, 50});
 
-    // An empty intersection must clip everything away — not disable clipping
-    // (which would un-lock the whole surface) and not leave a single
-    // corner pixel of the inner clip drawable.
     EXPECT_TRUE(SDL_RenderIsClipEnabled(sdlRenderer));
     renderer->fillRect({0, 0, kSurfaceWidth, kSurfaceHeight}, Colors::Red);
-    EXPECT_EQ(pixelAt(30, 30), white);    // inside the outer clip
-    EXPECT_EQ(pixelAt(120, 120), white);  // inside the inner clip
-    EXPECT_EQ(pixelAt(100, 100), white);  // the inner clip's corner pixel
-    EXPECT_EQ(pixelAt(5, 5), white);      // outside both
+    EXPECT_EQ(pixelAt(30, 30), white);
+    EXPECT_EQ(pixelAt(120, 120), white);
+    EXPECT_EQ(pixelAt(100, 100), white);
+    EXPECT_EQ(pixelAt(5, 5), white);
 
-    // After the pop the outer clip is effective again.
     renderer->popClipRect();
     renderer->fillRect({0, 0, kSurfaceWidth, kSurfaceHeight}, Colors::Green);
     EXPECT_EQ(pixelAt(30, 30), mapColor(Colors::Green));
     EXPECT_EQ(pixelAt(120, 120), white);
 }
 
-// A minimal ITexture implementation foreign to the SDL backend.
 class FakeTexture : public ITexture {
    public:
     int getWidth() const override { return 4; }
@@ -190,23 +164,21 @@ TEST_F(SDLRendererTest, DrawTextureRejectsForeignTextureImplementation) {
     const Uint32 white = mapColor(Colors::White);
     renderer->fillRect({0, 0, kSurfaceWidth, kSurfaceHeight}, Colors::White);
 
-    // A foreign ITexture must be a logged no-op, not a blind cast to
-    // SDLTexture (which used to dereference a null SDL_Texture*).
     auto foreign = std::make_shared<FakeTexture>();
     renderer->drawTexture(foreign, {0, 0, 4, 4});
-    // The const& parameter also accepts temporaries (impossible to pass
-    // through the old non-const lvalue reference).
     renderer->drawTexture(std::make_shared<FakeTexture>(), {0, 0, 4, 4});
+    // Tinted path also rejects
+    IRenderer::TextureDrawDesc desc;
+    desc.dst = {0, 0, 4, 4};
+    desc.tint = Colors::Red;
+    renderer->drawTexture(foreign, desc);
     EXPECT_EQ(pixelAt(1, 1), white);
 
-    // A null texture stays a silent no-op.
     renderer->drawTexture(nullptr, {0, 0, 4, 4});
     EXPECT_EQ(pixelAt(1, 1), white);
 }
 
 TEST_F(SDLRendererTest, DrawTextureRendersTexturePixels) {
-    // A texture created against the same SDL renderer, wrapped in the
-    // backend's own SDLTexture (the same wrapping the text engine performs).
     SDL_Texture* raw =
         SDL_CreateTexture(sdlRenderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, 4, 4);
     ASSERT_NE(raw, nullptr);
@@ -218,12 +190,29 @@ TEST_F(SDLRendererTest, DrawTextureRendersTexturePixels) {
     renderer->fillRect({0, 0, kSurfaceWidth, kSurfaceHeight}, Colors::White);
     renderer->drawTexture(texture, {10, 10, 4, 4});
 
-    EXPECT_EQ(pixelAt(12, 12), mapColor(Colors::Red));    // inside dstRect
-    EXPECT_EQ(pixelAt(12, 16), mapColor(Colors::White));  // below dstRect
+    EXPECT_EQ(pixelAt(12, 12), mapColor(Colors::Red));
+    EXPECT_EQ(pixelAt(12, 16), mapColor(Colors::White));
 }
 
-// Cache-bound checks for the real SDL_ttf engine. They need a loadable
-// platform font; when none is available the test skips instead of failing.
+TEST_F(SDLRendererTest, DrawTextureTintedRendersWithColorMod) {
+    SDL_Texture* raw =
+        SDL_CreateTexture(sdlRenderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, 4, 4);
+    ASSERT_NE(raw, nullptr);
+    std::array<Uint32, 16> pixels{};
+    // White source texture
+    pixels.fill(mapColor(Colors::White));
+    ASSERT_EQ(SDL_UpdateTexture(raw, nullptr, pixels.data(), 4 * sizeof(Uint32)), 0);
+    auto texture = std::make_shared<SDLTexture>(raw);
+
+    renderer->fillRect({0, 0, kSurfaceWidth, kSurfaceHeight}, Colors::White);
+    IRenderer::TextureDrawDesc desc;
+    desc.dst = {10, 10, 4, 4};
+    desc.tint = Colors::Red;
+    renderer->drawTexture(texture, desc);
+
+    EXPECT_EQ(pixelAt(12, 12), mapColor(Colors::Red));
+}
+
 TEST_F(SDLRendererTest, TextEngineCachesAreLruBounded) {
     SDLTextEngine engine(sdlRenderer);
     auto font = engine.getFontForFamily("Sans", 16);
@@ -231,30 +220,35 @@ TEST_F(SDLRendererTest, TextEngineCachesAreLruBounded) {
         GTEST_SKIP() << "no loadable default font on this platform";
     }
 
-    // Measurement cache: exceed the cap with unique strings, without paying
-    // for rasterization on each of them.
     for (size_t i = 0; i < SDLTextEngine::kMaxMeasureCacheEntries + 512; ++i) {
         engine.measure(*font, "measure-" + std::to_string(i));
     }
     EXPECT_LE(engine.getMeasureCacheCount(), SDLTextEngine::kMaxMeasureCacheEntries);
 
-    // Texture cache: the same via rasterize(). The count must plateau at the
-    // bound instead of growing with the number of unique keys.
     for (size_t i = 0; i < SDLTextEngine::kMaxTextureCacheEntries + 64; ++i) {
         engine.rasterize(*font, "raster-" + std::to_string(i), Colors::Black);
     }
     EXPECT_LE(engine.getTextureCacheCount(), SDLTextEngine::kMaxTextureCacheEntries);
 
-    // clearCaches() drops everything at once.
+    // Glyph cache: white glyphs per codepoint
+    for (size_t i = 0; i < SDLTextEngine::kMaxGlyphCacheEntries + 128; ++i) {
+        // Use different codepoints (up to 0xFFFF) to fill glyph cache
+        uint32_t cp = static_cast<uint32_t>(32 + (i % 200));
+        std::string s;
+        if (cp < 128) s = std::string(1, static_cast<char>(cp));
+        else s = "A"; // fallback
+        engine.layoutText(*font, s);
+    }
+    EXPECT_LE(engine.getGlyphCacheCount(), SDLTextEngine::kMaxGlyphCacheEntries);
+    EXPECT_LE(engine.getLayoutCacheCount(), SDLTextEngine::kMaxLayoutCacheEntries);
+
     engine.clearCaches();
     EXPECT_EQ(engine.getMeasureCacheCount(), 0u);
     EXPECT_EQ(engine.getTextureCacheCount(), 0u);
+    EXPECT_EQ(engine.getGlyphCacheCount(), 0u);
+    EXPECT_EQ(engine.getLayoutCacheCount(), 0u);
 }
-// --- Stage 2: the canvas paints through the rewritten backend paths --------
 
-// The Brush-based canvas must reach the SDL paths that stage 2 rewrote:
-// rounded rects through SDL_RenderGeometry (fill + border ring), circles and
-// arcs through the sdl2-gfx rasterizers, thick lines through thickLineRGBA.
 TEST_F(SDLRendererTest, CanvasBrushPaintsRoundRectFillAndBorder) {
     const Uint32 white = mapColor(Colors::White);
     const Uint32 red = mapColor(Colors::Red);
@@ -266,10 +260,10 @@ TEST_F(SDLRendererTest, CanvasBrushPaintsRoundRectFillAndBorder) {
     canvas.fillRoundRect(Rect{20, 20, 60, 40}, 8.0f,
                          Brush::filledAndStroked(Colors::Red, Stroke{Colors::Blue, 2.0f}));
 
-    EXPECT_EQ(pixelAt(50, 40), red);    // interior is filled
-    EXPECT_EQ(pixelAt(20, 40), blue);   // straight edge carries the border
-    EXPECT_EQ(pixelAt(21, 40), blue);   // ... two pixels thick
-    EXPECT_EQ(pixelAt(20, 20), white);  // the rounded corner is cut away
+    EXPECT_EQ(pixelAt(50, 40), red);
+    EXPECT_EQ(pixelAt(20, 40), blue);
+    EXPECT_EQ(pixelAt(21, 40), blue);
+    EXPECT_EQ(pixelAt(20, 20), white);
 }
 
 TEST_F(SDLRendererTest, CanvasBrushPaintsThickLineCircleAndArc) {
@@ -282,23 +276,42 @@ TEST_F(SDLRendererTest, CanvasBrushPaintsThickLineCircleAndArc) {
 
     CanvasAdapter canvas(*renderer);
 
-    // Thick line: a 4px stroke centred on y=10 must cover the neighbouring rows.
     canvas.drawLine(PointI(10, 10), PointI(90, 10), Stroke{Colors::Green, 4.0f});
     EXPECT_EQ(pixelAt(50, 10), green);
     EXPECT_EQ(pixelAt(50, 9), green);
 
-    // Filled circle with a border.
     canvas.fillCircle(PointI(120, 40), 12.0f,
                       Brush::filledAndStroked(Colors::Red, Stroke{Colors::Blue, 1.0f}));
     EXPECT_EQ(pixelAt(120, 40), red);
-    EXPECT_NE(pixelAt(120, 53), red);  // outside the radius stays background
+    EXPECT_NE(pixelAt(120, 53), red);
 
-    // Arc: the 0..90 degrees stroke starts at the 0-degree endpoint (80, 100)
-    // and sweeps down; the sdl2-gfx rasterizer covers the pixel right after it.
     canvas.strokeArc(PointI(60, 100), 20.0f, 0.0f, 90.0f, Stroke{Colors::Blue, 2.0f});
     const bool arcPainted =
         pixelAt(79, 101) == blue || pixelAt(80, 101) == blue || pixelAt(80, 100) == blue;
     EXPECT_TRUE(arcPainted) << "no arc pixel found near the 0-degree endpoint";
+}
+
+TEST_F(SDLRendererTest, CanvasDrawsTintedGlyph) {
+    const Uint32 white = mapColor(Colors::White);
+    const Uint32 red = mapColor(Colors::Red);
+
+    SDL_Texture* raw =
+        SDL_CreateTexture(sdlRenderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, 8, 16);
+    ASSERT_NE(raw, nullptr);
+    std::array<Uint32, 128> pixels{};
+    pixels.fill(mapColor(Colors::White));
+    ASSERT_EQ(SDL_UpdateTexture(raw, nullptr, pixels.data(), 8 * sizeof(Uint32)), 0);
+    auto texture = std::make_shared<SDLTexture>(raw);
+
+    renderer->fillRect({0, 0, kSurfaceWidth, kSurfaceHeight}, Colors::White);
+
+    CanvasAdapter canvas(*renderer);
+    ICanvas::TextureDraw td;
+    td.dst = RectF(10, 10, 8, 16);
+    td.tint = Colors::Red;
+    canvas.drawTexture(texture, td);
+
+    EXPECT_EQ(pixelAt(12, 12), red);
 }
 
 }  // namespace
