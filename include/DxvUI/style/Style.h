@@ -158,6 +158,17 @@ struct ComputedLayoutStyle {
     // container). Stretch fills the slot (minus margin) on the enabled axis.
     Alignment horizontalAlignment = Alignment::Start;
     Alignment verticalAlignment = Alignment::Start;
+
+    bool operator==(const ComputedLayoutStyle& other) const {
+        return left == other.left && top == other.top && right == other.right &&
+               bottom == other.bottom && width == other.width && height == other.height &&
+               minWidth == other.minWidth && minHeight == other.minHeight &&
+               maxWidth == other.maxWidth && maxHeight == other.maxHeight &&
+               padding == other.padding && margin == other.margin && gap == other.gap &&
+               horizontalAlignment == other.horizontalAlignment &&
+               verticalAlignment == other.verticalAlignment;
+    }
+    bool operator!=(const ComputedLayoutStyle& other) const { return !(*this == other); }
 };
 
 namespace detail {

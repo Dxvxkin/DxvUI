@@ -260,20 +260,121 @@ bool SceneNode::isAncestorOf(const std::shared_ptr<SceneNode>& descendant) const
 }
 
 void SceneNode::setHovered(bool hovered) {
+    // Stage 4: hover/press/focus should not cause relayout when only appearance changes.
+    // We mark style dirty always, and only mark layout dirty if computed layout for old vs new state differs.
+    WidgetState oldState = getCurrentState();
+    const ComputedLayoutStyle* oldLayoutPtr = style.getComputedLayout(oldState);
+    ComputedLayoutStyle oldLayout = oldLayoutPtr ? *oldLayoutPtr : ComputedLayoutStyle{};
+    bool hadOldLayout = oldLayoutPtr != nullptr;
+
     if (state_.take(NodeState::Flag::Hovered, hovered)) {
-        markLayoutDirty();
+        markStyleDirty();
+        WidgetState newState = getCurrentState();
+        const ComputedLayoutStyle* newLayoutOldPtr = style.getComputedLayout(newState);
+        if (hadOldLayout && newLayoutOldPtr) {
+            if (oldLayout != *newLayoutOldPtr) {
+                // If text metrics (fontSize/family) changed, need recursive
+                const auto* oldApp = style.getComputedAppearance(oldState);
+                const auto* newAppOld = style.getComputedAppearance(newState);
+                bool textMetricsChanged = false;
+                if (oldApp && newAppOld) {
+                    textMetricsChanged = (oldApp->fontSize != newAppOld->fontSize ||
+                                          oldApp->fontFamily != newAppOld->fontFamily);
+                }
+                if (textMetricsChanged) markLayoutDirtyRecursive();
+                else markLayoutDirty();
+            }
+        } else {
+            // Fallback: check if Hovered state's own style has layout props
+            const StyleRule* rule = style.get(WidgetState::Hovered);
+            if (rule && (detail::hasLayoutProps(*rule) || detail::hasTextMetricsProps(*rule))) {
+                if (detail::hasTextMetricsProps(*rule)) markLayoutDirtyRecursive();
+                else markLayoutDirty();
+            } else {
+                // Also check old state's rule when leaving
+                const StyleRule* oldRule = style.get(oldState);
+                if (oldRule && (detail::hasLayoutProps(*oldRule) || detail::hasTextMetricsProps(*oldRule))) {
+                    if (detail::hasTextMetricsProps(*oldRule)) markLayoutDirtyRecursive();
+                    else markLayoutDirty();
+                }
+            }
+        }
     }
 }
 
 void SceneNode::setPressed(bool pressed) {
+    WidgetState oldState = getCurrentState();
+    const ComputedLayoutStyle* oldLayoutPtr = style.getComputedLayout(oldState);
+    ComputedLayoutStyle oldLayout = oldLayoutPtr ? *oldLayoutPtr : ComputedLayoutStyle{};
+    bool hadOldLayout = oldLayoutPtr != nullptr;
+
     if (state_.take(NodeState::Flag::Pressed, pressed)) {
-        markLayoutDirty();
+        markStyleDirty();
+        WidgetState newState = getCurrentState();
+        const ComputedLayoutStyle* newLayoutOldPtr = style.getComputedLayout(newState);
+        if (hadOldLayout && newLayoutOldPtr) {
+            if (oldLayout != *newLayoutOldPtr) {
+                const auto* oldApp = style.getComputedAppearance(oldState);
+                const auto* newAppOld = style.getComputedAppearance(newState);
+                bool textMetricsChanged = false;
+                if (oldApp && newAppOld) {
+                    textMetricsChanged = (oldApp->fontSize != newAppOld->fontSize ||
+                                          oldApp->fontFamily != newAppOld->fontFamily);
+                }
+                if (textMetricsChanged) markLayoutDirtyRecursive();
+                else markLayoutDirty();
+            }
+        } else {
+            const StyleRule* rule = style.get(WidgetState::Pressed);
+            if (rule && (detail::hasLayoutProps(*rule) || detail::hasTextMetricsProps(*rule))) {
+                if (detail::hasTextMetricsProps(*rule)) markLayoutDirtyRecursive();
+                else markLayoutDirty();
+            } else {
+                const StyleRule* oldRule = style.get(oldState);
+                if (oldRule && (detail::hasLayoutProps(*oldRule) || detail::hasTextMetricsProps(*oldRule))) {
+                    if (detail::hasTextMetricsProps(*oldRule)) markLayoutDirtyRecursive();
+                    else markLayoutDirty();
+                }
+            }
+        }
     }
 }
 
 void SceneNode::setFocused(bool focused) {
+    WidgetState oldState = getCurrentState();
+    const ComputedLayoutStyle* oldLayoutPtr = style.getComputedLayout(oldState);
+    ComputedLayoutStyle oldLayout = oldLayoutPtr ? *oldLayoutPtr : ComputedLayoutStyle{};
+    bool hadOldLayout = oldLayoutPtr != nullptr;
+
     if (state_.take(NodeState::Flag::Focused, focused)) {
-        markLayoutDirty();
+        markStyleDirty();
+        WidgetState newState = getCurrentState();
+        const ComputedLayoutStyle* newLayoutOldPtr = style.getComputedLayout(newState);
+        if (hadOldLayout && newLayoutOldPtr) {
+            if (oldLayout != *newLayoutOldPtr) {
+                const auto* oldApp = style.getComputedAppearance(oldState);
+                const auto* newAppOld = style.getComputedAppearance(newState);
+                bool textMetricsChanged = false;
+                if (oldApp && newAppOld) {
+                    textMetricsChanged = (oldApp->fontSize != newAppOld->fontSize ||
+                                          oldApp->fontFamily != newAppOld->fontFamily);
+                }
+                if (textMetricsChanged) markLayoutDirtyRecursive();
+                else markLayoutDirty();
+            }
+        } else {
+            const StyleRule* rule = style.get(WidgetState::Focused);
+            if (rule && (detail::hasLayoutProps(*rule) || detail::hasTextMetricsProps(*rule))) {
+                if (detail::hasTextMetricsProps(*rule)) markLayoutDirtyRecursive();
+                else markLayoutDirty();
+            } else {
+                const StyleRule* oldRule = style.get(oldState);
+                if (oldRule && (detail::hasLayoutProps(*oldRule) || detail::hasTextMetricsProps(*oldRule))) {
+                    if (detail::hasTextMetricsProps(*oldRule)) markLayoutDirtyRecursive();
+                    else markLayoutDirty();
+                }
+            }
+        }
     }
 }
 
@@ -288,8 +389,34 @@ void SceneNode::setVisible(bool newVisible) {
 bool SceneNode::isEnabled() const { return state_.test(NodeState::Flag::Enabled); }
 
 void SceneNode::setEnabled(bool enabled) {
+    WidgetState oldState = getCurrentState();
+    const ComputedLayoutStyle* oldLayoutPtr = style.getComputedLayout(oldState);
+    ComputedLayoutStyle oldLayout = oldLayoutPtr ? *oldLayoutPtr : ComputedLayoutStyle{};
+    bool hadOldLayout = oldLayoutPtr != nullptr;
+
     if (state_.take(NodeState::Flag::Enabled, enabled)) {
-        markLayoutDirty();
+        markStyleDirty();
+        WidgetState newState = getCurrentState();
+        const ComputedLayoutStyle* newLayoutOldPtr = style.getComputedLayout(newState);
+        if (hadOldLayout && newLayoutOldPtr) {
+            if (oldLayout != *newLayoutOldPtr) {
+                const auto* oldApp = style.getComputedAppearance(oldState);
+                const auto* newAppOld = style.getComputedAppearance(newState);
+                bool textMetricsChanged = false;
+                if (oldApp && newAppOld) {
+                    textMetricsChanged = (oldApp->fontSize != newAppOld->fontSize ||
+                                          oldApp->fontFamily != newAppOld->fontFamily);
+                }
+                if (textMetricsChanged) markLayoutDirtyRecursive();
+                else markLayoutDirty();
+            }
+        } else {
+            const StyleRule* rule = style.get(WidgetState::Disabled);
+            if (rule && (detail::hasLayoutProps(*rule) || detail::hasTextMetricsProps(*rule))) {
+                if (detail::hasTextMetricsProps(*rule)) markLayoutDirtyRecursive();
+                else markLayoutDirty();
+            }
+        }
         if (!enabled) {
             if (auto s = scene.lock()) {
                 s->onNodeDisabled(shared_from_this());

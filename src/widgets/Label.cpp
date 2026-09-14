@@ -33,18 +33,31 @@ std::shared_ptr<Label> Label::create(std::string id, std::string text) {
     return std::make_shared<Label>(std::move(id), std::move(text));
 }
 
-Label::Label(std::string id, std::string text) : SceneNode(std::move(id)) {
+Label::Label(std::string id, std::string text) : SceneNode(std::move(id)), cachedText_(text) {
     auto binding = UIBinding::create(text);
     bind(binding);
 }
 
 const char* Label::getNodeType() const noexcept { return kWidgetType; }
 
-void Label::setText(std::string newText) { getBinding()->set(std::move(newText)); }
+void Label::setText(std::string newText) {
+    cachedText_ = newText;
+    getBinding()->set(newText);
+}
 
-std::string Label::getText() const { return getBinding()->getString(); }
+std::string Label::getText() const {
+    // Stage 4: return cached to avoid mutex+allocation, fallback to binding if empty cache
+    if (!cachedText_.empty() || !getBinding()) {
+        return cachedText_;
+    }
+    return getBinding()->getString();
+}
 
-void Label::onChange(const UIBinding& /*binding*/) { markLayoutDirty(); }
+void Label::onChange(const UIBinding& binding) {
+    // Stage 4: cache string between Change to avoid mutex+allocation each frame
+    cachedText_ = binding.getString();
+    markLayoutDirty();
+}
 
 Size Label::onMeasure(const Size& availableSize) {
     const auto& computedAppearance = getComputedAppearance();
@@ -58,7 +71,8 @@ Size Label::onMeasure(const Size& availableSize) {
         if (!font) {
             return {0, 0};
         }
-        auto text = getText();
+        // Stage 4: use cached text to avoid mutex+allocation
+        const auto& text = cachedText_;
         if (text.empty()) {
             return LayoutManager::addPadding({0, 0}, insets);
         }
@@ -76,7 +90,8 @@ Size Label::onMeasure(const Size& availableSize) {
 void Label::onPaint(PaintContext& pc) {
     const auto& computedAppearance = getComputedAppearance();
 
-    auto text = getText();
+    // Stage 4: use cached text
+    const auto& text = cachedText_;
     if (text.empty()) {
         return;
     }
