@@ -64,8 +64,8 @@ Size Label::onMeasure(const Size& availableSize) {
     const Thickness insets = LayoutManager::contentInsets(*this);
 
     auto scene = getScene();
-    if (scene && scene->getRenderer()) {
-        auto& engine = scene->getRenderer()->getTextEngine();
+    if (scene && scene->getTextEngine()) {
+        auto& engine = *scene->getTextEngine();
         auto font =
             engine.getFontForFamily(computedAppearance.fontFamily, computedAppearance.fontSize);
         if (!font) {

@@ -309,6 +309,117 @@ Size SDLRenderer::getViewportSize() const {
     return {(float)w, (float)h};
 }
 
+float SDLRenderer::getDpiScale() const {
+    // Stage 5: return 1.0f for now, future HiDPI will query SDL_GetRendererOutputSize vs window size
+    return 1.0f;
+}
+
+ICanvas& SDLRenderer::beginFrame(const Color& clearColor) {
+    // Stage 5: frame lifecycle – clear if we own resources, otherwise host does clear
+    if (ownsResources) {
+        clear(clearColor);
+    }
+    return *this;
+}
+
+void SDLRenderer::endFrame() {
+    if (ownsResources) {
+        present();
+    }
+}
+
+// --- ICanvas float-based implementation (stage 5 real backend) ---
+
+void SDLRenderer::pushClip(const RectF& rect) {
+    pushClipRect(rect.rounded());
+}
+
+void SDLRenderer::popClip() {
+    popClipRect();
+}
+
+void SDLRenderer::drawTexture(const std::shared_ptr<ITexture>& texture, const RectF& dstRect) {
+    drawTexture(texture, dstRect.rounded());
+}
+
+void SDLRenderer::drawTexture(const std::shared_ptr<ITexture>& texture, const TextureDraw& draw) {
+    // Translate float TextureDraw -> int TextureDrawDesc
+    TextureDrawDesc desc;
+    desc.dst = draw.dst.rounded();
+    if (draw.src) {
+        desc.src = draw.src->rounded();
+    }
+    desc.tint = draw.tint;
+    desc.alpha = draw.alpha;
+    // rotation/flip ignored for now (stage 6)
+    drawTexture(texture, desc);
+}
+
+void SDLRenderer::fillRect(const RectF& rect, const Fill& fill) {
+    fillRect(rect.rounded(), fill.color);
+}
+
+void SDLRenderer::strokeRect(const RectF& rect, const Stroke& stroke) {
+    drawRect(rect.rounded(), Border{stroke.color, static_cast<int>(std::lround(stroke.thickness))});
+}
+
+void SDLRenderer::fillRoundRect(const RectF& rect, float radius, const Brush& brush) {
+    if (brush.isEmpty()) return;
+    const Rect pixelRect = rect.rounded();
+    const int pixelRadius = std::max(0, static_cast<int>(std::lround(radius)));
+    auto toBorder = [](const Stroke& s) -> Border {
+        return {s.color, std::max(1, static_cast<int>(std::lround(s.thickness)))};
+    };
+    if (brush.fill && brush.stroke) {
+        fillRoundRect(pixelRect, pixelRadius, brush.fill->color, toBorder(*brush.stroke));
+    } else if (brush.fill) {
+        fillRoundRect(pixelRect, pixelRadius, brush.fill->color);
+    } else {
+        drawRoundRect(pixelRect, pixelRadius, toBorder(*brush.stroke));
+    }
+}
+
+void SDLRenderer::fillCircle(const PointF& center, float radius, const Brush& brush) {
+    if (brush.isEmpty()) return;
+    const PointI pixelCenter = center.rounded();
+    const int pixelRadius = std::max(0, static_cast<int>(std::lround(radius)));
+    auto toBorder = [](const Stroke& s) -> Border {
+        return {s.color, std::max(1, static_cast<int>(std::lround(s.thickness)))};
+    };
+    if (brush.fill && brush.stroke) {
+        fillCircle(pixelCenter.x, pixelCenter.y, pixelRadius, brush.fill->color, toBorder(*brush.stroke));
+    } else if (brush.fill) {
+        fillCircle(pixelCenter.x, pixelCenter.y, pixelRadius, brush.fill->color);
+    } else {
+        drawCircle(pixelCenter.x, pixelCenter.y, pixelRadius, toBorder(*brush.stroke));
+    }
+}
+
+void SDLRenderer::strokeArc(const PointF& center, float radius, float startAngle, float endAngle,
+                            const Stroke& stroke) {
+    const PointI pixelCenter = center.rounded();
+    const int pixelRadius = std::max(0, static_cast<int>(std::lround(radius)));
+    drawArc(pixelCenter.x, pixelCenter.y, pixelRadius, startAngle, endAngle,
+            Border{stroke.color, std::max(1, static_cast<int>(std::lround(stroke.thickness)))});
+}
+
+void SDLRenderer::fillPolygon(std::span<const PointF> points, const Fill& fill) {
+    if (points.size() < 3) return;
+    std::vector<PointI> pixelPoints;
+    pixelPoints.reserve(points.size());
+    for (const PointF& p : points) {
+        pixelPoints.push_back(p.rounded());
+    }
+    fillPolygon(pixelPoints, fill.color);
+}
+
+void SDLRenderer::drawLine(const PointF& from, const PointF& to, const Stroke& stroke) {
+    const PointI a = from.rounded();
+    const PointI b = to.rounded();
+    drawLine(a.x, a.y, b.x, b.y, stroke.color, std::max(1, static_cast<int>(std::lround(stroke.thickness))));
+}
+
+
 void SDLRenderer::drawTexture(const std::shared_ptr<ITexture>& texture, const Rect& dstRect) {
     if (!texture) return;
     const auto* sdlTexture = dynamic_cast<SDLTexture*>(texture.get());

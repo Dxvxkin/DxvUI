@@ -6,7 +6,10 @@
 #include <vector>
 
 #include "DxvUI/core.h"
+#include "DxvUI/interfaces/ICanvas.h"
 #include "DxvUI/interfaces/IClipboard.h"
+#include "DxvUI/interfaces/IPlatformServices.h"
+#include "DxvUI/interfaces/IRenderBackend.h"
 #include "DxvUI/interfaces/ITextEngine.h"
 #include "DxvUI/interfaces/ITexture.h"
 
@@ -14,76 +17,45 @@ namespace DxvUI {
 
 /**
  * @class IRenderer
- * @brief Backend contract: frame lifecycle, platform services and drawing.
+ * @brief Legacy combined backend contract (frame + platform + drawing).
  *
- * Widgets never see this interface — the draw pass paints through the narrow
- * ICanvas/PaintContext contract, and CanvasAdapter bridges the two until the
- * stage-5 backend split (docs/RENDERING_REFACTORING.md) turns ICanvas into a
- * real backend surface. What remains here for host apps is the frame
- * lifecycle (clear/present), the platform services (text engine, clipboard,
- * cursor) and the explicitly-colored primitives backends must implement.
+ * Stage 5 splits this god-interface into IRenderBackend (frame lifecycle + ICanvas)
+ * and IPlatformServices (cursor/clipboard). IRenderer now inherits both for backward
+ * compatibility: existing hosts that own SDLRenderer via IRenderer* continue to work,
+ * while new code should depend on IRenderBackend + IPlatformServices + ICanvas.
  *
- * Stage 2 removed the implicit draw-color state (setDrawColor/getDrawColor)
- * and with it every overload that depended on it: a draw call now always
- * states its own color or border, so no call site can be affected by whoever
- * painted before it.
- *
- * Stage 3 adds a tinted, src-rect-aware texture draw for the glyph atlas:
- * white glyphs are tinted at draw time instead of baking the color into the
- * cache key.
+ * Widgets never see this interface — the draw pass paints through ICanvas/PaintContext,
+ * and CanvasAdapter bridges until stage 5 turns ICanvas into real backend surface.
  */
-class IRenderer {
+class IRenderer : public IRenderBackend, public IPlatformServices {
    public:
-    virtual ~IRenderer() = default;
+    ~IRenderer() override = default;
 
-    virtual void clear(const Color& color) = 0;
-    virtual void present() = 0;
-    virtual Size getViewportSize() const = 0;
+    // IRenderBackend – frame lifecycle (legacy clear/present still required for hosts)
+    void clear(const Color& color) override = 0;
+    void present() override = 0;
+    Size getViewportSize() const override = 0;
+    float getDpiScale() const override { return 1.0f; }
+    ITextEngine& getTextEngine() override = 0;
 
-    /**
-     * @brief Gets the backend-neutral text engine owned by this renderer.
-     *
-     * Fonts, text measurement and text rasterization live behind the
-     * ITextEngine interface instead of the renderer itself, so the renderer
-     * never exposes implicit \"current font/color\" state to widgets.
-     */
-    virtual ITextEngine& getTextEngine() = 0;
+    // IRenderBackend – new frame API (stage 5): beginFrame returns ICanvas&
+    // Default impl for backward compat: clear + return *this as ICanvas if backend implements ICanvas,
+    // otherwise relies on CanvasAdapter. Real backends override.
+    ICanvas& beginFrame(const Color& clearColor) override = 0;
+    void endFrame() override = 0;
 
-    /**
-     * @brief Gets the backend-neutral clipboard owned by this renderer.
-     *
-     * Widgets use it for copy/paste without depending on the SDL clipboard API.
-     */
-    virtual IClipboard& getClipboard() = 0;
+    // IPlatformServices
+    void setCursor(CursorType type) override = 0;
+    CursorType getCursor() const override = 0;
+    IClipboard& getClipboard() override = 0;
 
-    // Cursor
-    virtual void setCursor(CursorType type) = 0;
-    virtual CursorType getCursor() const = 0;
-
-    // Clipping
+    // Clipping (legacy int-based, now also on ICanvas float-based)
     virtual void pushClipRect(const Rect& rect) = 0;
     virtual void popClipRect() = 0;
 
-    /**
-     * @brief Draws a texture into the destination rectangle.
-     *
-     * Takes the texture by const reference (a rasterized texture can be drawn
-     * straight from a temporary) and only accepts textures created by this
-     * renderer's backend: a foreign ITexture implementation is rejected with
-     * a logged error instead of being blindly cast.
-     * @param texture The texture to draw; a null texture is a no-op.
-     * @param dstRect The destination rectangle in screen coordinates.
-     */
+    // Textures legacy
     virtual void drawTexture(const std::shared_ptr<ITexture>& texture, const Rect& dstRect) = 0;
 
-    /**
-     * @brief Draws a (sub)texture with optional tint and alpha (glyph atlas).
-     *
-     * Stage 3: white glyphs are rasterized once and tinted per draw call.
-     * srcRect selects a sub-rectangle of the texture (atlas), tint modulates
-     * it, alpha is an extra opacity multiplier (1 = opaque). A null texture is
-     * a no-op; a null src means the whole texture.
-     */
     struct TextureDrawDesc {
         Rect dst;
         std::optional<Rect> src;
@@ -93,34 +65,19 @@ class IRenderer {
     virtual void drawTexture(const std::shared_ptr<ITexture>& texture,
                              const TextureDrawDesc& desc) = 0;
 
-    // Primitives. Each shape exposes exactly the paths the painting contract
-    // needs: a solid fill, a border-only outline, a fill+border pair and, for
-    // lines, a thickness. The canvas (ICanvas) is the place to add gradients,
-    // tints or opacity — extend Fill/Stroke there, not this overload set.
-    ///@{
+    // Primitives legacy int-based (stage 2-4) – forwarded to ICanvas float-based in real backends
     virtual void drawRect(const Rect& rect, const Border& border) = 0;
     virtual void fillRect(const Rect& rect, const Color& color) = 0;
     virtual void fillRect(const Rect& rect, const Color& fillColor, const Border& border) = 0;
-
-    /// @param thickness Line width in pixels; 1 is a hairline.
-    virtual void drawLine(int x1, int y1, int x2, int y2, const Color& color,
-                          int thickness = 1) = 0;
-
+    virtual void drawLine(int x1, int y1, int x2, int y2, const Color& color, int thickness = 1) = 0;
     virtual void drawCircle(int centerX, int centerY, int radius, const Border& border) = 0;
     virtual void fillCircle(int centerX, int centerY, int radius, const Color& color) = 0;
-    virtual void fillCircle(int centerX, int centerY, int radius, const Color& fillColor,
-                            const Border& border) = 0;
-
-    virtual void drawArc(int centerX, int centerY, int radius, float startAngle, float endAngle,
-                         const Border& border) = 0;
-
+    virtual void fillCircle(int centerX, int centerY, int radius, const Color& fillColor, const Border& border) = 0;
+    virtual void drawArc(int centerX, int centerY, int radius, float startAngle, float endAngle, const Border& border) = 0;
     virtual void drawRoundRect(const Rect& rect, int radius, const Border& border) = 0;
     virtual void fillRoundRect(const Rect& rect, int radius, const Color& color) = 0;
-    virtual void fillRoundRect(const Rect& rect, int radius, const Color& fillColor,
-                               const Border& border) = 0;
-
+    virtual void fillRoundRect(const Rect& rect, int radius, const Color& fillColor, const Border& border) = 0;
     virtual void fillPolygon(const std::vector<PointI>& points, const Color& color) = 0;
-    ///@}
 };
 
 }  // namespace DxvUI

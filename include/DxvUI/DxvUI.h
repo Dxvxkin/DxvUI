@@ -19,6 +19,8 @@
 #include "interfaces/ICanvas.h"
 #include "interfaces/IClipboard.h"
 #include "interfaces/IEventSource.h"
+#include "interfaces/IPlatformServices.h"
+#include "interfaces/IRenderBackend.h"
 #include "interfaces/IRenderer.h"
 #include "interfaces/ITextEngine.h"
 #include "interfaces/ITexture.h"

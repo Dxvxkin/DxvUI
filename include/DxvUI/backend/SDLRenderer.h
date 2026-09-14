@@ -16,7 +16,7 @@ namespace DxvUI {
 
 class SDLTextEngine;
 
-class SDLRenderer : public IRenderer {
+class SDLRenderer : public IRenderer, public ICanvas {
    public:
     SDLRenderer(const char* title, int width, int height, bool vsync = true);
     // External-renderer mode (the primary integration for host apps that already
@@ -34,7 +34,12 @@ class SDLRenderer : public IRenderer {
     SDL_Renderer* getSDLHandle() const { return renderer; }
     SDL_Window* getSDLWindow() const { return window; }
 
-    // --- IRenderer implementation ---
+    // --- IRenderBackend ---
+    ICanvas& beginFrame(const Color& clearColor) override;
+    void endFrame() override;
+    float getDpiScale() const override;
+
+    // --- IRenderer implementation (legacy int-based, kept for compat) ---
     void clear(const Color& color) override;
     void present() override;
     Size getViewportSize() const override;
@@ -42,18 +47,32 @@ class SDLRenderer : public IRenderer {
     ITextEngine& getTextEngine() override;
     IClipboard& getClipboard() override;
 
-    // Cursor
+    // Cursor (IPlatformServices)
     void setCursor(CursorType type) override;
     CursorType getCursor() const override;
 
-    // Clipping
+    // Clipping legacy
     void pushClipRect(const Rect& rect) override;
     void popClipRect() override;
 
-    // Texture Rendering (stage 3: tinted + src rect for glyph atlas)
+    // Texture Rendering legacy int-based (stage 3: tinted + src rect)
     void drawTexture(const std::shared_ptr<ITexture>& texture, const Rect& dstRect) override;
     void drawTexture(const std::shared_ptr<ITexture>& texture,
                      const TextureDrawDesc& desc) override;
+
+    // --- ICanvas (float-based, stage 5 real backend) ---
+    void pushClip(const RectF& rect) override;
+    void popClip() override;
+    void drawTexture(const std::shared_ptr<ITexture>& texture, const RectF& dstRect) override;
+    void drawTexture(const std::shared_ptr<ITexture>& texture, const TextureDraw& draw) override;
+    void fillRect(const RectF& rect, const Fill& fill) override;
+    void strokeRect(const RectF& rect, const Stroke& stroke) override;
+    void fillRoundRect(const RectF& rect, float radius, const Brush& brush) override;
+    void fillCircle(const PointF& center, float radius, const Brush& brush) override;
+    void strokeArc(const PointF& center, float radius, float startAngle, float endAngle,
+                   const Stroke& stroke) override;
+    void fillPolygon(std::span<const PointF> points, const Fill& fill) override;
+    void drawLine(const PointF& from, const PointF& to, const Stroke& stroke) override;
 
     // Primitives (every call states its own color/border — the renderer keeps
     // no draw-color state)

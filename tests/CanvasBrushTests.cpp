@@ -102,6 +102,24 @@ class RecordingRenderer : public IRenderer {
     void clear(const Color&) override {}
     void present() override {}
     Size getViewportSize() const override { return {800, 600}; }
+
+    float getDpiScale() const override { return 1.0f; }
+
+    ICanvas& beginFrame(const Color&) override { return *this; }
+    void endFrame() override {}
+
+    // ICanvas float-based (stage 5) – no-op for fake
+    void pushClip(const RectF&) override {}
+    void popClip() override {}
+    void drawTexture(const std::shared_ptr<ITexture>&, const RectF&) override {}
+    void drawTexture(const std::shared_ptr<ITexture>&, const TextureDraw&) override {}
+    void fillRect(const RectF&, const Fill&) override {}
+    void strokeRect(const RectF&, const Stroke&) override {}
+    void fillRoundRect(const RectF&, float, const Brush&) override {}
+    void fillCircle(const PointF&, float, const Brush&) override {}
+    void strokeArc(const PointF&, float, float, float, const Stroke&) override {}
+    void fillPolygon(std::span<const PointF>, const Fill&) override {}
+    void drawLine(const PointF&, const PointF&, const Stroke&) override {}
     ITextEngine& getTextEngine() override { return textEngine; }
     IClipboard& getClipboard() override { return clipboard; }
     void setCursor(CursorType) override {}

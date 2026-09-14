@@ -126,10 +126,10 @@ bool TextEdit::getEditContext(ITextEngine** engine, const IFont** font) {
     *engine = nullptr;
     *font = nullptr;
     auto scene = getScene();
-    if (!scene || !scene->getRenderer()) {
+    if (!scene || !scene->getTextEngine()) {
         return false;
     }
-    auto& textEngine = scene->getRenderer()->getTextEngine();
+    auto& textEngine = *scene->getTextEngine();
     const auto& appearance = getComputedAppearance();
     auto fontHandle = textEngine.getFontForFamily(appearance.fontFamily, appearance.fontSize);
     if (!fontHandle) {
@@ -142,10 +142,16 @@ bool TextEdit::getEditContext(ITextEngine** engine, const IFont** font) {
 
 IClipboard* TextEdit::getClipboard() {
     auto scene = getScene();
-    if (!scene || !scene->getRenderer()) {
+    if (!scene) {
         return nullptr;
     }
-    return &scene->getRenderer()->getClipboard();
+    if (auto* ps = scene->getPlatformServices()) {
+        return &ps->getClipboard();
+    }
+    if (auto* r = scene->getRenderer()) {
+        return &r->getClipboard();
+    }
+    return nullptr;
 }
 
 void TextEdit::handleKeyDown(DxvEvent& event) {
