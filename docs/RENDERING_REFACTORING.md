@@ -394,7 +394,7 @@ canvas->fillRoundRect(track, radius, brushes().get("slider.track"));
 | 3 | ✅ **TextLayout + глиф-атлас**: `ITextRenderer`, `drawLayout` с выравниванием/усечением; tint вместо запечённого цвета; миграция Label/TextEdit/TextEditorView (вид уходит из `backend/`) | `SDLTextEngine → SdlTextRenderer`, Label, TextEdit | бенчмарк `text`/`micro`: медиана не хуже, память кэша −90% ожидаемо |
 | 4 | ✅ **Инвалидация состояний**: `setHovered/Pressed/Focused` через style-дифф; юнит-тест «hover не меняет bounds»; `getString()`-хотспот: Label кэширует строку между Change | `SceneNode`, Label | «hover-storm»-сценарий: relayout-ов 0 при неизменной геометрии |
 | 5 | ✅ **Разделение бэкенда**: `IRenderBackend` + `IPlatformServices`; `FrameInfo` сквозь `Scene::draw`; миграция `EventManager` (курсор) | Scene, EventManager, examples | `ICanvas` не знает про окно/курсор/клипборд |
-| 6 | ✅ **GPU-пути + удаление sdl2-gfx** (stage 6a): circle/arc/line/polygon через `SDL_RenderGeometry`, триангуляция ear-clipping; батчинг/render-target/damage/Image — stage 6b опционально | backend | `SDL2_gfx` не линкуется, все примитивы GPU, примеры идентичны |
+| 6 | ✅ **Полный stage 6**: GPU-пути + удаление sdl2-gfx, ImageData/createTexture/renderTarget + Image виджет, damage-ректы, батчинг fillRect, gradient/shadow в Brush | backend, widgets | `SDL2_gfx` не линкуется, Image рисуется, damage culling, батчинг −draw calls, gradient/shadow работают |
 
 Дополнительно к этапу 1: `RectF`/`PointF` вводятся вместе с `ICanvas`
 (канвас сразу флоатный, конверсия на границе layout→paint), а полная миграция
@@ -694,6 +694,49 @@ layout-а на флоат остаётся вне скоупа (см. §7).
 - **Приёмка:** `SDL2_gfx` не линкуется, `ldd`/`dumpbin` не показывает, все тесты `CanvasBrushTests` (которые мокают `IRenderer`) зелёные, визуально слайдер (палец — `fillCircle`), чекбокс (галочка — `drawLine` толстая), `Plot` (полигон), дуги — идентичны. Производительность: CPU-сканлайн заливка заменена на GPU, ожидается −10% CPU на сценариях с кругами/полигонами (slider, plot).
 
 Отклонения: батчинг/display-list, render-target кэш, damage-ректы, `Brush` gradient/shadow, Image-виджет (`createTexture`) оставлены как stage 6b опционально — требуют отдельного дизайна `ImageData` и `createRenderTarget`. Текущий коммит закрывает критерий «GPU-пути + удаление sdl2-gfx» из строки 6 таблицы.
+
+
+### 4.9. Реализовано: этап 6b (Image, render-target, damage, batching, gradient/shadow)
+
+**Что сделано (коммиты `226efa5` + `878585d`):**
+
+- **ImageData + createTexture:**
+  - `core/ImageData.h`: `width/height/channels(1/3/4)`, `vector<uint8_t> pixels` RGBA row-major, `isValid()`, хелперы `createCheckerboard(w,h,cell)` и `createSolid(r,g,b,a)`.
+  - `IRenderBackend`: `createTexture(ImageData)`, `createRenderTarget(w,h)`, `beginRenderTarget(tex)`, `endRenderTarget()` с стеком `SDL_Texture*`.
+  - `SDLRenderer`: `createTexture` конвертит 1/3/4 канала в RGBA8, `SDL_CreateTexture(RGBA32, STATIC)`, `SDL_UpdateTexture` pitch `w*4`, blend. `createRenderTarget` — `RGBA8888, TARGET`. `begin/endRenderTarget` — `SDL_GetRenderTarget` push/pop + `SDL_SetRenderTarget`.
+
+- **Image виджет:**
+  - `widgets/Image.h/.cpp`: `setTexture`, `setImageData` (pending до `ensureTexture` когда есть backend), `srcRect`, `tint`, `alpha`, `fit` (`None/Contain/Cover/Fill/ScaleDown`). `onMeasure` — размер текстуры clamped к available с учетом fit, `onPaint` — вычисляет `dst` по fit (centered для Contain/ScaleDown/Cover), `TextureDraw{dst, src?, tint, alpha}` → `canvas.drawTexture`.
+  - `DxvUI.h` экспортирует `ImageData` и `Image`, `CMakeLists.txt` добавляет `Image.cpp`.
+  - Тесты: `FakeRenderer` реализует новые методы как no-op.
+
+- **Damage-ректы:**
+  - `Scene`: `damageUnion_`, `hasDamage_`, `fullRedraw_=true` (первый кадр), `damageRects_` список, `addDamageRect(rect)` — union, `clearDamage()` — сброс + `fullRedraw_=false`, `getDamageUnion/hasDamage/needsFullRedraw`.
+  - `SceneNode::markStyleDirty` — добавляет `globalBounds` в damage, `markLayoutDirty` — добавляет старые bounds до пометки dirty.
+  - `LayoutManager::arrangeNode` — добавляет старые и новые bounds в damage при изменении.
+  - `Scene::onNodeRemoved` — добавляет bounds удаленного узла.
+  - `FrameInfo`: `damageUnion`, `hasDamage`, `fullRedraw`.
+  - `Scene::draw` — строит `FrameInfo` с damage, передает в `PaintContext`, после `endFrame` — `clearDamage()`. Пока рисует полный кадр, но `drawImpl` уже делает damage-culling: `if(hasDamage && !fullRedraw && !bounds.intersects(damageUnion)) return`.
+  - Приёмка: hover только с фоном → damage только bounds кнопки, а не всего дерева; в будущем можно пропускать `beginFrame` когда нет damage (кроме мигания каретки).
+
+- **Батчинг fillRect:**
+  - `SDLRenderer`: `FillRectBatch{Color, vector<Rect>}`, `fillRectBatch_`, `batchFillRect(rect,color)` — если цвет совпадает, добавляет в батч, иначе `flushFillRectBatch()`. Лимит 256 rects → flush.
+  - `flushFillRectBatch()` — генерирует `verts` 4 на rect, `indices` 6 на rect, один `SDL_RenderGeometry` вызов. `SDL_Color` из `toSDLColor`.
+  - Flush вызывается в начале всех операций, меняющих состояние: `pushClipRect`, `popClipRect`, `clear`, `present`, `beginFrame`, `endFrame`, `drawTexture`, `drawRect`, `drawLine`, `fillCircle`, `drawCircle`, `drawArc`, `drawRoundRect`, `fillRoundRect`, `fillPolygon`, `createTexture`, `createRenderTarget`, `begin/endRenderTarget`.
+  - Выигрыш: 100 кнопок с одинаковым фоном → 1 draw call вместо 100, `frames` бенчмарк −draw calls.
+
+- **Gradient & Shadow в Brush:**
+  - `Brush.h`: `LinearGradient{start,end,angleDeg}`, `Fill{color, optional<LinearGradient>}`, `Shadow{color, offsetX/Y, blur}`, `Brush{fill?, stroke?, shadow?}` + `filled(LinearGradient)`, `withShadow(base, shadow)`.
+  - `fillRectGradientGeometry`: для `Rect`, вычисляет градиент-вектор `gx=cos(angle), gy=sin(angle)`, dot всех 4 углов, `min/max`, `t = (dot-min)/range`, `lerpColor(start,end,t)` per vertex → `RenderGeometry`.
+  - `fillRoundRectGradientGeometry`: аналогично для скругленного — fan 53 вершины (center + 52 poly), per-vertex t по позиции.
+  - `fillRect(RectF,Fill)`: если `fill.gradient` → `fillRectGradientGeometry`, иначе `batchFillRect`.
+  - `fillRoundRect(RectF,Brush)`: shadow первым — `shadowRect = rect + offset ± blur/2`, `fillRoundedRectGeometry(shadowColor)`, затем fill: если gradient → `fillRoundRectGradientGeometry`, иначе solid, затем stroke ring.
+  - `fillCircle(Brush)`: shadow — `fillCircleGeometry` offset, затем fill+stroke.
+  - `CanvasAdapter` оставлен с solid fallback (transitional).
+
+**Приёмка stage 6:** `SDL2_gfx` удален, все примитивы GPU, `Image` рисуется с fit/tint/alpha, `createRenderTarget` работает для кэша поддеревьев (API готов), damage отслеживается и используется для culling, `fillRect` батчится, gradient (0°=left-right, 90°=top-bottom, generic angle) и shadow (offset+blur) работают в `fillRect`/`fillRoundRect`/`fillCircle`.
+
+Отклонения: display-list/батчинг остальных примитивов (roundRect, circle) пока не батчится — только fillRect; render-target кэш поддеревьев не включен автоматически (требует флага в SceneNode и инвалидации), оставлен как API; shadow blur — приближение spread, без Gaussian.
 
 
 
