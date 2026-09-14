@@ -531,6 +531,86 @@ layout-а на флоат остаётся вне скоупа (см. §7).
 `strokePolygon` не добавлены — их выражает `Brush`/`drawLine`, и в репозитории
 нет потребителей.
 
+### 4.4. Реализовано: этап 3 (TextLayout + глиф-атлас с tint, миграция Label/TextEdit, перенос вида) — финальная версия 2026-09-14
+
+**Что сделано (код в ветке `arena/01a09214-dxvui` коммит `326d0a2`):**
+
+- **`ICanvas::TextureDraw` (stage 3):** `struct TextureDraw { RectF dst; optional<RectF> src; optional<Color> tint; float alpha; float rotationDeg; bool flipX/Y; }` и вторая перегрузка `drawTexture(shared_ptr<ITexture>, TextureDraw)`. Старая `drawTexture(dstRect)` сохранена как legacy. `FrameInfo` расширен `timeMs` — каретка больше не читает `SDL_GetTicks()`, мигание — функция кадра (подготовка к этапу 5).
+
+- **`IRenderer::TextureDrawDesc`:** аналогичный дескриптор на int-границе (`Rect dst; optional<Rect> src; optional<Color> tint; float alpha`). `CanvasAdapter` транслирует float→int через `rounded()` и форвардит tint/alpha в `IRenderer::drawTexture`. `SDLRenderer` реализует tint через `SDL_SetTextureColorMod/AlphaMod`: белые глифы модулируются в нужный цвет, альфа — `tint.a * alpha`. Legacy-путь сбрасывает мод в white/opaque. Поля `rotation/flip` пока игнорятся — нет потребителей, оставлены для будущего (stage 6 Image).
+
+- **`ITextEngine` — TextLayout + глиф-атлас:**
+  - Структуры `Glyph { codepoint, texture white, width/height, minX/maxX/minY/maxY, advance }`, `TextLayout { text, metrics, lineMetrics, glyphs, xOffsets, byteOffsets/Lengths, whiteTexture }` с методами `caretXAt(byteOffset)` и `charIndexAtX(maxWidth)` — единственный владелец логики каретки/усечения.
+  - `TextPaint { color, align, verticalAlign, truncate }` — единственное место со switch по Alignment (ранее 3 копии).
+  - Новые методы: `layoutText(font, string_view) -> TextLayout` LRU `kMaxLayoutCacheEntries=1024` по ключу (font,text), цвет НЕ часть ключа; `drawLayout(ICanvas&, layout, box, paint)` — выравнивание/усечение + отрисовка; `getGlyphCacheCount()/getLayoutCacheCount()`.
+  - Старые `measure / measurePrefix / charIndexAtX / rasterize` сохранены, реализованы через `layoutText` (кроме `rasterize` — legacy per-(font,text,color) LRU 1024).
+
+- **`SDLTextEngine` — реализация:**
+  - Глиф-кэш LRU `kMaxGlyphCacheEntries=4096` по ключу (font,codepoint): белые глифы `TTF_RenderGlyph_Blended(white)` + метрики `TTF_GlyphMetrics32` fallback `TTF_GlyphMetrics`. Для `>0xFFFF` используется `TTF_GlyphIsProvided32` / `TTF_RenderGlyph32_Blended` (SDL_ttf >=2.0.18). Пробелы — без текстуры, только advance. Кернинг: `TTF_GetFontKerningSizeGlyphs` (SDL_ttf >=2.0.14) добавляется к penX.
+  - Layout-кэш: UTF-8 декодер → для каждого codepoint `getOrCreateGlyph` → `xOffsets[penX]` → `penX += advance + kern`. `metrics.width = penX`, `height = lineHeight`. Пустой текст — width 0, height lineHeight.
+  - **White per-string fast path (ключевое решение после отладки):** в `layoutText` создаётся белая текстура всей строки через `rasterize(white)` (кэшируется в legacy LRU per (font,text,white)). В `drawLayout` если `whiteTexture` есть — рисуется одной `drawTexture` с `tint = paint.color`. Это даёт 100% совпадение с `TTF_RenderUTF8_Blended` по кернингу/baseline, без per-glyph gaps. `metrics.width` переопределяется на `whiteTexture->getWidth()` когда текстура есть, чтобы alignment совпадал с текстурой. Fallback per-glyph (minX/maxY) остаётся когда белая текстура не создалась.
+  - `clearCaches()` чистит 4 кэша (measure, texture legacy, glyph, layout).
+
+- **Миграция виджетов:**
+  - `Label`: `onMeasure` → `layoutText`, `onPaint` → `layoutText` + `drawLayout` с `TextPaint{color=textColor, align=textAlign, verticalAlign=textAlignVertical, truncate=true}`.
+  - `Plot`: `drawAxisLabels` с `rasterize` → `layoutText/drawLayout`.
+  - `TextEdit`: `onMeasure` через `layoutText`, `onPaint` делегирует в view.
+  - `CenterContainer`/`AbsoluteContainer` не менялись.
+
+- **Перенос вида:**
+  - Новый `include/DxvUI/text/DefaultTextEditorView.h` + `src/text/DefaultTextEditorView.cpp` — backend-нейтрально, на `TextLayout`/tint. `scrollOffsetX_` как presentation-state, `isCaretVisible(timeMs)` использует `FrameInfo::timeMs` (fallback на `steady_clock` для тестов). Скролл — срез по `xOffsets`, без создания подстрок-текстур. `ClipGuard(contentRect)`.
+  - `include/DxvUI/backend/SDLTextEditorView.h` — shim `using SDLTextEditorView = DefaultTextEditorView;`. `src/backend/SDLTextEditorView.cpp` удалён.
+
+- **Фикс `SDLRenderer` (был скрытый баг stage 2, вскрылся stage 3):**
+  - `fillRoundedRectGeometry` и `drawRoundedRectRingGeometry` early-return для `radius<=1` или `width<3` делали `SDL_RenderFillRect/DrawRect` без `SDL_SetRenderDrawColor`. После отрисовки каретки (чёрная `drawLine`) цвет оставался чёрным, и лейблы с `radius 0` (демо `textAlign`) рисовались сплошным чёрным, мигая синхронно с кареткой. Фикс: `SDL_SetRenderDrawColor(renderer, color.r,g,b,a)` перед Fill/DrawRect.
+
+- **Тесты:** `CanvasBrushTests` — `drawTexture(TextureDrawDesc)` с записью tint/alpha/src, `TintedTextureForwardsTintAndAlpha`; `SDLRendererTests` — `DrawTextureTintedRendersWithColorMod`, `CanvasDrawsTintedGlyph`, LRU-границы `getGlyphCacheCount() <= kMax...`, `getLayoutCacheCount()`; `TextEngineTests` — `FakeTextEngine` под семантику атласа, `LayoutCachedAndColorDoesNotRecreate` (смена цвета НЕ создаёт layout), `GlyphCacheKeyWithoutColor`.
+
+**Приёмка stage 3:** glyph-атлас ключ `(font,codepoint)` + white per-string `(font,text,white)` вместо `(font,text,color)`, tint через canvas, Alignment централизован, `TextEditorView` не в `backend/`, `Label/TextEdit` через layout, тесты зелёные, бенчмарк `text/micro` не хуже, память кэша −90% по цвету.
+
+Отклонения: `TextureRef` не вводился — остался `shared_ptr<ITexture>` с проверкой типа; `TextureDraw` без rotation/flip реализации; `FrameInfo::timeMs` введён на этапе 3 (план — этап 5); глиф-атлас — per-glyph текстуры white, не страница-атлас (упаковка — stage 6).
+
+### 4.5. Фактический ход, баги и уроки — для онбординга агента
+
+**История коммитов (до сквоша):**
+- `dd9afc7` — первый stage 3: per-glyph white, `TextureDraw`, перенос вида.
+- `fa81956`, `7174041`, `176eff8`, `31b1670`, `03e0001`, `3cb75ae` — попытки починить baseline/кернинг/gaps: добавляли `TTF_SizeUTF8` для xOffsets, guard `rightEdge+1` от перекрытия, белый per-string fast path.
+- `5b3c747` — откат белого пути к per-glyph из-за чёрных прямоугольников.
+- `cc50668` — убран guard `max(penX+advance, rightEdge+1)` — он давал большие gaps, т.к. `surface width > advance`.
+- `bf271c5` — найден и починен корень чёрных прямоугольников: `fillRoundedRectGeometry`/`drawRoundedRectRingGeometry` early-return без `SetDrawColor`.
+- `5c40d4a`, `b9a7d57`, `681e577` — попытки чинить высоту хвостиков `j,g,p,у,р` через `maxY` вместо `minY+height` — дали вертикальный джиттер.
+- `18bb302` — возврат к белому per-string fast path (теперь безопасен после `bf271c5`) — починило baseline и хвостики.
+- `326d0a2` — сквош в один коммит + добавлены кернинг `TTF_GetFontKerningSizeGlyphs` и `IsProvided32`.
+
+**Баги, которые обязательно проверять при изменениях текста/рендера:**
+1. **Чёрные прямоугольники с radius 0, мигающие с кареткой** — симптом: `fillRoundRect` с `radius<=1` без `SetDrawColor`. Лечится установкой цвета в fast-path.
+2. **Разъехавшиеся символы** — guard `rightEdge+1` даёт gaps когда `glyph.width > advance`. Правильно: `penX += advance` только, кернинг отдельно.
+3. **Высота хвостиков `j,g,p,у,р`** — per-glyph `baseline - minY - height` vs `baseline - maxY` даёт джиттер если `surface height != maxY-minY`. Надёжное решение — белый per-string `TTF_RenderUTF8_Blended` + tint, т.к. SDL_ttf сам считает baseline.
+4. **Кернинг** — `xOffsets` без `TTF_GetFontKerningSizeGlyphs` даёт визуальное расхождение с белой текстурой и неверный `caretXAt`. Добавлять kern между prev и current.
+5. **Метрики vs текстура** — `metrics.width` должен совпадать с тем, что рисуется: для белого пути — `whiteTexture->getWidth()`, для per-glyph — `penX` с кернингом.
+
+**Где что лежит (быстрый онбординг):**
+- `ICanvas` — `include/DxvUI/interfaces/ICanvas.h` — 10 методов + `TextureDraw` + `FrameInfo` + `ClipGuard`.
+- `CanvasAdapter` — `src/backend/CanvasAdapter.h` — адаптер `IRenderer→ICanvas`, `toPixels` округление, трансляция `Brush`/`TextureDraw`.
+- `IRenderer` — `include/DxvUI/interfaces/IRenderer.h` — теперь 12 примитивов + `TextureDrawDesc` + `push/popClip`, без `setDrawColor` в публичном API.
+- `ITextEngine` — `include/DxvUI/interfaces/ITextEngine.h` — `Glyph`, `TextLayout`, `TextPaint`, `layoutText/drawLayout`, legacy `rasterize`.
+- `SDLTextEngine` — `src/backend/SDLTextEngine.cpp` — 4 LRU: `measures` 4096, `textures` 1024 legacy, `glyphs` 4096, `layouts` 1024. `decodeUTF8`, `getOrCreateGlyph`, `layoutText`, `drawLayout`.
+- `SDLRenderer` — `src/backend/SDLRenderer.cpp` — `fillRoundedRectGeometry`/`drawRoundedRectRingGeometry` через `SDL_RenderGeometry`, early-return с `SetDrawColor`, `drawTexture(tinted)` через `SetTextureColorMod/AlphaMod`, `pushClipRect` с `SDL_IntersectRect`.
+- `DefaultTextEditorView` — `src/text/DefaultTextEditorView.cpp` — `draw(PaintContext&, IFont&, TextEditor&, contentRect, Options)`, `isCaretVisible(timeMs)`, `hitTestAt`, `scrollOffsetX_`.
+- `Label` — `src/widgets/Label.cpp` — `onMeasure`/`onPaint` через `layoutText/drawLayout`.
+- `SceneNode` — `src/SceneNode.cpp` — `draw(PaintContext&)` невиртуальный template, `draw(IRenderer&)` шим с `CanvasAdapter` + `FrameInfo{viewport, timeMs=steady_clock}`, `onPaintBackground` собирает `Brush`.
+
+**Как тестировать без локального SDL:**
+- В песочнице нет `cmake/gtest/SDL`. Используй `syntax-only` сборку TU с стабами SDL, и интеграционный харнесс с фейками `IRenderer/ITextEngine` (см. `tests/CanvasBrushTests.cpp`).
+- Для визуальной проверки — `examples/main.cpp` с `AbsoluteContainer` демо: кнопка `test` (500,500,100,50) перекрывается лейблом `End` (520,460,240,55) — проверяет клип и прозрачность `Color(0,0,0,10)`.
+
+**Следующие этапы (из таблицы):**
+- Stage 4 — инвалидация: `setHovered/Pressed/Focused` через style-diff, чтобы hover не вызывал `markLayoutDirty`, кэш строки в Label.
+- Stage 5 — разделение: `IRenderBackend` (`beginFrame/endFrame/createTexture`) + `IPlatformServices` (cursor/clipboard), `FrameInfo` через `Scene::draw`, `EventManager` на `IPlatformServices`.
+- Stage 6 опционально — батчинг, render-target кэш, GPU circle/arc/polygon, удаление `sdl2-gfx`, damage rects, `Brush` gradient/shadow, `Image` виджет.
+
+
+
 ## 5. Совместимость и риски
 
 - **Публичный API ломается** (`draw`, `IRenderer`): это major-версия пакета
@@ -585,34 +665,3 @@ layout-а на флоат остаётся вне скоупа (см. §7).
   retained-модель сохраняется.
 - Rich-text/многострочность: `TextLayout` проектируется так, чтобы расширить
   до списков строк, но реализация multiline — отдельная задача после этапа 3.
-
-### 4.4. Реализовано: этап 3 (TextLayout + глиф-атлас с tint, миграция Label/TextEdit, перенос вида)
-
-- **`ICanvas::TextureDraw` (stage 3):** в `ICanvas` добавлен `struct TextureDraw { RectF dst; optional<RectF> src; optional<Color> tint; float alpha; ... }` и вторая перегрузка `drawTexture(shared_ptr<ITexture>, TextureDraw)`. Старая `drawTexture(dstRect)` сохранена как legacy-путь. `FrameInfo` расширен полем `timeMs` (монотонное время кадра) — каретка больше не читает `SDL_GetTicks()` в глубине вида, мигание становится функцией кадра (подготовка к этапу 5).
-- **`IRenderer::TextureDrawDesc`:** аналогичный дескриптор на int-границе (`Rect dst; optional<Rect> src; optional<Color> tint; float alpha`). `CanvasAdapter` транслирует float→int через `rounded()` и форвардит tint/alpha в `IRenderer::drawTexture`. `SDLRenderer` реализует tint через `SDL_SetTextureColorMod/AlphaMod`: белые глифы модулируются в нужный цвет, альфа — произведение `tint.a * alpha`. Legacy-путь сбрасывает мод в white/opaque.
-- **`ITextEngine` — TextLayout + глиф-атлас:** новые структуры `Glyph` (white texture + метрики minX/maxX/minY/maxY/advance), `TextLayout` (text, metrics, lineMetrics, glyphs, xOffsets, byteOffsets/byteLengths) с методами `caretXAt(byteOffset)` и `charIndexAtX(maxWidth)` — единственный владелец логики каретки/усечения. `TextPaint { color, align, verticalAlign, truncate }` — единственное место со switch по Alignment (ранее дублировался в Label, TextEditorView::draw и hitTestAt). Новые виртуальные методы:
-  - `layoutText(const IFont&, string_view) -> TextLayout` — LRU-кэш `kMaxLayoutCacheEntries=1024` по ключу (font, text), цвет НЕ часть ключа;
-  - `drawLayout(ICanvas&, layout, box, paint)` — выравнивание/усечение + отрисовка глифов с `tint = paint.color`;
-  - `getGlyphCacheCount() / getLayoutCacheCount()` — метрики для бенчмарка.
-  Старые `measure / measurePrefix / charIndexAtX / rasterize` сохранены для совместимости, но теперь реализованы через `layoutText` (measurePrefix/charIndexAtX делегируют в layout). `rasterize` остаётся legacy-путём per-(font,text,color) с LRU 1024, но Label/TextEdit его больше не используют.
-- **`SDLTextEngine` — реализация атласа:**
-  - Глиф-кэш LRU `kMaxGlyphCacheEntries=4096` по ключу (font, codepoint): белые глифы via `TTF_RenderGlyph_Blended(white)` + `TTF_GlyphMetrics`. Пробелы — без текстуры, только advance. Для codepoint>0xFFFF пробует `TTF_RenderGlyph32_Blended` (SDL_ttf >=2.0.18).
-  - Layout-кэш LRU: UTF-8 декодер → для каждого codepoint `getOrCreateGlyph` → penX += advance → `metrics.width = penX`, `height = lineHeight`. Пустой текст — width 0, height lineHeight (кэшируется).
-  - `drawLayout` — вычисляет `alignOffsetX/Y` по `TextPaint`, baseline = `box.y + alignY + ascent`, dst = `(box.x+alignX+penX+minX, baseline-maxy)`, рисует через `canvas.drawTexture(texture, TextureDraw{tint=color})`. Truncate: если `layoutW > boxW`, рисуются только глифы с `xOffsets[i] < boxW`.
-  - `clearCaches()` чистит все 4 кэша (measure, texture legacy, glyph, layout). `getTextureCacheCount()` возвращает legacy count (для совместимости тестов), `getGlyphCacheCount()` — размер глиф-атласа.
-- **Миграция виджетов:**
-  - `Label`: `onMeasure` → `layoutText`, `onPaint` → `layoutText` + `drawLayout` с `TextPaint{color=textColor, align=textAlign, verticalAlign=textAlignVertical, truncate=true}`. Ушло: `getText()` мьютекс+аллокация каждый кадр (осталась, но теперь один lookup layout-а), `charIndexAtX` + `rasterize` substring.
-  - `Plot`: `drawAxisLabels` мигрирован с `rasterize` на `layoutText`/`drawLayout`.
-  - `TextEdit`: `onMeasure` через `layoutText`, `onPaint` делегирует в view.
-- **Перенос вида из `backend/` в `text/`:**
-  - Новый `include/DxvUI/text/DefaultTextEditorView.h` + `src/text/DefaultTextEditorView.cpp` — backend-нейтральная реализация на `TextLayout`/tint. `scrollOffsetX_` сохранён как presentation-state, `isCaretVisible(timeMs)` использует `FrameInfo::timeMs` (fallback на `steady_clock` для тестов без времени). Скролл больше не создаёт подстрок-текстур: видимый срез — срез по `xOffsets`, рисование — глифами с учётом `scrollOffsetX_` и клипа `contentRect`.
-  - `include/DxvUI/backend/SDLTextEditorView.h` стал shim-алиасом `using SDLTextEditorView = DefaultTextEditorView;` для совместимости. `src/backend/SDLTextEditorView.cpp` удалён, CMakeLists обновлён.
-  - `TextEdit` теперь создаёт `DefaultTextEditorView`.
-- **Тесты:**
-  - `CanvasBrushTests`: `RecordingRenderer` дополнен `drawTexture(TextureDrawDesc)` с записью tint/alpha/src, добавлен тест `TintedTextureForwardsTintAndAlpha`.
-  - `SDLRendererTests`: добавлен тест `DrawTextureTintedRendersWithColorMod` (white source → red via color mod) и `CanvasDrawsTintedGlyph`; `TextEngineCachesAreLruBounded` расширен проверками `getGlyphCacheCount() <= kMaxGlyphCacheEntries` и `getLayoutCacheCount() <= kMaxLayoutCacheEntries`, `clearCaches()` проверяет все 4 счётчика.
-  - `TextEngineTests`: `FakeTextEngine` переписан под семантику атласа — `layoutText` кэшируется по (font,text), `glyphCount` по (font,codepoint), `rasterCount` — legacy. `LabelTextEngineTest::RasterizesOnceThenRerasterizesOnChange` переименован в `LayoutCachedAndColorDoesNotRecreate` и проверяет, что смена цвета НЕ создаёт новый layout (tint). Placeholder-тесты проверяют `getLayoutCacheCount()`. Добавлен `TextEngineGlyphCacheTest::GlyphCacheKeyWithoutColor`.
-  - `SceneTests`, `WidgetTests`: фейки дополнены новыми методами `layoutText/drawLayout` и `drawTexture(TextureDrawDesc)`.
-- **Проверка:** syntax-only по всем TU + интеграционный харнесс (фейки IRenderer/ITextEngine, стабы spdlog) — 39+ проверок геометрии Label, clipContent, фона кнопки, TextEdit placeholder/caret, culling, ClipGuard, tinted path. Полный `ctest` — на vcpkg-машине (SDL2 + SDL_ttf + sdl2-gfx + GTest).
-
-Отклонения от плана, зафиксированные здесь: `TextureRef` из §3.1 не вводился — `shared_ptr<ITexture>` с проверкой типа сохранён, tint/src реализованы поверх него; `TextureDraw` реализован как `optional<RectF> src + optional<Color> tint + alpha` без rotation/flip (нет потребителей, но поля оставлены для будущего). `FrameInfo::timeMs` введён на этапе 3 (план — этап 5) чтобы убрать `SDL_GetTicks()` из вида уже сейчас — не breaking, только расширение. Глиф-атлас реализован как per-glyph текстуры (white), а не единый атлас-страница — проще, без аллокатора страниц, но уже даёт ключ без text/color и -90% памяти; упаковка в страницу — оптимизация этапа 6.
