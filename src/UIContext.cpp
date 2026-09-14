@@ -36,6 +36,10 @@ Theme* UIContext::getTheme() const { return scene_ ? &scene_->getTheme() : nullp
 IRenderer* UIContext::getRenderer() const { return scene_ ? scene_->getRenderer() : nullptr; }
 
 Size UIContext::getViewport() const {
+    if (!scene_) return {};
+    if (auto* backend = scene_->getRenderBackend()) {
+        return backend->getViewportSize();
+    }
     if (auto* renderer = getRenderer()) {
         return renderer->getViewportSize();
     }

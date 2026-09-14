@@ -677,7 +677,7 @@ void microbenchmarks(SDLRenderer& renderer, const Options& opt) {
         t0 = Clock::now();
         for (int i = 0; i < 10000; ++i) {
             renderer.drawTexture(textTexture,
-                                 {10, 10, textTexture->getWidth(), textTexture->getHeight()});
+                                 Rect{10, 10, textTexture->getWidth(), textTexture->getHeight()});
         }
         drawTextureS.push_back(msSince(t0) / 10.0);
     }

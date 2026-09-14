@@ -39,6 +39,8 @@ class FakeTextEngine : public ITextEngine {
         return nullptr;
     }
     size_t getTextureCacheCount() const override { return 0; }
+    TextLayout layoutText(const IFont&, std::string_view) override { return {}; }
+    void drawLayout(ICanvas&, const TextLayout&, const RectF&, const TextPaint&) override {}
 };
 
 class FakeClipboard : public IClipboard {
@@ -51,13 +53,36 @@ class FakeClipboard : public IClipboard {
     }
 };
 
-class FakeRenderer : public IRenderer {
+class FakeRenderer : public IRenderer, public ICanvas {
    public:
     FakeClipboard clipboard;
 
     void clear(const Color&) override {}
     void present() override {}
     Size getViewportSize() const override { return {800, 600}; }
+
+    float getDpiScale() const override { return 1.0f; }
+
+    ICanvas& beginFrame(const Color&) override { return *this; }
+    void endFrame() override {}
+
+    std::shared_ptr<ITexture> createTexture(const ImageData&) override { return nullptr; }
+    std::shared_ptr<ITexture> createRenderTarget(int, int) override { return nullptr; }
+    void beginRenderTarget(const std::shared_ptr<ITexture>&) override {}
+    void endRenderTarget() override {}
+
+    // ICanvas float-based (stage 5) – no-op for fake
+    void pushClip(const RectF&) override {}
+    void popClip() override {}
+    void drawTexture(const std::shared_ptr<ITexture>&, const RectF&) override {}
+    void drawTexture(const std::shared_ptr<ITexture>&, const ICanvas::TextureDraw&) override {}
+    void fillRect(const RectF&, const Fill&) override {}
+    void strokeRect(const RectF&, const Stroke&) override {}
+    void fillRoundRect(const RectF&, float, const Brush&) override {}
+    void fillCircle(const PointF&, float, const Brush&) override {}
+    void strokeArc(const PointF&, float, float, float, const Stroke&) override {}
+    void fillPolygon(std::span<const PointF>, const Fill&) override {}
+    void drawLine(const PointF&, const PointF&, const Stroke&) override {}
 
     void setCursor(CursorType) override {}
     CursorType getCursor() const override { return CursorType::Arrow; }
@@ -69,9 +94,8 @@ class FakeRenderer : public IRenderer {
     IClipboard& getClipboard() override { return clipboard; }
 
     void drawTexture(const std::shared_ptr<ITexture>&, const Rect&) override {}
+    void drawTexture(const std::shared_ptr<ITexture>&, const TextureDrawDesc&) override {}
 
-    // Stage-2 IRenderer keeps only explicitly-colored/bordered primitives, so
-    // the stub shrinks to the paths the canvas actually forwards.
     void drawRect(const Rect&, const Border&) override {}
     void fillRect(const Rect&, const Color&) override {}
     void fillRect(const Rect&, const Color&, const Border&) override {}

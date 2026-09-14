@@ -10,8 +10,10 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <utility>
+#include <vector>
 
 #include "DxvUI/interfaces/ITextEngine.h"
 
@@ -20,13 +22,14 @@ struct SDL_Renderer;
 namespace DxvUI {
 
 /**
- * @brief SDL2_ttf-backed text engine.
+ * @brief SDL2_ttf-backed text engine with glyph atlas + TextLayout (stage 3).
  *
- * Owns the TTF_Init/TTF_Quit reference count and the font, measurement and
- * rasterized-texture caches. Textures are created against the SDL renderer
- * passed in by the owning SDLRenderer and are cached per (font, text, color).
- * The texture cache must be cleared (clearCaches()) before the SDL renderer is
- * destroyed; the owning renderer does this in its destructor.
+ * Owns the TTF_Init/TTF_Quit reference count and the font, measurement,
+ * glyph and layout caches. Glyphs are rasterized once as white textures and
+ * tinted at draw time (key = font+codepoint, not font+text+color). TextLayout
+ * is cached LRU per (font, text). The old per-(font,text,color) texture cache
+ * is kept for backward compatibility of rasterize() but no longer used by
+ * Label/TextEdit.
  */
 class SDLTextEngine : public ITextEngine {
    public:
@@ -47,33 +50,30 @@ class SDLTextEngine : public ITextEngine {
                                         const Color& color) override;
     size_t getTextureCacheCount() const override;
 
+    // Stage 3
+    TextLayout layoutText(const IFont& font, std::string_view text) override;
+    void drawLayout(ICanvas& canvas, const TextLayout& layout, const RectF& box,
+                    const TextPaint& paint) override;
+    size_t getGlyphCacheCount() const override;
+    size_t getLayoutCacheCount() const override;
+
     /**
      * @brief Gets the number of cached text measurements.
-     *
-     * The measurement cache is LRU-bounded (see kMaxMeasureCacheEntries), so
-     * a UI that keeps measuring new strings (typing, live labels, caret
-     * hit-testing) evicts old entries instead of growing without limit.
-     * Exposed for tests and benchmarks to verify the bound.
      */
     size_t getMeasureCacheCount() const;
 
     /**
-     * @brief Drops every cached font, measurement and texture.
-     *
-     * Destroys the cached SDL textures (which reference the SDL renderer), so
-     * the owning renderer must call this before destroying the renderer.
+     * @brief Drops every cached font, measurement, texture, glyph and layout.
      */
     void clearCaches();
 
-    // Cache capacity bounds (entries). Textures are the heavy resource (GPU
-    // memory), measurements are small structs — hence the higher cap: caret
-    // hit-testing on a growing line measures one prefix per keystroke and
-    // benefits from keeping recent prefixes cached.
-    static constexpr size_t kMaxTextureCacheEntries = 1024;
+    // Cache capacity bounds
+    static constexpr size_t kMaxTextureCacheEntries = 1024; // legacy per-text
     static constexpr size_t kMaxMeasureCacheEntries = 4096;
+    static constexpr size_t kMaxGlyphCacheEntries = 4096;
+    static constexpr size_t kMaxLayoutCacheEntries = 1024;
 
    private:
-    // Font handle that wraps the raw TTF font plus its cached vertical metrics.
     class SDLFont : public IFont {
        public:
         SDLFont(TTF_Font* font, std::string path, int size);
@@ -85,29 +85,42 @@ class SDLTextEngine : public ITextEngine {
         LineMetrics metrics;
     };
 
+    // Glyph cache entry
+    struct GlyphCacheEntry {
+        Glyph glyph;
+        std::list<std::pair<const IFont*, uint32_t>>::iterator lruIt;
+    };
+
+    // Layout cache entry
+    struct LayoutCacheEntry {
+        TextLayout layout;
+        std::list<std::pair<const IFont*, std::string>>::iterator lruIt;
+    };
+
+    Glyph getOrCreateGlyph(const SDLFont& sdlFont, uint32_t codepoint);
+
     SDL_Renderer* renderer;
     std::map<std::string, std::shared_ptr<SDLFont>> fonts;
-    // Instance font-family registry. Seeded lazily from the core.h defaults:
-    // a family missing here falls back to getDefaultFontFamilyPath(), and
-    // registerFontFamily() inserts custom mappings.
     std::map<std::string, std::string> families;
-    // Measurement cache with LRU eviction, mirroring the texture cache below:
-    // a dynamic UI measures unbounded unique (font, text) pairs — prefixes of
-    // a growing line (caret/hit-testing), live labels, per-frame truncation —
-    // so the plain map used to grow without bound. An evicted measurement is
-    // simply recomputed on the next measure() call.
+
     using MeasureKey = std::pair<const IFont*, std::string>;
     std::map<MeasureKey, std::pair<TextMetrics, std::list<MeasureKey>::iterator>> measures;
     std::list<MeasureKey> measureLru;
+
     using TextureKey = std::tuple<const IFont*, std::string, uint32_t>;
-    // Texture cache with LRU eviction: each entry stores the texture plus the
-    // key's position in the recency list. The cap bounds GPU memory for
-    // dynamic UIs (scrolling lists, chat, live labels) that otherwise keep
-    // every rasterized string forever. Evicting only drops the cache
-    // reference; labels still holding the shared_ptr keep the texture alive.
     std::map<TextureKey, std::pair<std::shared_ptr<ITexture>, std::list<TextureKey>::iterator>>
         textures;
     std::list<TextureKey> textureLru;
+
+    // Glyph atlas: white glyphs keyed by (font, codepoint)
+    using GlyphKey = std::pair<const IFont*, uint32_t>;
+    std::map<GlyphKey, GlyphCacheEntry> glyphs;
+    std::list<GlyphKey> glyphLru;
+
+    // TextLayout LRU: key = (font, text)
+    using LayoutKey = std::pair<const IFont*, std::string>;
+    std::map<LayoutKey, LayoutCacheEntry> layouts;
+    std::list<LayoutKey> layoutLru;
 
     static int ttf_ref_count;
     static std::mutex ttf_mutex;
