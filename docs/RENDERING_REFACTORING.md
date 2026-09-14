@@ -393,7 +393,7 @@ canvas->fillRoundRect(track, radius, brushes().get("slider.track"));
 | 2 | ✅ **Brush-свертка**: `fillRect/strokeRect/fillRoundRect/...` с `Fill/Stroke`; дефолтный `onPaintBackground` на `Brush`; убрать `setDrawColor` из контракта | `IRenderer→ICanvas`, виджеты | в `ICanvas` ≤ 12 методов; перегрузки удалены |
 | 3 | ✅ **TextLayout + глиф-атлас**: `ITextRenderer`, `drawLayout` с выравниванием/усечением; tint вместо запечённого цвета; миграция Label/TextEdit/TextEditorView (вид уходит из `backend/`) | `SDLTextEngine → SdlTextRenderer`, Label, TextEdit | бенчмарк `text`/`micro`: медиана не хуже, память кэша −90% ожидаемо |
 | 4 | ✅ **Инвалидация состояний**: `setHovered/Pressed/Focused` через style-дифф; юнит-тест «hover не меняет bounds»; `getString()`-хотспот: Label кэширует строку между Change | `SceneNode`, Label | «hover-storm»-сценарий: relayout-ов 0 при неизменной геометрии |
-| 5 | **Разделение бэкенда**: `IRenderBackend` + `IPlatformServices`; `FrameInfo` сквозь `Scene::draw`; миграция `EventManager` (курсор) | Scene, EventManager, examples | `ICanvas` не знает про окно/курсор/клипборд |
+| 5 | ✅ **Разделение бэкенда**: `IRenderBackend` + `IPlatformServices`; `FrameInfo` сквозь `Scene::draw`; миграция `EventManager` (курсор) | Scene, EventManager, examples | `ICanvas` не знает про окно/курсор/клипборд |
 | 6 | *(опционально, по числам)*: display-list/батчинг примитивов; render-target-кэш статичных поддеревьев (ScrollContainer-контент); GPU-пути для circle/arc/polygon **и удаление зависимости sdl2-gfx**; damage-ректы; shadow/gradient в `Brush`; Image-виджет поверх `createTexture` | backend | compare.ps1: −10%+ на затронутых сценариях без регрессий |
 
 Дополнительно к этапу 1: `RectF`/`PointF` вводятся вместе с `ICanvas`
@@ -632,6 +632,41 @@ layout-а на флоат остаётся вне скоупа (см. §7).
 - **Проверка:** syntax-only, интеграционный харнесс с фейками, `ctest` на vcpkg-машине. Бенчмарк `frames` — hover-storm теперь 0 relayout-ов.
 
 Отклонения: visual-dirty как отдельный флаг не вводился — `markStyleDirty()` уже триггерит repaint без relayout, т.к. `Scene::update()` делает `resolveDirtyStyles` → `layout` только если `isSubtreeDirty`. Damage-ректы (накопление dirty bounds) отложены до stage 6.
+
+
+### 4.7. Реализовано: этап 5 (разделение бэкенда, FrameInfo, IPlatformServices)
+
+**Что сделано (коммит `ca27e5a`):**
+
+- **Новые интерфейсы:**
+  - `IPlatformServices.h` — `setCursor/getCursor/getClipboard` — платформенные сервисы, не живопись. `EventManager` теперь зависит от него, а не от `IRenderer` (убирается зависимость событий от живописи, п.8 из §2).
+  - `IRenderBackend.h` — `beginFrame(Color)->ICanvas&`, `endFrame()`, `getViewportSize()`, `getDpiScale()`, `getTextEngine()` — владелец ресурсов и жизненного цикла кадра. Будущее: `createTexture(ImageData)`, `createRenderTarget(Size)` для Image-виджета и кэша поддеревьев (stage 6).
+
+- **`IRenderer` — legacy shim:** теперь наследует `IRenderBackend` + `IPlatformServices` для обратной совместимости. Старые int-based примитивы (`drawRect`, `fillRect`, `drawLine`...) сохранены, но помечены как legacy — новые должны использовать `ICanvas`. `beginFrame/endFrame/getDpiScale` — pure virtual, реализованы в `SDLRenderer`.
+
+- **`SDLRenderer` — реальный бэкенд stage 5:**
+  - Наследует `IRenderer` + `ICanvas` — реализует и float-based `ICanvas` (Brush/Fill/Stroke/TextureDraw) и int-based legacy.
+  - `beginFrame(clearColor)`: если `ownsResources` (создал окно сам) — делает `clear(clearColor)`, иначе no-op (хост в `SdlApp` уже сделал `SDL_RenderClear`). Возвращает `*this` как `ICanvas&`.
+  - `endFrame()`: если `ownsResources` — `present()`, иначе no-op.
+  - `getDpiScale()` — 1.0f пока, в будущем `SDL_GetRendererOutputSize` vs `SDL_GetWindowSize`.
+  - `ICanvas` методы: `pushClip(RectF)` → `pushClipRect(rounded())`, `popClip()` → `popClipRect()`, `drawTexture(RectF)` → `drawTexture(rounded())`, `drawTexture(TextureDraw)` → транслирует float→int `TextureDrawDesc` (tint/alpha/src), `fillRect(Fill)` → `fillRect(rounded(), color)`, `strokeRect(Stroke)` → `drawRect` с `Border`, `fillRoundRect(Brush)` — разбирает `fill+stroke` как в `CanvasAdapter`, `fillCircle`, `strokeArc`, `fillPolygon`, `drawLine` — аналогично через `rounded()` и `lround(thickness)`.
+
+- **`Scene`:**
+  - Новые поля `IRenderBackend* renderBackend` и `IPlatformServices* platformServices` + legacy `IRenderer* renderer`.
+  - `setRenderBackend(backend)` — ставит backend, и если backend также `IRenderer`/`IPlatformServices` — синхронизирует указатели. `setPlatformServices` аналогично. `setRenderer` — ставит оба для совместимости (старые примеры `main.cpp`, `external_renderer.cpp` продолжают работать).
+  - `getTextEngine()` — из backend, fallback к renderer.
+  - `updateLayout()` — берёт viewport из backend (или renderer).
+  - `draw()` — stage 5 путь: `viewport = backend->getViewportSize()`, `timeMs = steady_clock::now()`, `ICanvas& canvas = backend->beginFrame(transparent)`, `FrameInfo{viewport, timeMs}`, `PaintContext{canvas, backend->getTextEngine(), frame}`, `root->draw(pc)`, `backend->endFrame()`. Для owned mode backend делает clear/present внутри begin/end, для external — хост.
+
+- **`EventManager`:** `handleMouseMove` теперь берёт `platformServices = ownerScene.getPlatformServices()` для `setCursor`, fallback к `getRenderer()`.
+
+- **`UIContext`, `Label`, `TextEdit`:** `getViewport()` / `getTextEngine()` / `getClipboard()` через `getRenderBackend()` / `getPlatformServices()` с fallback к legacy.
+
+- **Тесты:** `FakeRenderer`/`RecordingRenderer` в `CanvasBrushTests`, `SceneTests`, `TextEngineTests`, `WidgetTests` дополнены `beginFrame/endFrame/getDpiScale` + `ICanvas` no-op методами, чтобы реализовывать новый `IRenderer`.
+
+**Приёмка stage 5:** `ICanvas` не знает про окно/курсор/клипборд, `FrameInfo` идёт сквозь `Scene::draw`, `EventManager` на `IPlatformServices`, примеры рисуют идентично, тесты зелёные.
+
+Отклонения: `createTexture`/`createRenderTarget` пока не введены — они нужны для Image-виджета и render-target кэша stage 6, оставлены как коммент в `IRenderBackend`. `CanvasAdapter` пока не удалён — используется в тестах и как fallback, умрёт на stage 6 когда `IRenderer` legacy будет удалён.
 
 
 
