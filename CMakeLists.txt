@@ -9,18 +9,6 @@ include(CTest)  # включает enable_testing() и даёт переменн
 # --- Find Dependencies via vcpkg ---
 find_package(SDL2 REQUIRED)
 find_package(SDL2_ttf REQUIRED)
-if(UNIX)
-    # sdl2-gfx has no CMake config on Linux and the FindSDL_gfx module targets
-    # the obsolete v1 (SDL_gfx) naming. Resolve the sdl2_gfx pc-file instead and
-    # expose it under the same target name the rest of the build uses.
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(SDL2_GFX REQUIRED IMPORTED_TARGET GLOBAL SDL2_gfx)
-    if(NOT TARGET SDL2::SDL2_gfx)
-        add_library(SDL2::SDL2_gfx ALIAS PkgConfig::SDL2_GFX)
-    endif()
-else()
-    find_package(sdl2-gfx REQUIRED)
-endif()
 find_package(spdlog CONFIG REQUIRED)
 
 # --- Common ---
@@ -88,7 +76,6 @@ target_include_directories(DxvUI PRIVATE
 
 target_link_libraries(DxvUI PUBLIC
         SDL2::SDL2
-        SDL2::SDL2_gfx
         SDL2_ttf::SDL2_ttf
         spdlog::spdlog
 )

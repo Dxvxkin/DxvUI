@@ -1,7 +1,6 @@
 #include "DxvUI/backend/SDLRenderer.h"
 
 #include <SDL.h>
-#include <SDL2_gfxPrimitives.h>
 
 #include <algorithm>
 #include <array>
@@ -18,13 +17,18 @@ namespace DxvUI {
 
 namespace {
 
+constexpr float kPi = 3.14159265358979323846f;
+constexpr float kTwoPi = 2.0f * kPi;
+constexpr float kDegToRad = kPi / 180.0f;
+
+inline float degToRad(float deg) { return deg * kDegToRad; }
+
 // Precomputed unit quarter-circle arc (13 points, 12 segments) used to build
 // every corner of a rounded rectangle. Computed once; corners are cheap
 // affine transforms of this template.
 const std::array<SDL_FPoint, 13>& unitArcPoints() {
     static const std::array<SDL_FPoint, 13> kArc = [] {
         std::array<SDL_FPoint, 13> arc{};
-        constexpr float kPi = 3.14159265358979323846f;
         for (int i = 0; i < 13; ++i) {
             const float a = (90.0f * static_cast<float>(i) / 12) * kPi / 180.0f;
             arc[static_cast<size_t>(i)] = {std::cos(a), std::sin(a)};
@@ -35,7 +39,7 @@ const std::array<SDL_FPoint, 13>& unitArcPoints() {
 }
 
 // Builds the closed outline of a rounded rectangle as a 52-point loop
-// (4 corners x 13 arc points). x1/y1 and x2/y2 are inclusive (SDL gfx
+// (4 corners x 13 arc points). x1/y1 and x2/y2 are inclusive (SDL rendering
 // convention: callers pass x + width - 1). Straight edges are implicit
 // between consecutive corner arcs.
 std::array<SDL_FPoint, 52> roundedRectPolygon(int x1, int y1, int x2, int y2, int radius) {
@@ -144,6 +148,306 @@ void drawRoundedRectRingGeometry(SDL_Renderer* renderer, const Rect& rect, int r
         indices[i * 6 + 5] = oNext;
     }
     SDL_RenderGeometry(renderer, nullptr, verts.data(), 104, indices.data(), 312);
+}
+
+// --- GPU circle / arc / line / polygon (stage 6, no sdl2-gfx) ---
+
+inline SDL_Color toSDLColor(const Color& c) { return {c.r, c.g, c.b, c.a}; }
+
+int circleSegmentsForRadius(int r) {
+    if (r <= 2) return 12;
+    if (r <= 8) return 16;
+    if (r <= 16) return 24;
+    if (r <= 32) return 32;
+    if (r <= 64) return 48;
+    return 64;
+}
+
+void fillCircleGeometry(SDL_Renderer* renderer, int cX, int cY, int radius, const Color& color) {
+    if (radius <= 0) return;
+    if (radius == 1) {
+        SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+        SDL_RenderDrawPoint(renderer, cX, cY);
+        return;
+    }
+    const int segs = circleSegmentsForRadius(radius);
+    const SDL_Color c = toSDLColor(color);
+    const SDL_FPoint center{static_cast<float>(cX), static_cast<float>(cY)};
+    std::vector<SDL_Vertex> verts;
+    verts.reserve(segs + 1 + 1);
+    verts.push_back({center, c, {0.0f, 0.0f}});
+    for (int i = 0; i <= segs; ++i) {
+        float ang = kTwoPi * static_cast<float>(i) / static_cast<float>(segs);
+        SDL_FPoint p{static_cast<float>(cX) + static_cast<float>(radius) * std::cos(ang),
+                     static_cast<float>(cY) + static_cast<float>(radius) * std::sin(ang)};
+        verts.push_back({p, c, {0.0f, 0.0f}});
+    }
+    std::vector<int> indices;
+    indices.reserve(segs * 3);
+    for (int i = 0; i < segs; ++i) {
+        indices.push_back(0);
+        indices.push_back(i + 1);
+        indices.push_back(i + 2);
+    }
+    SDL_RenderGeometry(renderer, nullptr, verts.data(), static_cast<int>(verts.size()),
+                       indices.data(), static_cast<int>(indices.size()));
+}
+
+void drawCircleRingGeometry(SDL_Renderer* renderer, int cX, int cY, int radius, int thickness,
+                            const Color& color) {
+    if (radius <= 0 || thickness <= 0) return;
+    const int segs = circleSegmentsForRadius(radius);
+    const SDL_Color c = toSDLColor(color);
+    const int innerR = std::max(0, radius - thickness);
+    // If inner radius 0, just fill circle
+    if (innerR <= 0) {
+        fillCircleGeometry(renderer, cX, cY, radius, color);
+        return;
+    }
+    std::vector<SDL_Vertex> verts;
+    verts.reserve((segs + 1) * 2);
+    for (int i = 0; i <= segs; ++i) {
+        float ang = kTwoPi * static_cast<float>(i) / static_cast<float>(segs);
+        float cosA = std::cos(ang);
+        float sinA = std::sin(ang);
+        SDL_FPoint outer{static_cast<float>(cX) + static_cast<float>(radius) * cosA,
+                         static_cast<float>(cY) + static_cast<float>(radius) * sinA};
+        SDL_FPoint inner{static_cast<float>(cX) + static_cast<float>(innerR) * cosA,
+                         static_cast<float>(cY) + static_cast<float>(innerR) * sinA};
+        verts.push_back({outer, c, {0.0f, 0.0f}});
+        verts.push_back({inner, c, {0.0f, 0.0f}});
+    }
+    std::vector<int> indices;
+    indices.reserve(segs * 6);
+    for (int i = 0; i < segs; ++i) {
+        int o0 = i * 2;
+        int i0 = i * 2 + 1;
+        int o1 = (i + 1) * 2;
+        int i1 = (i + 1) * 2 + 1;
+        // quad o0,i0,i1 and o0,i1,o1
+        indices.push_back(o0);
+        indices.push_back(i0);
+        indices.push_back(i1);
+        indices.push_back(o0);
+        indices.push_back(i1);
+        indices.push_back(o1);
+    }
+    SDL_RenderGeometry(renderer, nullptr, verts.data(), static_cast<int>(verts.size()),
+                       indices.data(), static_cast<int>(indices.size()));
+}
+
+void drawArcRingGeometry(SDL_Renderer* renderer, int cX, int cY, int radius, float startDeg,
+                         float endDeg, int thickness, const Color& color) {
+    if (radius <= 0 || thickness <= 0) return;
+    // Normalize angles to [0,360) and compute span
+    float span = endDeg - startDeg;
+    // Handle wrap: if span <=0, assume clockwise wrap
+    while (span <= 0.0f) span += 360.0f;
+    while (span > 360.0f) span -= 360.0f;
+    if (span < 0.001f) return;
+    if (span > 359.9f) {
+        drawCircleRingGeometry(renderer, cX, cY, radius, thickness, color);
+        return;
+    }
+    // Segments proportional to span, at least 1, at most circle segs
+    int fullSegs = circleSegmentsForRadius(radius);
+    int segs = std::max(1, static_cast<int>(std::ceil(fullSegs * span / 360.0f)));
+    segs = std::max(segs, 1);
+    const SDL_Color c = toSDLColor(color);
+    const int innerR = std::max(0, radius - thickness);
+    std::vector<SDL_Vertex> verts;
+    verts.reserve((segs + 1) * 2);
+    for (int i = 0; i <= segs; ++i) {
+        float t = static_cast<float>(i) / static_cast<float>(segs);
+        float angDeg = startDeg + t * span;
+        float ang = degToRad(angDeg);
+        float cosA = std::cos(ang);
+        float sinA = std::sin(ang);
+        SDL_FPoint outer{static_cast<float>(cX) + static_cast<float>(radius) * cosA,
+                         static_cast<float>(cY) + static_cast<float>(radius) * sinA};
+        SDL_FPoint inner{static_cast<float>(cX) + static_cast<float>(innerR) * cosA,
+                         static_cast<float>(cY) + static_cast<float>(innerR) * sinA};
+        verts.push_back({outer, c, {0.0f, 0.0f}});
+        verts.push_back({inner, c, {0.0f, 0.0f}});
+    }
+    std::vector<int> indices;
+    indices.reserve(segs * 6);
+    for (int i = 0; i < segs; ++i) {
+        int o0 = i * 2;
+        int i0 = i * 2 + 1;
+        int o1 = (i + 1) * 2;
+        int i1 = (i + 1) * 2 + 1;
+        indices.push_back(o0);
+        indices.push_back(i0);
+        indices.push_back(i1);
+        indices.push_back(o0);
+        indices.push_back(i1);
+        indices.push_back(o1);
+    }
+    SDL_RenderGeometry(renderer, nullptr, verts.data(), static_cast<int>(verts.size()),
+                       indices.data(), static_cast<int>(indices.size()));
+}
+
+void drawThickLineGeometry(SDL_Renderer* renderer, int x1, int y1, int x2, int y2, int thickness,
+                           const Color& color) {
+    if (thickness <= 1) {
+        SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+        SDL_RenderDrawLine(renderer, x1, y1, x2, y2);
+        return;
+    }
+    float dx = static_cast<float>(x2 - x1);
+    float dy = static_cast<float>(y2 - y1);
+    float len = std::sqrt(dx * dx + dy * dy);
+    if (len < 0.001f) {
+        // Zero length -> draw as circle
+        fillCircleGeometry(renderer, x1, y1, thickness / 2, color);
+        return;
+    }
+    float nx = -dy / len;
+    float ny = dx / len;
+    float half = static_cast<float>(thickness) * 0.5f;
+    float ox = nx * half;
+    float oy = ny * half;
+    SDL_FPoint p0{static_cast<float>(x1) + ox, static_cast<float>(y1) + oy};
+    SDL_FPoint p1{static_cast<float>(x1) - ox, static_cast<float>(y1) - oy};
+    SDL_FPoint p2{static_cast<float>(x2) - ox, static_cast<float>(y2) - oy};
+    SDL_FPoint p3{static_cast<float>(x2) + ox, static_cast<float>(y2) + oy};
+    SDL_Color c = toSDLColor(color);
+    SDL_Vertex verts[4] = {{p0, c, {0, 0}}, {p1, c, {0, 0}}, {p2, c, {0, 0}}, {p3, c, {0, 0}}};
+    int indices[6] = {0, 1, 2, 0, 2, 3};
+    SDL_RenderGeometry(renderer, nullptr, verts, 4, indices, 6);
+}
+
+// --- Polygon triangulation (ear clipping) ---
+
+struct Vec2 {
+    float x, y;
+};
+
+inline float cross(const Vec2& a, const Vec2& b, const Vec2& c) {
+    // (b-a) x (c-a)
+    return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+}
+
+inline bool pointInTriangle(const Vec2& p, const Vec2& a, const Vec2& b, const Vec2& c) {
+    // barycentric via cross signs
+    float c1 = cross(a, b, p);
+    float c2 = cross(b, c, p);
+    float c3 = cross(c, a, p);
+    // Allow on edge
+    bool hasNeg = (c1 < -1e-5f) || (c2 < -1e-5f) || (c3 < -1e-5f);
+    bool hasPos = (c1 > 1e-5f) || (c2 > 1e-5f) || (c3 > 1e-5f);
+    return !(hasNeg && hasPos);
+}
+
+std::vector<int> triangulateEarClipping(const std::vector<Vec2>& poly) {
+    int n = static_cast<int>(poly.size());
+    if (n < 3) return {};
+    if (n == 3) return {0, 1, 2};
+
+    // Compute signed area to determine winding
+    float area = 0.0f;
+    for (int i = 0; i < n; ++i) {
+        int j = (i + 1) % n;
+        area += poly[i].x * poly[j].y - poly[j].x * poly[i].y;
+    }
+    bool ccw = area > 0.0f;
+
+    std::vector<int> V(n);
+    for (int i = 0; i < n; ++i) V[i] = i;
+
+    std::vector<int> indices;
+    indices.reserve((n - 2) * 3);
+
+    int guard = 0;
+    while (V.size() > 3 && guard < n * n) {
+        bool earFound = false;
+        for (size_t i = 0; i < V.size(); ++i) {
+            int prevIdx = V[(i + V.size() - 1) % V.size()];
+            int currIdx = V[i];
+            int nextIdx = V[(i + 1) % V.size()];
+
+            const Vec2& prev = poly[prevIdx];
+            const Vec2& curr = poly[currIdx];
+            const Vec2& next = poly[nextIdx];
+
+            float cr = cross(prev, curr, next);
+            bool isConvex = ccw ? (cr > 1e-5f) : (cr < -1e-5f);
+            if (!isConvex) continue;
+
+            bool anyInside = false;
+            for (int vi : V) {
+                if (vi == prevIdx || vi == currIdx || vi == nextIdx) continue;
+                if (pointInTriangle(poly[vi], prev, curr, next)) {
+                    anyInside = true;
+                    break;
+                }
+            }
+            if (anyInside) continue;
+
+            // Ear
+            indices.push_back(prevIdx);
+            indices.push_back(currIdx);
+            indices.push_back(nextIdx);
+            V.erase(V.begin() + i);
+            earFound = true;
+            break;
+        }
+        if (!earFound) {
+            // Fallback to fan triangulation for degenerate / self-intersecting
+            break;
+        }
+        ++guard;
+    }
+    if (V.size() == 3) {
+        indices.push_back(V[0]);
+        indices.push_back(V[1]);
+        indices.push_back(V[2]);
+    } else if (!V.empty() && indices.empty()) {
+        // Fallback fan from 0
+        for (size_t i = 1; i + 1 < V.size(); ++i) {
+            indices.push_back(V[0]);
+            indices.push_back(V[i]);
+            indices.push_back(V[i + 1]);
+        }
+    }
+    return indices;
+}
+
+void fillPolygonGeometry(SDL_Renderer* renderer, const std::vector<PointI>& points,
+                         const Color& color) {
+    if (points.size() < 3) return;
+    std::vector<Vec2> poly;
+    poly.reserve(points.size());
+    for (auto& p : points) poly.push_back({static_cast<float>(p.x), static_cast<float>(p.y)});
+
+    auto indices = triangulateEarClipping(poly);
+    if (indices.empty()) return;
+
+    SDL_Color c = toSDLColor(color);
+    std::vector<SDL_Vertex> verts;
+    verts.reserve(poly.size());
+    for (auto& v : poly) {
+        verts.push_back({{v.x, v.y}, c, {0.0f, 0.0f}});
+    }
+    SDL_RenderGeometry(renderer, nullptr, verts.data(), static_cast<int>(verts.size()),
+                       indices.data(), static_cast<int>(indices.size()));
+}
+
+void fillPolygonGeometryF(SDL_Renderer* renderer, const std::vector<SDL_FPoint>& points,
+                          const Color& color) {
+    if (points.size() < 3) return;
+    std::vector<Vec2> poly;
+    poly.reserve(points.size());
+    for (auto& p : points) poly.push_back({p.x, p.y});
+    auto indices = triangulateEarClipping(poly);
+    if (indices.empty()) return;
+    SDL_Color c = toSDLColor(color);
+    std::vector<SDL_Vertex> verts;
+    verts.reserve(poly.size());
+    for (auto& v : poly) verts.push_back({{v.x, v.y}, c, {0.0f, 0.0f}});
+    SDL_RenderGeometry(renderer, nullptr, verts.data(), static_cast<int>(verts.size()),
+                       indices.data(), static_cast<int>(indices.size()));
 }
 
 }  // namespace
@@ -405,12 +709,22 @@ void SDLRenderer::strokeArc(const PointF& center, float radius, float startAngle
 
 void SDLRenderer::fillPolygon(std::span<const PointF> points, const Fill& fill) {
     if (points.size() < 3) return;
-    std::vector<PointI> pixelPoints;
-    pixelPoints.reserve(points.size());
-    for (const PointF& p : points) {
-        pixelPoints.push_back(p.rounded());
-    }
-    fillPolygon(pixelPoints, fill.color);
+    // Convert to SDL_FPoint for geometry path
+    std::vector<SDL_FPoint> fpts;
+    fpts.reserve(points.size());
+    for (const PointF& p : points) fpts.push_back({p.x, p.y});
+    // Triangulate via ear clipping using float version
+    std::vector<Vec2> poly;
+    poly.reserve(fpts.size());
+    for (auto& fp : fpts) poly.push_back({fp.x, fp.y});
+    auto indices = triangulateEarClipping(poly);
+    if (indices.empty()) return;
+    SDL_Color c = toSDLColor(fill.color);
+    std::vector<SDL_Vertex> verts;
+    verts.reserve(poly.size());
+    for (auto& v : poly) verts.push_back({{v.x, v.y}, c, {0, 0}});
+    SDL_RenderGeometry(renderer, nullptr, verts.data(), static_cast<int>(verts.size()),
+                       indices.data(), static_cast<int>(indices.size()));
 }
 
 void SDLRenderer::drawLine(const PointF& from, const PointF& to, const Stroke& stroke) {
@@ -496,31 +810,20 @@ void SDLRenderer::fillRect(const Rect& rect, const Color& fillColor, const Borde
     }
 }
 void SDLRenderer::drawLine(int x1, int y1, int x2, int y2, const Color& color, int thickness) {
-    if (thickness <= 1) {
-        setSDLDrawColor(color);
-        SDL_RenderDrawLine(renderer, x1, y1, x2, y2);
-        return;
-    }
-    const auto width = static_cast<Uint8>(std::clamp(thickness, 1, 255));
-    thickLineRGBA(renderer, x1, y1, x2, y2, width, color.r, color.g, color.b, color.a);
+    drawThickLineGeometry(renderer, x1, y1, x2, y2, thickness, color);
 }
 void SDLRenderer::fillCircle(int cX, int cY, int r, const Color& color) {
-    filledCircleRGBA(renderer, cX, cY, r, color.r, color.g, color.b, color.a);
+    fillCircleGeometry(renderer, cX, cY, r, color);
 }
 void SDLRenderer::drawCircle(int cX, int cY, int r, const Border& border) {
-    for (int i = 0; i < border.thickness; ++i)
-        aacircleRGBA(renderer, cX, cY, r - i, border.color.r, border.color.g, border.color.b,
-                     border.color.a);
+    drawCircleRingGeometry(renderer, cX, cY, r, border.thickness, border.color);
 }
 void SDLRenderer::fillCircle(int cX, int cY, int r, const Color& f, const Border& b) {
     fillCircle(cX, cY, r, f);
     drawCircle(cX, cY, r, b);
 }
 void SDLRenderer::drawArc(int cX, int cY, int r, float sA, float eA, const Border& border) {
-    for (int i = 0; i < border.thickness; ++i) {
-        arcRGBA(renderer, cX, cY, r - i, sA, eA, border.color.r, border.color.g, border.color.b,
-                border.color.a);
-    }
+    drawArcRingGeometry(renderer, cX, cY, r, sA, eA, border.thickness, border.color);
 }
 void SDLRenderer::drawRoundRect(const Rect& rect, int radius, const Border& border) {
     drawRoundedRectRingGeometry(renderer, rect, radius, border.thickness, border.color);
@@ -536,15 +839,6 @@ void SDLRenderer::fillRoundRect(const Rect& rect, int radius, const Color& fillC
     }
 }
 void SDLRenderer::fillPolygon(const std::vector<PointI>& points, const Color& color) {
-    if (points.size() < 3) return;
-    std::vector<Sint16> vx, vy;
-    vx.reserve(points.size());
-    vy.reserve(points.size());
-    for (const auto& point : points) {
-        vx.push_back(point.x);
-        vy.push_back(point.y);
-    }
-    filledPolygonRGBA(renderer, vx.data(), vy.data(), points.size(), color.r, color.g, color.b,
-                      color.a);
+    fillPolygonGeometry(renderer, points, color);
 }
 }  // namespace DxvUI
