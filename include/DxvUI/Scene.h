@@ -12,6 +12,9 @@ namespace DxvUI {
 
 class SceneNode;
 class IRenderer;
+class IRenderBackend;
+class IPlatformServices;
+class ITextEngine;
 
 class Scene : public std::enable_shared_from_this<Scene> {
    public:
@@ -21,6 +24,14 @@ class Scene : public std::enable_shared_from_this<Scene> {
     void setRoot(const std::shared_ptr<SceneNode>& node);
     std::shared_ptr<SceneNode> getRoot() const;
 
+    // Stage 5: split backend – new API
+    void setRenderBackend(IRenderBackend* backend);
+    void setPlatformServices(IPlatformServices* services);
+    IRenderBackend* getRenderBackend();
+    IPlatformServices* getPlatformServices();
+    ITextEngine* getTextEngine();
+
+    // Legacy combined API – kept for backward compat, sets both backend and services if possible
     void setRenderer(IRenderer* renderer);
     IRenderer* getRenderer();
 
@@ -104,6 +115,14 @@ class Scene : public std::enable_shared_from_this<Scene> {
 
     void shutdown();
 
+    // --- Damage tracking (stage 6b) ---
+    void addDamageRect(const Rect& rect);
+    void clearDamage();
+    Rect getDamageUnion() const { return damageUnion_; }
+    bool hasDamage() const { return hasDamage_; }
+    bool needsFullRedraw() const { return fullRedraw_; }
+    void setFullRedraw(bool v) { fullRedraw_ = v; }
+
    private:
     Scene();
     void init();
@@ -113,7 +132,15 @@ class Scene : public std::enable_shared_from_this<Scene> {
     Theme theme;  // Add Theme object
     StyleManager styleManager{theme};
     LayoutManager layoutManager;
-    IRenderer* renderer = nullptr;
+    IRenderer* renderer = nullptr; // legacy, kept for compat
+    IRenderBackend* renderBackend = nullptr;
+    IPlatformServices* platformServices = nullptr;
+
+    // Damage tracking (stage 6b): union of dirty bounds since last draw
+    Rect damageUnion_{0, 0, 0, 0};
+    bool hasDamage_ = false;
+    bool fullRedraw_ = true; // first frame needs full redraw
+    std::vector<Rect> damageRects_; // optional list for future multi-rect
 };
 
 }  // namespace DxvUI

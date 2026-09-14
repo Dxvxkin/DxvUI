@@ -1,46 +1,15 @@
 #ifndef DXVUI_SDLTEXTEDITORVIEW_H
 #define DXVUI_SDLTEXTEDITORVIEW_H
 
-#include <cstdint>
+// Backward compatibility shim: SDLTextEditorView moved to text/DefaultTextEditorView.
+// The old backend location is kept as an alias so existing includes still work.
+// New code should include DxvUI/text/DefaultTextEditorView.h.
 
-#include "DxvUI/text/TextEditorView.h"
+#include "DxvUI/text/DefaultTextEditorView.h"
 
 namespace DxvUI {
 
-/**
- * @brief Default TextEditorView implementation.
- *
- * All drawing goes through the backend-neutral PaintContext (canvas + text
- * engine); the only SDL dependency is the caret blink timer (SDL_GetTicks),
- * which has no portable equivalent in the interfaces (it moves into FrameInfo
- * at stage 5 of the rendering refactoring). The instance keeps no per-editor
- * state, so a single view can be shared by every editor in a scene.
- */
-class SDLTextEditorView : public TextEditorView {
-   public:
-    SDLTextEditorView() = default;
-    ~SDLTextEditorView() override = default;
-
-    SDLTextEditorView(const SDLTextEditorView&) = delete;
-    SDLTextEditorView& operator=(const SDLTextEditorView&) = delete;
-
-    void draw(PaintContext& pc, const IFont& font, const TextEditor& editor,
-              const Rect& contentRect, const Options& options) override;
-
-    size_t hitTestAt(ITextEngine& engine, const IFont& font, const TextEditor& editor,
-                     const Rect& contentRect, int globalX,
-                     Alignment horizontalAlign) override;
-
-   private:
-    // Half-period of the caret blink in ms; the caret is visible for one
-    // period, hidden for the next.
-    static constexpr uint32_t kCaretBlinkMs = 530;
-
-    // Current horizontal scroll position in pixels.
-    int scrollOffsetX_ = 0;
-
-    static bool isCaretVisible();
-};
+using SDLTextEditorView = DefaultTextEditorView;
 
 }  // namespace DxvUI
 

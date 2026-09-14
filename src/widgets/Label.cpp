@@ -14,8 +14,6 @@ namespace DxvUI {
 
 // --- Self-registration of default styles ---
 namespace {
-// Единый источник имени типа: используется и в getNodeType(), и как ключ
-// регистрации стилей, чтобы строка не могла разойтись с типом виджета.
 constexpr const char* kWidgetType = "Label";
 
 struct LabelStyleRegistrar {
@@ -35,7 +33,7 @@ std::shared_ptr<Label> Label::create(std::string id, std::string text) {
     return std::make_shared<Label>(std::move(id), std::move(text));
 }
 
-Label::Label(std::string id, std::string text) : SceneNode(std::move(id)) {
+Label::Label(std::string id, std::string text) : SceneNode(std::move(id)), cachedText_(text) {
     auto binding = UIBinding::create(text);
     bind(binding);
 }
@@ -43,38 +41,48 @@ Label::Label(std::string id, std::string text) : SceneNode(std::move(id)) {
 const char* Label::getNodeType() const noexcept { return kWidgetType; }
 
 void Label::setText(std::string newText) {
-    // bound: set() no-ops when the value did not change, so no Change (and no
-    // onChange -> relayout) fires for an identical text. No need to compare here.
-    getBinding()->set(std::move(newText));
+    cachedText_ = newText;
+    getBinding()->set(newText);
 }
 
-std::string Label::getText() const { return getBinding()->getString(); }
+std::string Label::getText() const {
+    // Stage 4: return cached to avoid mutex+allocation, fallback to binding if empty cache
+    if (!cachedText_.empty() || !getBinding()) {
+        return cachedText_;
+    }
+    return getBinding()->getString();
+}
 
-void Label::onChange(const UIBinding& /*binding*/) {
-    // Binding-driven text changes must re-measure the label: otherwise the
-    // bounds stay stale and the new text gets clipped. setText() goes through
-    // binding_->set() -> onChange(), so it is covered here too.
+void Label::onChange(const UIBinding& binding) {
+    // Stage 4: cache string between Change to avoid mutex+allocation each frame
+    cachedText_ = binding.getString();
     markLayoutDirty();
 }
 
 Size Label::onMeasure(const Size& availableSize) {
     const auto& computedAppearance = getComputedAppearance();
-    // LayoutManager::contentRect subtracts padding + border, so the measured box
-    // must compensate for both — otherwise text is clipped by the border.
     const Thickness insets = LayoutManager::contentInsets(*this);
 
     auto scene = getScene();
-    if (scene && scene->getRenderer()) {
-        auto& engine = scene->getRenderer()->getTextEngine();
+    if (scene && scene->getTextEngine()) {
+        auto& engine = *scene->getTextEngine();
         auto font =
             engine.getFontForFamily(computedAppearance.fontFamily, computedAppearance.fontSize);
         if (!font) {
             return {0, 0};
         }
-        auto text = getText();
-        auto measured = engine.measure(*font, text);
+        // Stage 4: use cached text to avoid mutex+allocation
+        const auto& text = cachedText_;
+        if (text.empty()) {
+            return LayoutManager::addPadding({0, 0}, insets);
+        }
+        // Stage 3: measure via TextLayout (glyph atlas, cached per font+text)
+        auto layout = engine.layoutText(*font, text);
         return LayoutManager::addPadding(
-            {static_cast<float>(measured.width), static_cast<float>(measured.height)}, insets);
+            {static_cast<float>(layout.metrics.width),
+             static_cast<float>(layout.metrics.height > 0 ? layout.metrics.height
+                                                           : layout.lineMetrics.lineHeight)},
+            insets);
     }
     return {0, 0};
 }
@@ -82,13 +90,12 @@ Size Label::onMeasure(const Size& availableSize) {
 void Label::onPaint(PaintContext& pc) {
     const auto& computedAppearance = getComputedAppearance();
 
-    auto text = getText();
+    // Stage 4: use cached text
+    const auto& text = cachedText_;
     if (text.empty()) {
         return;
     }
 
-    // Текстура текста кешируется внутри текстового движка по ключу
-    // (шрифт, текст, цвет), поэтому виджету не нужно собственное кеширование.
     auto& engine = pc.text();
     auto font = engine.getFontForFamily(computedAppearance.fontFamily, computedAppearance.fontSize);
     if (!font) {
@@ -97,58 +104,17 @@ void Label::onPaint(PaintContext& pc) {
 
     const Rect contentRect = LayoutManager::contentRect(*this, getGlobalBounds());
 
-    // Обрезаем текст до видимого префикса, который помещается в ширину контент-бокса,
-    // чтобы не пытаться создать текстуру больше ширины лейбла и не превысить лимит SDL (16384px).
-    std::string drawText = text;
-    if (contentRect.width > 0) {
-        const size_t fitBytes = engine.charIndexAtX(*font, text, contentRect.width);
-        if (fitBytes > 0 && fitBytes < text.size()) {
-            drawText = text.substr(0, fitBytes);
-        } else if (fitBytes == 0) {
-            drawText.clear();
-        }
-    }
+    // Stage 3: single lookup of TextLayout + single drawLayout with tint.
+    // Alignment/truncation handled inside drawLayout (previously duplicated).
+    TextLayout layout = engine.layoutText(*font, text);
 
-    if (drawText.empty()) {
-        return;
-    }
+    TextPaint paint;
+    paint.color = computedAppearance.textColor;
+    paint.align = computedAppearance.textAlign;
+    paint.verticalAlign = computedAppearance.textAlignVertical;
+    paint.truncate = true;
 
-    auto textTexture = engine.rasterize(*font, drawText, computedAppearance.textColor);
-
-    if (textTexture) {
-        // Рисуем текстуру в натуральном размере, выравнивая в контент-боксе по
-        // style.textAlign/textAlignVertical. Увеличение не применяется (иначе
-        // текст размывается); если бокс меньше текстуры, она уменьшается.
-        const int drawW = std::min(textTexture->getWidth(), contentRect.width);
-        const int drawH = std::min(textTexture->getHeight(), contentRect.height);
-
-        int drawX = contentRect.x;
-        int drawY = contentRect.y;
-        switch (computedAppearance.textAlign) {
-            case Alignment::Center:
-                drawX += (contentRect.width - drawW) / 2;
-                break;
-            case Alignment::End:
-                drawX += contentRect.width - drawW;
-                break;
-            case Alignment::Start:
-            case Alignment::Stretch:
-                break;
-        }
-        switch (computedAppearance.textAlignVertical) {
-            case Alignment::Center:
-                drawY += (contentRect.height - drawH) / 2;
-                break;
-            case Alignment::End:
-                drawY += contentRect.height - drawH;
-                break;
-            case Alignment::Start:
-            case Alignment::Stretch:
-                break;
-        }
-
-        pc.canvas().drawTexture(textTexture, Rect{drawX, drawY, drawW, drawH});
-    }
+    engine.drawLayout(pc.canvas(), layout, RectF(contentRect), paint);
 }
 
 }  // namespace DxvUI

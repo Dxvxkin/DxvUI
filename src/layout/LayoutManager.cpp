@@ -2,6 +2,7 @@
 
 #include <algorithm>
 
+#include "DxvUI/Scene.h"
 #include "DxvUI/SceneNode.h"
 
 namespace DxvUI {
@@ -86,6 +87,10 @@ void LayoutManager::arrangeNode(SceneNode& node, const Rect& finalRect) {
     auto& data = node.layoutData;
 
     if (!node.state_.test(NodeState::Flag::Visible)) {
+        // Damage old bounds before zeroing
+        if (auto sc = node.getScene()) {
+            sc->addDamageRect(data.bounds);
+        }
         data.bounds = {finalRect.x, finalRect.y, 0, 0};
         for (const auto& child : node.children) {
             child->arrange({finalRect.x, finalRect.y, 0, 0});
@@ -99,6 +104,16 @@ void LayoutManager::arrangeNode(SceneNode& node, const Rect& finalRect) {
     // whole subtree keeps its previous arrangement.
     if (!data.isDirty && !data.isSubtreeDirty && data.bounds == finalRect) {
         return;
+    }
+
+    // Stage 6b: damage old and new bounds
+    if (auto sc = node.getScene()) {
+        if (data.bounds.width > 0 && data.bounds.height > 0) {
+            sc->addDamageRect(data.bounds);
+        }
+        if (finalRect.width > 0 && finalRect.height > 0) {
+            sc->addDamageRect(finalRect);
+        }
     }
 
     data.lastArrangeRect = data.bounds;
