@@ -48,7 +48,7 @@ class StubClipboard : public IClipboard {
 /**
  * @brief IRenderer stub that records every backend call the adapter makes.
  */
-class RecordingRenderer : public IRenderer {
+class RecordingRenderer : public IRenderer, public ICanvas {
    public:
     struct RectCall {
         Rect rect;
@@ -112,7 +112,7 @@ class RecordingRenderer : public IRenderer {
     void pushClip(const RectF&) override {}
     void popClip() override {}
     void drawTexture(const std::shared_ptr<ITexture>&, const RectF&) override {}
-    void drawTexture(const std::shared_ptr<ITexture>&, const TextureDraw&) override {}
+    void drawTexture(const std::shared_ptr<ITexture>&, const ICanvas::TextureDraw&) override {}
     void fillRect(const RectF&, const Fill&) override {}
     void strokeRect(const RectF&, const Stroke&) override {}
     void fillRoundRect(const RectF&, float, const Brush&) override {}

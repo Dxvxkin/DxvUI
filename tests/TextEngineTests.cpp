@@ -188,7 +188,7 @@ class FakeClipboard : public IClipboard {
     }
 };
 
-class FakeRenderer : public IRenderer {
+class FakeRenderer : public IRenderer, public ICanvas {
    public:
     FakeTextEngine engine;
     FakeClipboard clipboard;
@@ -209,7 +209,7 @@ class FakeRenderer : public IRenderer {
     void pushClip(const RectF&) override {}
     void popClip() override {}
     void drawTexture(const std::shared_ptr<ITexture>&, const RectF&) override {}
-    void drawTexture(const std::shared_ptr<ITexture>&, const TextureDraw&) override {}
+    void drawTexture(const std::shared_ptr<ITexture>&, const ICanvas::TextureDraw&) override {}
     void fillRect(const RectF&, const Fill&) override {}
     void strokeRect(const RectF&, const Stroke&) override {}
     void fillRoundRect(const RectF&, float, const Brush&) override {}

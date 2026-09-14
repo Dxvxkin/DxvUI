@@ -141,7 +141,7 @@ class FakeClipboard : public IClipboard {
 
 // A renderer stub that records clip operations instead of drawing, so the
 // SceneNode draw template can be exercised without a real SDL backend.
-class FakeRenderer : public IRenderer {
+class FakeRenderer : public IRenderer, public ICanvas {
    public:
     std::vector<Rect> clipPushes;
     int clipPops = 0;
@@ -160,7 +160,7 @@ class FakeRenderer : public IRenderer {
     void pushClip(const RectF&) override {}
     void popClip() override {}
     void drawTexture(const std::shared_ptr<ITexture>&, const RectF&) override {}
-    void drawTexture(const std::shared_ptr<ITexture>&, const TextureDraw&) override {}
+    void drawTexture(const std::shared_ptr<ITexture>&, const ICanvas::TextureDraw&) override {}
     void fillRect(const RectF&, const Fill&) override {}
     void strokeRect(const RectF&, const Stroke&) override {}
     void fillRoundRect(const RectF&, float, const Brush&) override {}
