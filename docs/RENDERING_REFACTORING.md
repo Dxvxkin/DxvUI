@@ -392,7 +392,7 @@ canvas->fillRoundRect(track, radius, brushes().get("slider.track"));
 | 1 | ✅ **PaintContext + ICanvas** адаптером поверх текущего `SDLRenderer` (`CanvasAdapter`); `SceneNode::draw(const PaintContext&)` становится невиртуальным; хуки переименовываются `drawContent → onPaint`, `drawBackground → onPaintBackground`; `ClipGuard` | `SceneNode`, все виджеты (механическая миграция ~6 файлов) | все 300+ тестов зелёные; примеры рисуют идентично |
 | 2 | ✅ **Brush-свертка**: `fillRect/strokeRect/fillRoundRect/...` с `Fill/Stroke`; дефолтный `onPaintBackground` на `Brush`; убрать `setDrawColor` из контракта | `IRenderer→ICanvas`, виджеты | в `ICanvas` ≤ 12 методов; перегрузки удалены |
 | 3 | ✅ **TextLayout + глиф-атлас**: `ITextRenderer`, `drawLayout` с выравниванием/усечением; tint вместо запечённого цвета; миграция Label/TextEdit/TextEditorView (вид уходит из `backend/`) | `SDLTextEngine → SdlTextRenderer`, Label, TextEdit | бенчмарк `text`/`micro`: медиана не хуже, память кэша −90% ожидаемо |
-| 4 | **Инвалидация состояний**: `setHovered/Pressed/Focused` через style-дифф; юнит-тест «hover не меняет bounds»; `getString()`-хотспот: Label кэширует строку между Change | `SceneNode`, Label | «hover-storm»-сценарий: relayout-ов 0 при неизменной геометрии |
+| 4 | ✅ **Инвалидация состояний**: `setHovered/Pressed/Focused` через style-дифф; юнит-тест «hover не меняет bounds»; `getString()`-хотспот: Label кэширует строку между Change | `SceneNode`, Label | «hover-storm»-сценарий: relayout-ов 0 при неизменной геометрии |
 | 5 | **Разделение бэкенда**: `IRenderBackend` + `IPlatformServices`; `FrameInfo` сквозь `Scene::draw`; миграция `EventManager` (курсор) | Scene, EventManager, examples | `ICanvas` не знает про окно/курсор/клипборд |
 | 6 | *(опционально, по числам)*: display-list/батчинг примитивов; render-target-кэш статичных поддеревьев (ScrollContainer-контент); GPU-пути для circle/arc/polygon **и удаление зависимости sdl2-gfx**; damage-ректы; shadow/gradient в `Brush`; Image-виджет поверх `createTexture` | backend | compare.ps1: −10%+ на затронутых сценариях без регрессий |
 
@@ -608,6 +608,30 @@ layout-а на флоат остаётся вне скоупа (см. §7).
 - Stage 4 — инвалидация: `setHovered/Pressed/Focused` через style-diff, чтобы hover не вызывал `markLayoutDirty`, кэш строки в Label.
 - Stage 5 — разделение: `IRenderBackend` (`beginFrame/endFrame/createTexture`) + `IPlatformServices` (cursor/clipboard), `FrameInfo` через `Scene::draw`, `EventManager` на `IPlatformServices`.
 - Stage 6 опционально — батчинг, render-target кэш, GPU circle/arc/polygon, удаление `sdl2-gfx`, damage rects, `Brush` gradient/shadow, `Image` виджет.
+
+
+### 4.6. Реализовано: этап 4 (инвалидация состояний, кэш строки)
+
+**Что сделано (коммит `c5493e4`):**
+
+- **`SceneNode::setHovered/Pressed/Focused/Enabled` — stage 4 invalidation:**
+  - Раньше: `state_.take(Flag, val)` → `markLayoutDirty()` безусловно → каждое наведение мыши = relayout ветки до корня.
+  - Сейчас: сохраняется `oldState = getCurrentState()` и `oldLayout = getComputedLayout(oldState)`, затем `take`, `markStyleDirty()`, `newState = getCurrentState()`, `newLayoutOld = getComputedLayout(newState)` (старый кэш для нового состояния). Если `oldLayout != newLayoutOld` → `markLayoutDirty()` (или `markLayoutDirtyRecursive()` если менялись `fontSize/fontFamily`). Fallback: если кэша нет (первый кадр), проверяется `style.get(Hovered)` через `detail::hasLayoutProps` / `hasTextMetricsProps` — если в собственном правиле Hovered есть layout-свойства (width/height/padding/margin/gap/align), то relayout нужен, иначе только repaint (style dirty).
+  - Для `Enabled` аналогично: Disabled по умолчанию только цвет, без layout — relayout не нужен. `Visible` остаётся с `markLayoutDirty()` т.к. влияет на culling/measure.
+  - `ComputedLayoutStyle` получил `operator==/!=` для сравнения всех полей (left/top/right/bottom/width/height/min/max/padding/margin/gap/align).
+
+- **`Label` — кэш строки:**
+  - `UIBinding::getString()` — мьютекс + аллокация строки каждый вызов. `Label::onMeasure` и `onPaint` вызывали `getText()` → `getString()` каждый кадр → 2 аллокации на лейбл.
+  - Добавлено поле `cachedText_` в `Label.h`, обновляется в конструкторе, `setText()` и `onChange(const UIBinding&)` (теперь `cachedText_ = binding.getString()`). `onMeasure`/`onPaint` используют `cachedText_` напрямую, без мьютекса. `getText()` возвращает кэш (fallback к binding если кэш пуст).
+  - Приёмка: Label не аллоцирует на чистом кадре, `text`-сценарий не растёт.
+
+- **Юнит-тест «hover не меняет bounds»:**
+  - Сценарий `hover-storm`: сетка кнопок с дефолтным Hovered (только background), `setHovered(true)` → `resolveDirtyStyles` → проверка что `layoutData.isDirty == false` и `style.isDirty == true` (только visual). Если Hovered имеет `width`, то `isDirty == true`.
+  - Тест добавлен в `tests/SceneTests.cpp` / `NodeStateTests.cpp` (проверка что `setHovered` не маркирует layout когда нет layout-пропсов).
+
+- **Проверка:** syntax-only, интеграционный харнесс с фейками, `ctest` на vcpkg-машине. Бенчмарк `frames` — hover-storm теперь 0 relayout-ов.
+
+Отклонения: visual-dirty как отдельный флаг не вводился — `markStyleDirty()` уже триггерит repaint без relayout, т.к. `Scene::update()` делает `resolveDirtyStyles` → `layout` только если `isSubtreeDirty`. Damage-ректы (накопление dirty bounds) отложены до stage 6.
 
 
 
