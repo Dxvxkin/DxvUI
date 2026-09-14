@@ -1,15 +1,43 @@
 #include "DxvUI/Scene.h"
 
+#include <chrono>
+
 #include "DxvUI/Log.h"
 #include "DxvUI/SceneNode.h"
 #include "DxvUI/containers/AbsoluteContainer.h"
+#include "DxvUI/interfaces/ICanvas.h"
+#include "DxvUI/interfaces/IRenderBackend.h"
 #include "DxvUI/interfaces/IRenderer.h"
+#include "DxvUI/interfaces/IPlatformServices.h"
 
 namespace DxvUI {
 
 Scene::Scene() = default;
 
 Scene::~Scene() { shutdown(); }
+
+void Scene::addDamageRect(const Rect& rect) {
+    if (rect.width <= 0 || rect.height <= 0) return;
+    if (!hasDamage_) {
+        damageUnion_ = rect;
+        hasDamage_ = true;
+    } else {
+        // Union
+        int x1 = std::min(damageUnion_.x, rect.x);
+        int y1 = std::min(damageUnion_.y, rect.y);
+        int x2 = std::max(damageUnion_.x + damageUnion_.width, rect.x + rect.width);
+        int y2 = std::max(damageUnion_.y + damageUnion_.height, rect.y + rect.height);
+        damageUnion_ = {x1, y1, x2 - x1, y2 - y1};
+    }
+    damageRects_.push_back(rect);
+}
+
+void Scene::clearDamage() {
+    hasDamage_ = false;
+    damageUnion_ = {0, 0, 0, 0};
+    damageRects_.clear();
+    fullRedraw_ = false;
+}
 
 void Scene::shutdown() {
     if (!root) {
@@ -47,7 +75,43 @@ void Scene::setRoot(const std::shared_ptr<SceneNode>& node) {
     // layout pass picks it up without an explicit request.
 }
 
-void Scene::setRenderer(IRenderer* newRenderer) { renderer = newRenderer; }
+void Scene::setRenderBackend(IRenderBackend* backend) {
+    renderBackend = backend;
+    // Keep legacy renderer pointer in sync if backend also implements IRenderer
+    if (auto* r = dynamic_cast<IRenderer*>(backend)) {
+        renderer = r;
+    }
+    // Propagate to EventManager's platform services if backend also implements IPlatformServices
+    if (auto* ps = dynamic_cast<IPlatformServices*>(backend)) {
+        platformServices = ps;
+    }
+}
+
+void Scene::setPlatformServices(IPlatformServices* services) {
+    platformServices = services;
+    if (auto* r = dynamic_cast<IRenderer*>(services)) {
+        renderer = r;
+    }
+    if (auto* b = dynamic_cast<IRenderBackend*>(services)) {
+        renderBackend = b;
+    }
+}
+
+IRenderBackend* Scene::getRenderBackend() { return renderBackend; }
+IPlatformServices* Scene::getPlatformServices() { return platformServices; }
+
+ITextEngine* Scene::getTextEngine() {
+    if (renderBackend) return &renderBackend->getTextEngine();
+    if (renderer) return &renderer->getTextEngine();
+    return nullptr;
+}
+
+void Scene::setRenderer(IRenderer* newRenderer) {
+    renderer = newRenderer;
+    // Stage 5: setRenderer sets both backend and platform services for backward compat
+    renderBackend = newRenderer;
+    platformServices = newRenderer;
+}
 
 IRenderer* Scene::getRenderer() { return renderer; }
 
@@ -92,6 +156,9 @@ void Scene::raise(EventType type, const std::shared_ptr<SceneNode>& target) {
 }
 
 void Scene::onNodeRemoved(const std::shared_ptr<SceneNode>& node) {
+    if (node) {
+        addDamageRect(node->getGlobalBounds());
+    }
     if (eventManager) {
         eventManager->onNodeRemoved(node);
     }
@@ -112,7 +179,9 @@ void Scene::update() {
 }
 
 void Scene::updateLayout() {
-    if (!root || !renderer) return;
+    if (!root) return;
+    IRenderBackend* backend = renderBackend ? renderBackend : renderer;
+    if (!backend) return;
 
     // Resolve dirty styles first; this is O(1) when the tree is clean, and the
     // StyleManager detects theme mutations itself (marking the root dirty and
@@ -121,7 +190,7 @@ void Scene::updateLayout() {
 
     // The layout pass prunes clean subtrees, so it is O(1) on clean frames and
     // only walks the affected branch otherwise.
-    Size viewportSize = renderer->getViewportSize();
+    Size viewportSize = backend->getViewportSize();
     // A relayout can move the node under the cursor or move a sibling on top of
     // it, so the event manager's hit-test cache must not outlive the pass. The
     // layout fast path returns early only when nothing could have moved.
@@ -134,9 +203,36 @@ void Scene::updateLayout() {
 }
 
 void Scene::draw() {
-    if (root && renderer) {
-        root->draw(*renderer);
-    }
+    if (!root) return;
+    IRenderBackend* backend = renderBackend ? renderBackend : renderer;
+    if (!backend) return;
+
+    // Stage 6b: damage tracking – if no damage and not full redraw, we can skip
+    // For now we still draw full frame but pass damage union in FrameInfo for culling
+    // Future: skip draw when !hasDamage_ && !fullRedraw_ (except caret blink)
+    Size viewportSize = backend->getViewportSize();
+    const double nowMs = std::chrono::duration<double, std::milli>(
+                             std::chrono::steady_clock::now().time_since_epoch())
+                             .count();
+
+    // For external renderer mode, host already cleared, so we pass transparent clear
+    // and let backend decide (ownsResources check). For owned mode, backend clears.
+    ICanvas& canvas = backend->beginFrame(Color{0, 0, 0, 0});
+
+    FrameInfo frame{
+        .viewport = {0, 0, static_cast<int>(viewportSize.width), static_cast<int>(viewportSize.height)},
+        .timeMs = nowMs,
+        .damageUnion = damageUnion_,
+        .hasDamage = hasDamage_,
+        .fullRedraw = fullRedraw_};
+
+    PaintContext pc(canvas, backend->getTextEngine(), frame);
+    root->draw(pc);
+
+    backend->endFrame();
+
+    // Clear damage after frame
+    clearDamage();
 }
 
 }  // namespace DxvUI

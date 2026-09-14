@@ -121,7 +121,6 @@ void Image::ensureTexture(PaintContext& pc) {
     }
 
     if (!backend) return;
-
     if (!pendingData_->isValid()) {
         Log::warn("Image::ensureTexture: invalid ImageData");
         pendingData_.reset();

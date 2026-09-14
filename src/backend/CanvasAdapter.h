@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <memory>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -18,12 +19,14 @@ namespace DxvUI {
 /**
  * @brief Adapts an IRenderer backend to the ICanvas painting contract.
  *
- * Transitional glue of the rendering refactoring (stage 2,
+ * Transitional glue of the rendering refactoring (stage 2-3,
  * docs/RENDERING_REFACTORING.md): the draw pass talks float Brush-based
  * ICanvas, while the existing backends still implement the int-based
  * IRenderer. The adapter therefore does exactly two things — rounds float
  * geometry at the backend boundary and translates a Brush into the explicit
  * renderer overloads (fill + border, fill only or border only).
+ *
+ * Stage 3 adds TextureDraw with srcRect/tint/alpha for the glyph atlas.
  *
  * It holds no state, so it is created cheaply per frame on the stack of the
  * draw entry points (SceneNode::draw(IRenderer&)). It disappears at stage 5,
@@ -42,6 +45,19 @@ class CanvasAdapter final : public ICanvas {
 
     void drawTexture(const std::shared_ptr<ITexture>& texture, const RectF& dstRect) override {
         renderer_.drawTexture(texture, dstRect.rounded());
+    }
+
+    void drawTexture(const std::shared_ptr<ITexture>& texture,
+                     const TextureDraw& draw) override {
+        // Translate float TextureDraw -> int TextureDrawDesc
+        IRenderer::TextureDrawDesc desc;
+        desc.dst = draw.dst.rounded();
+        if (draw.src) {
+            desc.src = draw.src->rounded();
+        }
+        desc.tint = draw.tint;
+        desc.alpha = draw.alpha;
+        renderer_.drawTexture(texture, desc);
     }
 
     void fillRect(const RectF& rect, const Fill& fill) override {
@@ -95,7 +111,6 @@ class CanvasAdapter final : public ICanvas {
     }
 
     void fillPolygon(std::span<const PointF> points, const Fill& fill) override {
-        // A polygon needs three vertices; anything shorter paints nothing.
         if (points.size() < 3) {
             return;
         }
@@ -115,12 +130,10 @@ class CanvasAdapter final : public ICanvas {
     }
 
    private:
-    /// @brief Converts a float stroke into the backend's int-based border.
     static Border toBorder(const Stroke& stroke) {
         return {stroke.color, toPixels(stroke.thickness, /*minimum=*/1)};
     }
 
-    /// @brief Rounds a float length to whole pixels, clamped to @p minimum.
     static int toPixels(float value, int minimum) {
         return std::max(minimum, static_cast<int>(std::lround(value)));
     }

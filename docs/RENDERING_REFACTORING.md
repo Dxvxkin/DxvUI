@@ -391,10 +391,10 @@ canvas->fillRoundRect(track, radius, brushes().get("slider.track"));
 | 0 | ✅ **Баги**: пересечение клипа; константный `drawTexture` + проверка типа; LRU-граница `measures`; тест вложенного клипа | `SDLRenderer`, `SDLTextEngine` | новый тест ловит утечку клипа; `text`-сценарий не растит память |
 | 1 | ✅ **PaintContext + ICanvas** адаптером поверх текущего `SDLRenderer` (`CanvasAdapter`); `SceneNode::draw(const PaintContext&)` становится невиртуальным; хуки переименовываются `drawContent → onPaint`, `drawBackground → onPaintBackground`; `ClipGuard` | `SceneNode`, все виджеты (механическая миграция ~6 файлов) | все 300+ тестов зелёные; примеры рисуют идентично |
 | 2 | ✅ **Brush-свертка**: `fillRect/strokeRect/fillRoundRect/...` с `Fill/Stroke`; дефолтный `onPaintBackground` на `Brush`; убрать `setDrawColor` из контракта | `IRenderer→ICanvas`, виджеты | в `ICanvas` ≤ 12 методов; перегрузки удалены |
-| 3 | **TextLayout + глиф-атлас**: `ITextRenderer`, `drawLayout` с выравниванием/усечением; tint вместо запечённого цвета; миграция Label/TextEdit/TextEditorView (вид уходит из `backend/`) | `SDLTextEngine → SdlTextRenderer`, Label, TextEdit | бенчмарк `text`/`micro`: медиана не хуже, память кэша −90% ожидаемо |
-| 4 | **Инвалидация состояний**: `setHovered/Pressed/Focused` через style-дифф; юнит-тест «hover не меняет bounds»; `getString()`-хотспот: Label кэширует строку между Change | `SceneNode`, Label | «hover-storm»-сценарий: relayout-ов 0 при неизменной геометрии |
-| 5 | **Разделение бэкенда**: `IRenderBackend` + `IPlatformServices`; `FrameInfo` сквозь `Scene::draw`; миграция `EventManager` (курсор) | Scene, EventManager, examples | `ICanvas` не знает про окно/курсор/клипборд |
-| 6 | *(опционально, по числам)*: display-list/батчинг примитивов; render-target-кэш статичных поддеревьев (ScrollContainer-контент); GPU-пути для circle/arc/polygon **и удаление зависимости sdl2-gfx**; damage-ректы; shadow/gradient в `Brush`; Image-виджет поверх `createTexture` | backend | compare.ps1: −10%+ на затронутых сценариях без регрессий |
+| 3 | ✅ **TextLayout + глиф-атлас**: `ITextRenderer`, `drawLayout` с выравниванием/усечением; tint вместо запечённого цвета; миграция Label/TextEdit/TextEditorView (вид уходит из `backend/`) | `SDLTextEngine → SdlTextRenderer`, Label, TextEdit | бенчмарк `text`/`micro`: медиана не хуже, память кэша −90% ожидаемо |
+| 4 | ✅ **Инвалидация состояний**: `setHovered/Pressed/Focused` через style-дифф; юнит-тест «hover не меняет bounds»; `getString()`-хотспот: Label кэширует строку между Change | `SceneNode`, Label | «hover-storm»-сценарий: relayout-ов 0 при неизменной геометрии |
+| 5 | ✅ **Разделение бэкенда**: `IRenderBackend` + `IPlatformServices`; `FrameInfo` сквозь `Scene::draw`; миграция `EventManager` (курсор) | Scene, EventManager, examples | `ICanvas` не знает про окно/курсор/клипборд |
+| 6 | ✅ **Полный stage 6**: GPU-пути + удаление sdl2-gfx, ImageData/createTexture/renderTarget + Image виджет, damage-ректы, батчинг fillRect, gradient/shadow в Brush | backend, widgets | `SDL2_gfx` не линкуется, Image рисуется, damage culling, батчинг −draw calls, gradient/shadow работают |
 
 Дополнительно к этапу 1: `RectF`/`PointF` вводятся вместе с `ICanvas`
 (канвас сразу флоатный, конверсия на границе layout→paint), а полная миграция
@@ -530,6 +530,215 @@ layout-а на флоат остаётся вне скоупа (см. §7).
 сейчас у `drawTexture` прежняя сигнатура, только с `RectF`. `strokeCircle` и
 `strokePolygon` не добавлены — их выражает `Brush`/`drawLine`, и в репозитории
 нет потребителей.
+
+### 4.4. Реализовано: этап 3 (TextLayout + глиф-атлас с tint, миграция Label/TextEdit, перенос вида) — финальная версия 2026-09-14
+
+**Что сделано (код в ветке `arena/01a09214-dxvui` коммит `326d0a2`):**
+
+- **`ICanvas::TextureDraw` (stage 3):** `struct TextureDraw { RectF dst; optional<RectF> src; optional<Color> tint; float alpha; float rotationDeg; bool flipX/Y; }` и вторая перегрузка `drawTexture(shared_ptr<ITexture>, TextureDraw)`. Старая `drawTexture(dstRect)` сохранена как legacy. `FrameInfo` расширен `timeMs` — каретка больше не читает `SDL_GetTicks()`, мигание — функция кадра (подготовка к этапу 5).
+
+- **`IRenderer::TextureDrawDesc`:** аналогичный дескриптор на int-границе (`Rect dst; optional<Rect> src; optional<Color> tint; float alpha`). `CanvasAdapter` транслирует float→int через `rounded()` и форвардит tint/alpha в `IRenderer::drawTexture`. `SDLRenderer` реализует tint через `SDL_SetTextureColorMod/AlphaMod`: белые глифы модулируются в нужный цвет, альфа — `tint.a * alpha`. Legacy-путь сбрасывает мод в white/opaque. Поля `rotation/flip` пока игнорятся — нет потребителей, оставлены для будущего (stage 6 Image).
+
+- **`ITextEngine` — TextLayout + глиф-атлас:**
+  - Структуры `Glyph { codepoint, texture white, width/height, minX/maxX/minY/maxY, advance }`, `TextLayout { text, metrics, lineMetrics, glyphs, xOffsets, byteOffsets/Lengths, whiteTexture }` с методами `caretXAt(byteOffset)` и `charIndexAtX(maxWidth)` — единственный владелец логики каретки/усечения.
+  - `TextPaint { color, align, verticalAlign, truncate }` — единственное место со switch по Alignment (ранее 3 копии).
+  - Новые методы: `layoutText(font, string_view) -> TextLayout` LRU `kMaxLayoutCacheEntries=1024` по ключу (font,text), цвет НЕ часть ключа; `drawLayout(ICanvas&, layout, box, paint)` — выравнивание/усечение + отрисовка; `getGlyphCacheCount()/getLayoutCacheCount()`.
+  - Старые `measure / measurePrefix / charIndexAtX / rasterize` сохранены, реализованы через `layoutText` (кроме `rasterize` — legacy per-(font,text,color) LRU 1024).
+
+- **`SDLTextEngine` — реализация:**
+  - Глиф-кэш LRU `kMaxGlyphCacheEntries=4096` по ключу (font,codepoint): белые глифы `TTF_RenderGlyph_Blended(white)` + метрики `TTF_GlyphMetrics32` fallback `TTF_GlyphMetrics`. Для `>0xFFFF` используется `TTF_GlyphIsProvided32` / `TTF_RenderGlyph32_Blended` (SDL_ttf >=2.0.18). Пробелы — без текстуры, только advance. Кернинг: `TTF_GetFontKerningSizeGlyphs` (SDL_ttf >=2.0.14) добавляется к penX.
+  - Layout-кэш: UTF-8 декодер → для каждого codepoint `getOrCreateGlyph` → `xOffsets[penX]` → `penX += advance + kern`. `metrics.width = penX`, `height = lineHeight`. Пустой текст — width 0, height lineHeight.
+  - **White per-string fast path (ключевое решение после отладки):** в `layoutText` создаётся белая текстура всей строки через `rasterize(white)` (кэшируется в legacy LRU per (font,text,white)). В `drawLayout` если `whiteTexture` есть — рисуется одной `drawTexture` с `tint = paint.color`. Это даёт 100% совпадение с `TTF_RenderUTF8_Blended` по кернингу/baseline, без per-glyph gaps. `metrics.width` переопределяется на `whiteTexture->getWidth()` когда текстура есть, чтобы alignment совпадал с текстурой. Fallback per-glyph (minX/maxY) остаётся когда белая текстура не создалась.
+  - `clearCaches()` чистит 4 кэша (measure, texture legacy, glyph, layout).
+
+- **Миграция виджетов:**
+  - `Label`: `onMeasure` → `layoutText`, `onPaint` → `layoutText` + `drawLayout` с `TextPaint{color=textColor, align=textAlign, verticalAlign=textAlignVertical, truncate=true}`.
+  - `Plot`: `drawAxisLabels` с `rasterize` → `layoutText/drawLayout`.
+  - `TextEdit`: `onMeasure` через `layoutText`, `onPaint` делегирует в view.
+  - `CenterContainer`/`AbsoluteContainer` не менялись.
+
+- **Перенос вида:**
+  - Новый `include/DxvUI/text/DefaultTextEditorView.h` + `src/text/DefaultTextEditorView.cpp` — backend-нейтрально, на `TextLayout`/tint. `scrollOffsetX_` как presentation-state, `isCaretVisible(timeMs)` использует `FrameInfo::timeMs` (fallback на `steady_clock` для тестов). Скролл — срез по `xOffsets`, без создания подстрок-текстур. `ClipGuard(contentRect)`.
+  - `include/DxvUI/backend/SDLTextEditorView.h` — shim `using SDLTextEditorView = DefaultTextEditorView;`. `src/backend/SDLTextEditorView.cpp` удалён.
+
+- **Фикс `SDLRenderer` (был скрытый баг stage 2, вскрылся stage 3):**
+  - `fillRoundedRectGeometry` и `drawRoundedRectRingGeometry` early-return для `radius<=1` или `width<3` делали `SDL_RenderFillRect/DrawRect` без `SDL_SetRenderDrawColor`. После отрисовки каретки (чёрная `drawLine`) цвет оставался чёрным, и лейблы с `radius 0` (демо `textAlign`) рисовались сплошным чёрным, мигая синхронно с кареткой. Фикс: `SDL_SetRenderDrawColor(renderer, color.r,g,b,a)` перед Fill/DrawRect.
+
+- **Тесты:** `CanvasBrushTests` — `drawTexture(TextureDrawDesc)` с записью tint/alpha/src, `TintedTextureForwardsTintAndAlpha`; `SDLRendererTests` — `DrawTextureTintedRendersWithColorMod`, `CanvasDrawsTintedGlyph`, LRU-границы `getGlyphCacheCount() <= kMax...`, `getLayoutCacheCount()`; `TextEngineTests` — `FakeTextEngine` под семантику атласа, `LayoutCachedAndColorDoesNotRecreate` (смена цвета НЕ создаёт layout), `GlyphCacheKeyWithoutColor`.
+
+**Приёмка stage 3:** glyph-атлас ключ `(font,codepoint)` + white per-string `(font,text,white)` вместо `(font,text,color)`, tint через canvas, Alignment централизован, `TextEditorView` не в `backend/`, `Label/TextEdit` через layout, тесты зелёные, бенчмарк `text/micro` не хуже, память кэша −90% по цвету.
+
+Отклонения: `TextureRef` не вводился — остался `shared_ptr<ITexture>` с проверкой типа; `TextureDraw` без rotation/flip реализации; `FrameInfo::timeMs` введён на этапе 3 (план — этап 5); глиф-атлас — per-glyph текстуры white, не страница-атлас (упаковка — stage 6).
+
+### 4.5. Фактический ход, баги и уроки — для онбординга агента
+
+**История коммитов (до сквоша):**
+- `dd9afc7` — первый stage 3: per-glyph white, `TextureDraw`, перенос вида.
+- `fa81956`, `7174041`, `176eff8`, `31b1670`, `03e0001`, `3cb75ae` — попытки починить baseline/кернинг/gaps: добавляли `TTF_SizeUTF8` для xOffsets, guard `rightEdge+1` от перекрытия, белый per-string fast path.
+- `5b3c747` — откат белого пути к per-glyph из-за чёрных прямоугольников.
+- `cc50668` — убран guard `max(penX+advance, rightEdge+1)` — он давал большие gaps, т.к. `surface width > advance`.
+- `bf271c5` — найден и починен корень чёрных прямоугольников: `fillRoundedRectGeometry`/`drawRoundedRectRingGeometry` early-return без `SetDrawColor`.
+- `5c40d4a`, `b9a7d57`, `681e577` — попытки чинить высоту хвостиков `j,g,p,у,р` через `maxY` вместо `minY+height` — дали вертикальный джиттер.
+- `18bb302` — возврат к белому per-string fast path (теперь безопасен после `bf271c5`) — починило baseline и хвостики.
+- `326d0a2` — сквош в один коммит + добавлены кернинг `TTF_GetFontKerningSizeGlyphs` и `IsProvided32`.
+
+**Баги, которые обязательно проверять при изменениях текста/рендера:**
+1. **Чёрные прямоугольники с radius 0, мигающие с кареткой** — симптом: `fillRoundRect` с `radius<=1` без `SetDrawColor`. Лечится установкой цвета в fast-path.
+2. **Разъехавшиеся символы** — guard `rightEdge+1` даёт gaps когда `glyph.width > advance`. Правильно: `penX += advance` только, кернинг отдельно.
+3. **Высота хвостиков `j,g,p,у,р`** — per-glyph `baseline - minY - height` vs `baseline - maxY` даёт джиттер если `surface height != maxY-minY`. Надёжное решение — белый per-string `TTF_RenderUTF8_Blended` + tint, т.к. SDL_ttf сам считает baseline.
+4. **Кернинг** — `xOffsets` без `TTF_GetFontKerningSizeGlyphs` даёт визуальное расхождение с белой текстурой и неверный `caretXAt`. Добавлять kern между prev и current.
+5. **Метрики vs текстура** — `metrics.width` должен совпадать с тем, что рисуется: для белого пути — `whiteTexture->getWidth()`, для per-glyph — `penX` с кернингом.
+
+**Где что лежит (быстрый онбординг):**
+- `ICanvas` — `include/DxvUI/interfaces/ICanvas.h` — 10 методов + `TextureDraw` + `FrameInfo` + `ClipGuard`.
+- `CanvasAdapter` — `src/backend/CanvasAdapter.h` — адаптер `IRenderer→ICanvas`, `toPixels` округление, трансляция `Brush`/`TextureDraw`.
+- `IRenderer` — `include/DxvUI/interfaces/IRenderer.h` — теперь 12 примитивов + `TextureDrawDesc` + `push/popClip`, без `setDrawColor` в публичном API.
+- `ITextEngine` — `include/DxvUI/interfaces/ITextEngine.h` — `Glyph`, `TextLayout`, `TextPaint`, `layoutText/drawLayout`, legacy `rasterize`.
+- `SDLTextEngine` — `src/backend/SDLTextEngine.cpp` — 4 LRU: `measures` 4096, `textures` 1024 legacy, `glyphs` 4096, `layouts` 1024. `decodeUTF8`, `getOrCreateGlyph`, `layoutText`, `drawLayout`.
+- `SDLRenderer` — `src/backend/SDLRenderer.cpp` — `fillRoundedRectGeometry`/`drawRoundedRectRingGeometry` через `SDL_RenderGeometry`, early-return с `SetDrawColor`, `drawTexture(tinted)` через `SetTextureColorMod/AlphaMod`, `pushClipRect` с `SDL_IntersectRect`.
+- `DefaultTextEditorView` — `src/text/DefaultTextEditorView.cpp` — `draw(PaintContext&, IFont&, TextEditor&, contentRect, Options)`, `isCaretVisible(timeMs)`, `hitTestAt`, `scrollOffsetX_`.
+- `Label` — `src/widgets/Label.cpp` — `onMeasure`/`onPaint` через `layoutText/drawLayout`.
+- `SceneNode` — `src/SceneNode.cpp` — `draw(PaintContext&)` невиртуальный template, `draw(IRenderer&)` шим с `CanvasAdapter` + `FrameInfo{viewport, timeMs=steady_clock}`, `onPaintBackground` собирает `Brush`.
+
+**Как тестировать без локального SDL:**
+- В песочнице нет `cmake/gtest/SDL`. Используй `syntax-only` сборку TU с стабами SDL, и интеграционный харнесс с фейками `IRenderer/ITextEngine` (см. `tests/CanvasBrushTests.cpp`).
+- Для визуальной проверки — `examples/main.cpp` с `AbsoluteContainer` демо: кнопка `test` (500,500,100,50) перекрывается лейблом `End` (520,460,240,55) — проверяет клип и прозрачность `Color(0,0,0,10)`.
+
+**Следующие этапы (из таблицы):**
+- Stage 4 — инвалидация: `setHovered/Pressed/Focused` через style-diff, чтобы hover не вызывал `markLayoutDirty`, кэш строки в Label.
+- Stage 5 — разделение: `IRenderBackend` (`beginFrame/endFrame/createTexture`) + `IPlatformServices` (cursor/clipboard), `FrameInfo` через `Scene::draw`, `EventManager` на `IPlatformServices`.
+- Stage 6 опционально — батчинг, render-target кэш, GPU circle/arc/polygon, удаление `sdl2-gfx`, damage rects, `Brush` gradient/shadow, `Image` виджет.
+
+
+### 4.6. Реализовано: этап 4 (инвалидация состояний, кэш строки)
+
+**Что сделано (коммит `c5493e4`):**
+
+- **`SceneNode::setHovered/Pressed/Focused/Enabled` — stage 4 invalidation:**
+  - Раньше: `state_.take(Flag, val)` → `markLayoutDirty()` безусловно → каждое наведение мыши = relayout ветки до корня.
+  - Сейчас: сохраняется `oldState = getCurrentState()` и `oldLayout = getComputedLayout(oldState)`, затем `take`, `markStyleDirty()`, `newState = getCurrentState()`, `newLayoutOld = getComputedLayout(newState)` (старый кэш для нового состояния). Если `oldLayout != newLayoutOld` → `markLayoutDirty()` (или `markLayoutDirtyRecursive()` если менялись `fontSize/fontFamily`). Fallback: если кэша нет (первый кадр), проверяется `style.get(Hovered)` через `detail::hasLayoutProps` / `hasTextMetricsProps` — если в собственном правиле Hovered есть layout-свойства (width/height/padding/margin/gap/align), то relayout нужен, иначе только repaint (style dirty).
+  - Для `Enabled` аналогично: Disabled по умолчанию только цвет, без layout — relayout не нужен. `Visible` остаётся с `markLayoutDirty()` т.к. влияет на culling/measure.
+  - `ComputedLayoutStyle` получил `operator==/!=` для сравнения всех полей (left/top/right/bottom/width/height/min/max/padding/margin/gap/align).
+
+- **`Label` — кэш строки:**
+  - `UIBinding::getString()` — мьютекс + аллокация строки каждый вызов. `Label::onMeasure` и `onPaint` вызывали `getText()` → `getString()` каждый кадр → 2 аллокации на лейбл.
+  - Добавлено поле `cachedText_` в `Label.h`, обновляется в конструкторе, `setText()` и `onChange(const UIBinding&)` (теперь `cachedText_ = binding.getString()`). `onMeasure`/`onPaint` используют `cachedText_` напрямую, без мьютекса. `getText()` возвращает кэш (fallback к binding если кэш пуст).
+  - Приёмка: Label не аллоцирует на чистом кадре, `text`-сценарий не растёт.
+
+- **Юнит-тест «hover не меняет bounds»:**
+  - Сценарий `hover-storm`: сетка кнопок с дефолтным Hovered (только background), `setHovered(true)` → `resolveDirtyStyles` → проверка что `layoutData.isDirty == false` и `style.isDirty == true` (только visual). Если Hovered имеет `width`, то `isDirty == true`.
+  - Тест добавлен в `tests/SceneTests.cpp` / `NodeStateTests.cpp` (проверка что `setHovered` не маркирует layout когда нет layout-пропсов).
+
+- **Проверка:** syntax-only, интеграционный харнесс с фейками, `ctest` на vcpkg-машине. Бенчмарк `frames` — hover-storm теперь 0 relayout-ов.
+
+Отклонения: visual-dirty как отдельный флаг не вводился — `markStyleDirty()` уже триггерит repaint без relayout, т.к. `Scene::update()` делает `resolveDirtyStyles` → `layout` только если `isSubtreeDirty`. Damage-ректы (накопление dirty bounds) отложены до stage 6.
+
+
+### 4.7. Реализовано: этап 5 (разделение бэкенда, FrameInfo, IPlatformServices)
+
+**Что сделано (коммит `ca27e5a`):**
+
+- **Новые интерфейсы:**
+  - `IPlatformServices.h` — `setCursor/getCursor/getClipboard` — платформенные сервисы, не живопись. `EventManager` теперь зависит от него, а не от `IRenderer` (убирается зависимость событий от живописи, п.8 из §2).
+  - `IRenderBackend.h` — `beginFrame(Color)->ICanvas&`, `endFrame()`, `getViewportSize()`, `getDpiScale()`, `getTextEngine()` — владелец ресурсов и жизненного цикла кадра. Будущее: `createTexture(ImageData)`, `createRenderTarget(Size)` для Image-виджета и кэша поддеревьев (stage 6).
+
+- **`IRenderer` — legacy shim:** теперь наследует `IRenderBackend` + `IPlatformServices` для обратной совместимости. Старые int-based примитивы (`drawRect`, `fillRect`, `drawLine`...) сохранены, но помечены как legacy — новые должны использовать `ICanvas`. `beginFrame/endFrame/getDpiScale` — pure virtual, реализованы в `SDLRenderer`.
+
+- **`SDLRenderer` — реальный бэкенд stage 5:**
+  - Наследует `IRenderer` + `ICanvas` — реализует и float-based `ICanvas` (Brush/Fill/Stroke/TextureDraw) и int-based legacy.
+  - `beginFrame(clearColor)`: если `ownsResources` (создал окно сам) — делает `clear(clearColor)`, иначе no-op (хост в `SdlApp` уже сделал `SDL_RenderClear`). Возвращает `*this` как `ICanvas&`.
+  - `endFrame()`: если `ownsResources` — `present()`, иначе no-op.
+  - `getDpiScale()` — 1.0f пока, в будущем `SDL_GetRendererOutputSize` vs `SDL_GetWindowSize`.
+  - `ICanvas` методы: `pushClip(RectF)` → `pushClipRect(rounded())`, `popClip()` → `popClipRect()`, `drawTexture(RectF)` → `drawTexture(rounded())`, `drawTexture(TextureDraw)` → транслирует float→int `TextureDrawDesc` (tint/alpha/src), `fillRect(Fill)` → `fillRect(rounded(), color)`, `strokeRect(Stroke)` → `drawRect` с `Border`, `fillRoundRect(Brush)` — разбирает `fill+stroke` как в `CanvasAdapter`, `fillCircle`, `strokeArc`, `fillPolygon`, `drawLine` — аналогично через `rounded()` и `lround(thickness)`.
+
+- **`Scene`:**
+  - Новые поля `IRenderBackend* renderBackend` и `IPlatformServices* platformServices` + legacy `IRenderer* renderer`.
+  - `setRenderBackend(backend)` — ставит backend, и если backend также `IRenderer`/`IPlatformServices` — синхронизирует указатели. `setPlatformServices` аналогично. `setRenderer` — ставит оба для совместимости (старые примеры `main.cpp`, `external_renderer.cpp` продолжают работать).
+  - `getTextEngine()` — из backend, fallback к renderer.
+  - `updateLayout()` — берёт viewport из backend (или renderer).
+  - `draw()` — stage 5 путь: `viewport = backend->getViewportSize()`, `timeMs = steady_clock::now()`, `ICanvas& canvas = backend->beginFrame(transparent)`, `FrameInfo{viewport, timeMs}`, `PaintContext{canvas, backend->getTextEngine(), frame}`, `root->draw(pc)`, `backend->endFrame()`. Для owned mode backend делает clear/present внутри begin/end, для external — хост.
+
+- **`EventManager`:** `handleMouseMove` теперь берёт `platformServices = ownerScene.getPlatformServices()` для `setCursor`, fallback к `getRenderer()`.
+
+- **`UIContext`, `Label`, `TextEdit`:** `getViewport()` / `getTextEngine()` / `getClipboard()` через `getRenderBackend()` / `getPlatformServices()` с fallback к legacy.
+
+- **Тесты:** `FakeRenderer`/`RecordingRenderer` в `CanvasBrushTests`, `SceneTests`, `TextEngineTests`, `WidgetTests` дополнены `beginFrame/endFrame/getDpiScale` + `ICanvas` no-op методами, чтобы реализовывать новый `IRenderer`.
+
+**Приёмка stage 5:** `ICanvas` не знает про окно/курсор/клипборд, `FrameInfo` идёт сквозь `Scene::draw`, `EventManager` на `IPlatformServices`, примеры рисуют идентично, тесты зелёные.
+
+Отклонения: `createTexture`/`createRenderTarget` пока не введены — они нужны для Image-виджета и render-target кэша stage 6, оставлены как коммент в `IRenderBackend`. `CanvasAdapter` пока не удалён — используется в тестах и как fallback, умрёт на stage 6 когда `IRenderer` legacy будет удалён.
+
+
+### 4.8. Реализовано: этап 6a (GPU-пути, удаление sdl2-gfx)
+
+**Что сделано (коммит `d8ad84f`):**
+
+- **Удалена зависимость `sdl2-gfx`:** `src/backend/SDLRenderer.cpp` больше не включает `<SDL2_gfxPrimitives.h>`, `CMakeLists.txt` не ищет `SDL2_GFX` и не линкует `SDL2::SDL2_gfx`, `cmake/DxvUIConfig.cmake.in` не требует `sdl2-gfx`. Теперь весь бэкенд — только SDL2 + SDL2_ttf + spdlog.
+
+- **GPU-геометрия вместо CPU-растеризаторов:**
+  - `fillCircleGeometry`: triangle fan, адаптивное число сегментов `circleSegmentsForRadius(r)` (12..64), центр + `r*cos/sin`. `SDL_RenderGeometry` с индексом `0,i+1,i+2`.
+  - `drawCircleRingGeometry`: кольцо `outer=r`, `inner=r-thickness`. Генерация outer/inner вершин по кругу, quad strip (2 треугольника на сегмент). Если `inner<=0` — fallback в `fillCircle`.
+  - `drawArcRingGeometry`: толстая дуга — сектор кольца. Нормализация углов `span = end-start`, wrap 360°, `segs = ceil(fullSegs * span/360)`. Outer/inner точки по `degToRad`, quad strip. При `span~360°` — делегат в `drawCircleRingGeometry`.
+  - `drawThickLineGeometry`: толстая линия — квад перпендикулярно направлению. `dx,dy`, `len`, `nx=-dy/len, ny=dx/len`, `half=thickness/2`, `p0..p3` = `±nx*half, ±ny*half`. 2 треугольника. Zero-length → `fillCircle`.
+  - `fillPolygonGeometry` / `fillPolygonGeometryF`: триангуляция ear-clipping `triangulateEarClipping(Vec2)`: signed area для winding (CCW vs CW), проверка выпуклости по `cross(prev,curr,next)`, проверка отсутствия вершин внутри треугольника `pointInTriangle` (cross signs). Guard `n*n` от бесконечного цикла, fallback fan если ear не найден (degenerate/self-intersecting). Вершины + индексы → `SDL_RenderGeometry`.
+
+- **Интеграция в legacy int-based API:**
+  - `drawLine(int...)` → `drawThickLineGeometry`
+  - `fillCircle(int...)` → `fillCircleGeometry`
+  - `drawCircle(int..., Border)` → `drawCircleRingGeometry`
+  - `drawArc(...)` → `drawArcRingGeometry`
+  - `fillPolygon(vector<PointI>)` → `fillPolygonGeometry` (ear clipping)
+  - `fillPolygon(span<PointF>)` (ICanvas) → `triangulateEarClipping` на float, `RenderGeometry`
+  - `fillRect`, `drawRect`, `fillRoundRect`, `drawRoundRect` уже были GPU — без изменений.
+
+- **Приёмка:** `SDL2_gfx` не линкуется, `ldd`/`dumpbin` не показывает, все тесты `CanvasBrushTests` (которые мокают `IRenderer`) зелёные, визуально слайдер (палец — `fillCircle`), чекбокс (галочка — `drawLine` толстая), `Plot` (полигон), дуги — идентичны. Производительность: CPU-сканлайн заливка заменена на GPU, ожидается −10% CPU на сценариях с кругами/полигонами (slider, plot).
+
+Отклонения: батчинг/display-list, render-target кэш, damage-ректы, `Brush` gradient/shadow, Image-виджет (`createTexture`) оставлены как stage 6b опционально — требуют отдельного дизайна `ImageData` и `createRenderTarget`. Текущий коммит закрывает критерий «GPU-пути + удаление sdl2-gfx» из строки 6 таблицы.
+
+
+### 4.9. Реализовано: этап 6b (Image, render-target, damage, batching, gradient/shadow)
+
+**Что сделано (коммиты `226efa5` + `878585d`):**
+
+- **ImageData + createTexture:**
+  - `core/ImageData.h`: `width/height/channels(1/3/4)`, `vector<uint8_t> pixels` RGBA row-major, `isValid()`, хелперы `createCheckerboard(w,h,cell)` и `createSolid(r,g,b,a)`.
+  - `IRenderBackend`: `createTexture(ImageData)`, `createRenderTarget(w,h)`, `beginRenderTarget(tex)`, `endRenderTarget()` с стеком `SDL_Texture*`.
+  - `SDLRenderer`: `createTexture` конвертит 1/3/4 канала в RGBA8, `SDL_CreateTexture(RGBA32, STATIC)`, `SDL_UpdateTexture` pitch `w*4`, blend. `createRenderTarget` — `RGBA8888, TARGET`. `begin/endRenderTarget` — `SDL_GetRenderTarget` push/pop + `SDL_SetRenderTarget`.
+
+- **Image виджет:**
+  - `widgets/Image.h/.cpp`: `setTexture`, `setImageData` (pending до `ensureTexture` когда есть backend), `srcRect`, `tint`, `alpha`, `fit` (`None/Contain/Cover/Fill/ScaleDown`). `onMeasure` — размер текстуры clamped к available с учетом fit, `onPaint` — вычисляет `dst` по fit (centered для Contain/ScaleDown/Cover), `TextureDraw{dst, src?, tint, alpha}` → `canvas.drawTexture`.
+  - `DxvUI.h` экспортирует `ImageData` и `Image`, `CMakeLists.txt` добавляет `Image.cpp`.
+  - Тесты: `FakeRenderer` реализует новые методы как no-op.
+
+- **Damage-ректы:**
+  - `Scene`: `damageUnion_`, `hasDamage_`, `fullRedraw_=true` (первый кадр), `damageRects_` список, `addDamageRect(rect)` — union, `clearDamage()` — сброс + `fullRedraw_=false`, `getDamageUnion/hasDamage/needsFullRedraw`.
+  - `SceneNode::markStyleDirty` — добавляет `globalBounds` в damage, `markLayoutDirty` — добавляет старые bounds до пометки dirty.
+  - `LayoutManager::arrangeNode` — добавляет старые и новые bounds в damage при изменении.
+  - `Scene::onNodeRemoved` — добавляет bounds удаленного узла.
+  - `FrameInfo`: `damageUnion`, `hasDamage`, `fullRedraw`.
+  - `Scene::draw` — строит `FrameInfo` с damage, передает в `PaintContext`, после `endFrame` — `clearDamage()`. Пока рисует полный кадр, но `drawImpl` уже делает damage-culling: `if(hasDamage && !fullRedraw && !bounds.intersects(damageUnion)) return`.
+  - Приёмка: hover только с фоном → damage только bounds кнопки, а не всего дерева; в будущем можно пропускать `beginFrame` когда нет damage (кроме мигания каретки).
+
+- **Батчинг fillRect:**
+  - `SDLRenderer`: `FillRectBatch{Color, vector<Rect>}`, `fillRectBatch_`, `batchFillRect(rect,color)` — если цвет совпадает, добавляет в батч, иначе `flushFillRectBatch()`. Лимит 256 rects → flush.
+  - `flushFillRectBatch()` — генерирует `verts` 4 на rect, `indices` 6 на rect, один `SDL_RenderGeometry` вызов. `SDL_Color` из `toSDLColor`.
+  - Flush вызывается в начале всех операций, меняющих состояние: `pushClipRect`, `popClipRect`, `clear`, `present`, `beginFrame`, `endFrame`, `drawTexture`, `drawRect`, `drawLine`, `fillCircle`, `drawCircle`, `drawArc`, `drawRoundRect`, `fillRoundRect`, `fillPolygon`, `createTexture`, `createRenderTarget`, `begin/endRenderTarget`.
+  - Выигрыш: 100 кнопок с одинаковым фоном → 1 draw call вместо 100, `frames` бенчмарк −draw calls.
+
+- **Gradient & Shadow в Brush:**
+  - `Brush.h`: `LinearGradient{start,end,angleDeg}`, `Fill{color, optional<LinearGradient>}`, `Shadow{color, offsetX/Y, blur}`, `Brush{fill?, stroke?, shadow?}` + `filled(LinearGradient)`, `withShadow(base, shadow)`.
+  - `fillRectGradientGeometry`: для `Rect`, вычисляет градиент-вектор `gx=cos(angle), gy=sin(angle)`, dot всех 4 углов, `min/max`, `t = (dot-min)/range`, `lerpColor(start,end,t)` per vertex → `RenderGeometry`.
+  - `fillRoundRectGradientGeometry`: аналогично для скругленного — fan 53 вершины (center + 52 poly), per-vertex t по позиции.
+  - `fillRect(RectF,Fill)`: если `fill.gradient` → `fillRectGradientGeometry`, иначе `batchFillRect`.
+  - `fillRoundRect(RectF,Brush)`: shadow первым — `shadowRect = rect + offset ± blur/2`, `fillRoundedRectGeometry(shadowColor)`, затем fill: если gradient → `fillRoundRectGradientGeometry`, иначе solid, затем stroke ring.
+  - `fillCircle(Brush)`: shadow — `fillCircleGeometry` offset, затем fill+stroke.
+  - `CanvasAdapter` оставлен с solid fallback (transitional).
+
+**Приёмка stage 6:** `SDL2_gfx` удален, все примитивы GPU, `Image` рисуется с fit/tint/alpha, `createRenderTarget` работает для кэша поддеревьев (API готов), damage отслеживается и используется для culling, `fillRect` батчится, gradient (0°=left-right, 90°=top-bottom, generic angle) и shadow (offset+blur) работают в `fillRect`/`fillRoundRect`/`fillCircle`.
+
+Отклонения: display-list/батчинг остальных примитивов (roundRect, circle) пока не батчится — только fillRect; render-target кэш поддеревьев не включен автоматически (требует флага в SceneNode и инвалидации), оставлен как API; shadow blur — приближение spread, без Gaussian.
+
+
 
 ## 5. Совместимость и риски
 

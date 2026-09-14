@@ -26,6 +26,10 @@ class Label : public SceneNode {
    protected:
     Size onMeasure(const Size& availableSize) override;
     void onPaint(PaintContext& pc) override;
+
+   private:
+    // Stage 4: cache string between Change to avoid mutex+allocation each frame
+    std::string cachedText_;
 };
 
 }  // namespace DxvUI
