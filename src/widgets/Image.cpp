@@ -1,8 +1,8 @@
 #include "DxvUI/widgets/Image.h"
 
 #include "DxvUI/Log.h"
-#include "DxvUI/interfaces/IRenderBackend.h"
 #include "DxvUI/Scene.h"
+#include "DxvUI/interfaces/IRenderBackend.h"
 
 namespace DxvUI {
 
@@ -96,30 +96,11 @@ Size Image::onMeasure(const Size& availableSize) {
 
 void Image::ensureTexture(PaintContext& pc) {
     if (texture_ || !pendingData_) return;
-    // Need backend to create texture – get from scene or from PaintContext
-    IRenderBackend* backend = nullptr;
-
-    if (auto scene = getScene()) {
-        backend = scene->getRenderBackend();
-        if (!backend) {
-            // Try legacy renderer as backend
-            if (auto* r = scene->getRenderer()) {
-                backend = dynamic_cast<IRenderBackend*>(r);
-            }
-        }
-    }
-
-    // Fallback: try to get backend from text engine? No, use canvas backend if possible via pc
-    // PaintContext holds ICanvas& which in SDLRenderer is also IRenderBackend – we can try dynamic_cast
-    if (!backend) {
-        // pc.canvas() is ICanvas, but real backend is SDLRenderer which implements both.
-        // We try to dynamic_cast from ICanvas* to IRenderBackend* if RTTI allows.
-        // If not, we cannot create texture without backend – defer.
-        if (auto* cb = dynamic_cast<IRenderBackend*>(&pc.canvas())) {
-            backend = cb;
-        }
-    }
-
+    (void)pc;
+    // Texture creation needs the render backend. Scene::setRenderer keeps the
+    // renderBackend pointer in sync (IRenderer derives from IRenderBackend), so
+    // getRenderBackend() covers legacy hosts too — no RTTI needed here.
+    IRenderBackend* backend = getScene() ? getScene()->getRenderBackend() : nullptr;
     if (!backend) return;
     if (!pendingData_->isValid()) {
         Log::warn("Image::ensureTexture: invalid ImageData");
@@ -138,10 +119,9 @@ void Image::onPaint(PaintContext& pc) {
 
     if (!texture_) return;
 
-    RectF bounds = {static_cast<float>(getGlobalBounds().x),
-                    static_cast<float>(getGlobalBounds().y),
-                    static_cast<float>(getGlobalBounds().width),
-                    static_cast<float>(getGlobalBounds().height)};
+    RectF bounds = {
+        static_cast<float>(getGlobalBounds().x), static_cast<float>(getGlobalBounds().y),
+        static_cast<float>(getGlobalBounds().width), static_cast<float>(getGlobalBounds().height)};
 
     if (bounds.width <= 0 || bounds.height <= 0) return;
 
@@ -223,4 +203,4 @@ void Image::onPaint(PaintContext& pc) {
     pc.canvas().drawTexture(texture_, draw);
 }
 
-} // namespace DxvUI
+}  // namespace DxvUI

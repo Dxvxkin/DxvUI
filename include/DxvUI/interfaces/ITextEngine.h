@@ -99,7 +99,6 @@ struct TextLayout {
      */
     int caretXAt(size_t byteOffset) const {
         // Find glyph whose byteOffset == byteOffset, or the one after.
-        int x = 0;
         for (size_t i = 0; i < glyphs.size(); ++i) {
             if (byteOffsets[i] >= byteOffset) {
                 return xOffsets[i];
@@ -123,7 +122,6 @@ struct TextLayout {
         size_t lo = 0, hi = glyphs.size();
         while (lo < hi) {
             size_t mid = lo + (hi - lo) / 2;
-            int w = xOffsets[mid] + glyphs[mid].advance;
             // For last fitting glyph, we want xOffsets[mid] + advance <= maxWidth?
             // Use xOffsets[mid] <= maxWidth as inclusive start, but advance check for overflow.
             if (xOffsets[mid] <= maxWidth) {

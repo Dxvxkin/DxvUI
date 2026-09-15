@@ -96,8 +96,9 @@ Size TextEdit::onMeasure(const Size& availableSize) {
     TextLayout layout = engine->layoutText(*font, editor_.getText());
     const int width = layout.metrics.width;
     const LineMetrics line = engine->lineMetrics(*font);
-    const int height = line.lineHeight > 0 ? line.lineHeight
-                     : (layout.metrics.height > 0 ? layout.metrics.height : 0);
+    const int height = line.lineHeight > 0
+                           ? line.lineHeight
+                           : (layout.metrics.height > 0 ? layout.metrics.height : 0);
     return LayoutManager::addPadding({static_cast<float>(width), static_cast<float>(height)},
                                      insets);
 }

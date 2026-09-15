@@ -137,6 +137,10 @@ void Scene::processEvent(const DxvEvent& event) {
     // A window resize is not a widget event; re-layout against the new viewport
     // instead of dispatching it through the event manager.
     if (event.type == EventType::Resize) {
+        // Damage rects from the old viewport are meaningless and stale-coordinate
+        // culling could leave a wrong frame; force a full redraw until damage is
+        // tracked viewport-relative.
+        fullRedraw_ = true;
         updateLayout();
         return;
     }
@@ -217,7 +221,7 @@ void Scene::draw() {
 
     // For external renderer mode, host already cleared, so we pass transparent clear
     // and let backend decide (ownsResources check). For owned mode, backend clears.
-    ICanvas& canvas = backend->beginFrame(Color{0, 0, 0, 0});
+    ICanvas& canvas = backend->beginFrame(clearColor_);
 
     FrameInfo frame{
         .viewport = {0, 0, static_cast<int>(viewportSize.width), static_cast<int>(viewportSize.height)},

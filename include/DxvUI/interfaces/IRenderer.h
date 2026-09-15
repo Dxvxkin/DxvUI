@@ -61,6 +61,9 @@ class IRenderer : public IRenderBackend, public IPlatformServices {
         std::optional<Rect> src;
         std::optional<Color> tint;
         float alpha = 1.0f;
+        float rotationDeg = 0.0f;
+        bool flipX = false;
+        bool flipY = false;
     };
     virtual void drawTexture(const std::shared_ptr<ITexture>& texture,
                              const TextureDrawDesc& desc) = 0;

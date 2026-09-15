@@ -596,13 +596,13 @@ void SceneNode::drawImpl(PaintContext& pc, const Rect& viewportRect) {
         return;
     }
 
-    // Stage 6b: damage culling – if we have damage and not full redraw, skip nodes outside damage
-    const auto& frame = pc.frame();
-    if (frame.hasDamage && !frame.fullRedraw) {
-        if (!getGlobalBounds().intersects(frame.damageUnion)) {
-            return;
-        }
-    }
+    // Stage 6b: damage tracking is accumulated (addDamageRect/markLayoutDirty/markStyleDirty)
+    // for a future real partial-repaint, but the backend clears the whole frame before draw()
+    // (owned mode: beginFrame -> SDL_RenderClear; external mode: host SDL_RenderClear). With
+    // the target wiped every frame, skipping nodes outside the damage union would leak the
+    // cleared background for exactly one frame, so culling is disabled until the renderer
+    // stops clearing. FrameInfo damage fields stay informational.
+    (void)pc.frame();
 
     onPaintBackground(pc);
 

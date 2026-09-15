@@ -57,6 +57,9 @@ class CanvasAdapter final : public ICanvas {
         }
         desc.tint = draw.tint;
         desc.alpha = draw.alpha;
+        desc.rotationDeg = draw.rotationDeg;
+        desc.flipX = draw.flipX;
+        desc.flipY = draw.flipY;
         renderer_.drawTexture(texture, desc);
     }
 
