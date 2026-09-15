@@ -96,6 +96,11 @@ class SDLRenderer : public IRenderer, public ICanvas {
                        const Border& border) override;
     void fillPolygon(const std::vector<PointI>& points, const Color& color) override;
 
+    // Flushes the internal same-color fill batch immediately. Drawing is deferred
+    // (batching); hosts that need synchronous readback (pixel tests, offscreen
+    // capture) call this before reading pixels they just drew.
+    void flushBatch();
+
    private:
     SDL_Cursor* getSystemCursor(CursorType type);
     // Sets the SDL draw color; the only piece of "current state" the backend
@@ -116,8 +121,19 @@ class SDLRenderer : public IRenderer, public ICanvas {
 
     // Saved clip rectangles for pushClipRect()/popClipRect() nesting. The bool
     // records whether the saved clip was enabled at push time, so popClipRect()
-    // can restore the exact previous state (SDL treats a disabled clip as null).
-    std::vector<std::pair<bool, Rect>> clipStack;
+    // can restore the exact previous state (SDL treats a disabled clip as null);
+    // `empty` records whether drawing was already fully suppressed (see clipEmpty_).
+    struct ClipState {
+        bool enabled = false;
+        Rect rect;
+        bool empty = false;
+    };
+    std::vector<ClipState> clipStack;
+
+    // True when the intersection of all pushed clips is empty. SDL has no empty
+    // clip (an SDL_Rect with w/h <= 0 disables clipping), so pushClipRect() falls
+    // back to a 1x1 corner rect and this flag suppresses every draw instead.
+    bool clipEmpty_ = false;
 
     // Render-target stack for createRenderTarget/begin/end (stage 6b)
     std::vector<SDL_Texture*> renderTargetStack;

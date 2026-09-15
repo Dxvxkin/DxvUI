@@ -123,6 +123,12 @@ class Scene : public std::enable_shared_from_this<Scene> {
     bool needsFullRedraw() const { return fullRedraw_; }
     void setFullRedraw(bool v) { fullRedraw_ = v; }
 
+    // Color the frame is cleared to before draw. Relevant only when the backend
+    // owns the resources (owned mode); in external mode the host clears, so the
+    // Scene's clear color is ignored by beginFrame().
+    void setClearColor(const Color& color) { clearColor_ = color; }
+    const Color& getClearColor() const { return clearColor_; }
+
    private:
     Scene();
     void init();
@@ -141,6 +147,9 @@ class Scene : public std::enable_shared_from_this<Scene> {
     bool hasDamage_ = false;
     bool fullRedraw_ = true; // first frame needs full redraw
     std::vector<Rect> damageRects_; // optional list for future multi-rect
+
+    // Frame clear color in owned mode (Scene::draw passes it to beginFrame).
+    Color clearColor_{255, 255, 255, 255};
 };
 
 }  // namespace DxvUI
