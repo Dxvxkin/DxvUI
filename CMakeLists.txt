@@ -6,10 +6,11 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)  # compile_commands.json для clangd
 option(DXVUI_BUILD_EXAMPLES "Собирать примеры (DxvUI*Example, DxvUIBenchmark)" ON)
 include(CTest)  # включает enable_testing() и даёт переменную BUILD_TESTING
 
-# --- Find Dependencies via vcpkg ---
-find_package(SDL2 REQUIRED)
-find_package(SDL2_ttf REQUIRED)
-find_package(spdlog CONFIG REQUIRED)
+# --- Find-or-fetch dependencies (см. cmake/deps.cmake) ---
+# Каждая зависимость: find_package в системе (Linux/apt) → фолбэк FetchContent
+# по замороженному тегу (Windows/MinGW). Таргеты SDL2::SDL2, SDL2_ttf::SDL2_ttf,
+# spdlog::spdlog и (для тестов) GTest::gtest_main гарантированно существуют.
+include(cmake/deps.cmake)
 
 # --- Common ---
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -88,11 +89,12 @@ target_link_libraries(DxvUI PUBLIC
 dxvui_enable_warnings(DxvUI)
 
 # --- Runtime DLL deployment (Windows/MinGW dev-experience) ---
-# vcpkg's applocal already copies its own DLLs next to the executables; this
-# adds the MinGW runtime (imported by our exes AND by libspdlog.dll), so the
-# binaries in bin/ run standalone without a toolchain-specific PATH.
-# One shared target instead of per-exe POST_BUILD: concurrent copies of the
-# same DLLs into the shared bin/ race on Windows (sharing violation).
+# 1) MinGW runtime (libstdc++/libgcc/winpthread): импортируется нашими exe и
+#    бинарями зависимостей; копируется в bin/, чтобы бинарники работали без
+#    настройки toolchain-PATH.
+# 2) DLL фетчнутых SDL2/SDL2_ttf: cmake/deps.cmake копирует их рядом с exe.
+# Один общий подход вместо per-exe POST_BUILD: параллельные копии одних и тех же
+# DLL в общий bin/ гоняются на Windows (sharing violation).
 if(WIN32 AND NOT MSVC)
     get_filename_component(DXVUI_MINGW_BIN "${CMAKE_CXX_COMPILER}" DIRECTORY)
     add_custom_target(dxvui_mingw_runtime
@@ -107,42 +109,56 @@ function(dxvui_deploy_runtime_dlls target)
     if(TARGET dxvui_mingw_runtime)
         add_dependencies(${target} dxvui_mingw_runtime)
     endif()
+    dxvui_deploy_fetched_runtime_dlls(${target})
 endfunction()
 
 # --- Install / packaging ---
+# Полный пакет (таргеты + CMake-config + export) экспортируется, только когда
+# зависимости пришли из системы (импортированные таргеты, DXVUI_DEPS_EXPORTABLE).
+# При FetchContent-фетче (Windows/MinGW) сборка из исходников не экспортируется:
+# реальные таргеты из _deps нельзя положить в экспорт-сет без установки их самих.
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
 set(DXVUI_INSTALL_CMAKEDIR ${CMAKE_INSTALL_LIBDIR}/cmake/DxvUI)
 
-install(TARGETS DxvUI EXPORT DxvUITargets
-        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+if(DXVUI_DEPS_EXPORTABLE)
+    install(TARGETS DxvUI EXPORT DxvUITargets
+            ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+    configure_package_config_file(
+            cmake/DxvUIConfig.cmake.in
+            "${CMAKE_CURRENT_BINARY_DIR}/DxvUIConfig.cmake"
+            INSTALL_DESTINATION ${DXVUI_INSTALL_CMAKEDIR})
+    write_basic_package_version_file(
+            "${CMAKE_CURRENT_BINARY_DIR}/DxvUIConfigVersion.cmake"
+            VERSION ${PROJECT_VERSION}
+            COMPATIBILITY SameMajorVersion)
+    install(FILES
+            "${CMAKE_CURRENT_BINARY_DIR}/DxvUIConfig.cmake"
+            "${CMAKE_CURRENT_BINARY_DIR}/DxvUIConfigVersion.cmake"
+            DESTINATION ${DXVUI_INSTALL_CMAKEDIR})
+    install(EXPORT DxvUITargets
+            FILE DxvUITargets.cmake
+            NAMESPACE DxvUI::
+            DESTINATION ${DXVUI_INSTALL_CMAKEDIR})
+
+    # Build-tree export: consumers can find_package(DxvUI) against the build dir
+    # (pass -DDxvUI_DIR=<builddir>) without installing.
+    export(EXPORT DxvUITargets
+            FILE "${CMAKE_CURRENT_BINARY_DIR}/cmake/DxvUITargets.cmake"
+            NAMESPACE DxvUI::)
+else()
+    message(STATUS "DxvUI: упаковка/export пропущены (зависимости из FetchContent)")
+    install(TARGETS DxvUI
+            ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+endif()
+
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-
-configure_package_config_file(
-        cmake/DxvUIConfig.cmake.in
-        "${CMAKE_CURRENT_BINARY_DIR}/DxvUIConfig.cmake"
-        INSTALL_DESTINATION ${DXVUI_INSTALL_CMAKEDIR})
-write_basic_package_version_file(
-        "${CMAKE_CURRENT_BINARY_DIR}/DxvUIConfigVersion.cmake"
-        VERSION ${PROJECT_VERSION}
-        COMPATIBILITY SameMajorVersion)
-install(FILES
-        "${CMAKE_CURRENT_BINARY_DIR}/DxvUIConfig.cmake"
-        "${CMAKE_CURRENT_BINARY_DIR}/DxvUIConfigVersion.cmake"
-        DESTINATION ${DXVUI_INSTALL_CMAKEDIR})
-install(EXPORT DxvUITargets
-        FILE DxvUITargets.cmake
-        NAMESPACE DxvUI::
-        DESTINATION ${DXVUI_INSTALL_CMAKEDIR})
-
-# Build-tree export: consumers can find_package(DxvUI) against the build dir
-# (pass -DDxvUI_DIR=<builddir>) without installing.
-export(EXPORT DxvUITargets
-        FILE "${CMAKE_CURRENT_BINARY_DIR}/cmake/DxvUITargets.cmake"
-        NAMESPACE DxvUI::)
 
 # --- Examples ---
 function(add_dxvui_example name src)
@@ -173,7 +189,10 @@ endif()
 
 # --- Tests ---
 if(BUILD_TESTING)
-    find_package(GTest REQUIRED)
+    # Таргет гарантируется cmake/deps.cmake (системный пакет либо FetchContent).
+    if(NOT TARGET GTest::gtest_main)
+        find_package(GTest REQUIRED)
+    endif()
 
     add_executable(DxvUITests
             tests/CanvasBrushTests.cpp
