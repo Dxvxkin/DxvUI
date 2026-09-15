@@ -297,9 +297,11 @@ TEST(LabelTextEngineTest, MeasureComesFromEngine) {
 
 TEST(LabelTextEngineTest, EmptyTextSkipsLayout) {
     LabelFixture f;
+    // The fixture's measure already laid out "Hello" once; empty text must not
+    // create a new (empty) layout during draw (Label::onPaint early-returns).
     f.label->setText("");
     f.root->draw(f.renderer);
-    EXPECT_EQ(f.renderer.engine.layoutCount, 0);
+    EXPECT_EQ(f.renderer.engine.layoutCount, 1);
 }
 
 TEST(TextEngineCacheCountTest, TracksDistinctRasterizations) {
@@ -500,7 +502,8 @@ TEST(TextEditTest, PlaceholderShownWhileEmptyAndUnfocused) {
     f.field->setText("");
     f.field->setPlaceholder("Hint");
     f.root->draw(f.renderer);
-    EXPECT_EQ(f.renderer.engine.getLayoutCacheCount(), 1u);
+    // 1 layout from the fixture's measure of "Hello" + 1 for the placeholder drawn now.
+    EXPECT_EQ(f.renderer.engine.getLayoutCacheCount(), 2u);
 }
 
 TEST(TextEditTest, PlaceholderHiddenWhenFocused) {
@@ -510,7 +513,11 @@ TEST(TextEditTest, PlaceholderHiddenWhenFocused) {
     f.press(10, 10);
     f.release(10, 10);
     f.root->draw(f.renderer);
-    EXPECT_EQ(f.renderer.engine.getLayoutCacheCount(), 0u);
+    // Focused + empty: placeholder hidden (contract). Layout cache:
+    //   1 = fixture measure of "Hello";
+    //   2 = the press hit-test hitting the now-empty field (caret placement lays
+    //       out the empty text — a tiny, cached layout reused by caret/measure).
+    EXPECT_EQ(f.renderer.engine.getLayoutCacheCount(), 2u);
 }
 
 TEST(TextEditTest, PlaceholderHiddenWhenTextPresent) {

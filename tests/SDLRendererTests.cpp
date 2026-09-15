@@ -54,6 +54,7 @@ class SDLRendererTest : public ::testing::Test {
     }
 
     Uint32 pixelAt(int x, int y) {
+        renderer->flushBatch();
         SDL_RenderFlush(sdlRenderer);
         Uint32 pixel = 0;
         std::memcpy(
