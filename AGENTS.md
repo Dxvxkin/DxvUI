@@ -16,6 +16,17 @@ C++23 immediate-mode UI library built on SDL2 (`SDL2`, `SDL2_ttf`), `spdlog`, `G
     - **Windows/MinGW**: системных пакетов нет → deps скачиваются и собираются из исходников при первом configure
       (SDL2, SDL2_ttf, freetype, spdlog, googletest; ~5–15 мин один раз). Fetched-дерево кэшируется в
       `cmake-build-*/_deps/`, пересборка не качает заново.
+    - **Windows: первый configure хочет доверенные CA-сертификаты.** FetchContent качает через встроенный CMake-curl
+      (GnuTLS), которому на Windows неоткуда взять trust anchors → качалка падает (`SSL certificate verification failed ...
+      no trust anchors configured`). Перед первым `cmake --preset ...` задайте системный CA-бандл, например Git-овский:
+      `$env:SSL_CERT_FILE = "C:\Program Files\Git\usr\ssl\certs\ca-bundle.crt"`. Не выключайте проверку через
+      `-DCMAKE_TLS_VERIFY=OFF`.
+    - **`_deps/` живёт внутри каждого бинарьного каталога** (`cmake-build-debug/_deps`, `cmake-build-release/_deps`), а не в
+      общем корне: у FetchContent каталог `-build` (с `CMAKE_BUILD_TYPE` «кто первый») лежит тоже в базовом каталоге.
+      Общий базовый корень заставил бы release-сборку линковать Debug-депсы (искажает калибровку бенчмарка) и
+      конфликтовал бы при смене тулчейна. Цена — одноразовая перекачка/пересборка в каждом каталоге (~5–15 мин); при
+      желании можно вынести качалку в общий корень через `SOURCE_DIR` в `FetchContent_Declare`, оставив `BINARY_DIR` в
+      своём бинарьном каталоге (намеренно не сделано по умолчанию).
 - Конфигурация — через `CMakePresets.json`: `debug`/`release` (Windows) и `linux-debug`/`linux-release` (Linux);
   binaryDir'ы совпадают с CLion-овскими (`cmake-build-{debug,release}/`, gitignored). CLion работает как раньше (свои
   профили, те же каталоги); VS Code — расширение CMake Tools (пресеты подхватываются автоматически) + clangd.
