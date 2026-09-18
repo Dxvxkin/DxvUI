@@ -83,7 +83,7 @@ std::string TextEdit::getText() const { return editor_.getText(); }
 
 void TextEdit::setText(std::string text) { editor_.setText(std::move(text)); }
 
-Size TextEdit::onMeasure(const Size& availableSize) {
+Size TextEdit::onMeasure(const Size& /*availableSize*/) {
     const Thickness insets = LayoutManager::contentInsets(*this);
 
     ITextEngine* engine = nullptr;

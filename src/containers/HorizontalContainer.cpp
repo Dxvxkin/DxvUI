@@ -42,7 +42,6 @@ Size HorizontalContainer::onMeasure(const Size& availableSize) {
 void HorizontalContainer::onArrange(const Rect& finalRect) {
     const auto& computedLayout = getComputedLayout();
 
-    const auto& padding = computedLayout.padding;
     const float gap = computedLayout.gap;
     const Rect content = LayoutManager::contentRect(*this, finalRect);
 

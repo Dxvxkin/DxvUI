@@ -4,12 +4,12 @@
 // button. It subclasses DxvUIEx::SdlApp and owns the DxvUI integration itself (see
 // examples/main.cpp for the pattern).
 
-#include <DxvUI/event/DxvEvent.h>
 #include <DxvUI/Log.h>
 #include <DxvUI/Scene.h>
 #include <DxvUI/UIContext.h>
 #include <DxvUI/backend/SDLEventSource.h>
 #include <DxvUI/backend/SDLRenderer.h>
+#include <DxvUI/event/DxvEvent.h>
 #include <DxvUI/style/Colors.h>
 #include <DxvUI/style/Style.h>
 #include <DxvUI/widgets/Button.h>
@@ -33,7 +33,7 @@ constexpr int SCREEN_HEIGHT = 600;
 
 std::shared_ptr<DxvUI::Label> makeCaption(const std::string& id, const std::string& text, int x,
                                           int y) {
-    auto label = DxvUI::Label::create(id, std::move(text));
+    auto label = DxvUI::Label::create(id, text);
     label->setStyle({.fontSize = 14, .left = static_cast<float>(x), .top = static_cast<float>(y)},
                     DxvUI::WidgetState::Normal);
     return label;

@@ -51,9 +51,6 @@ Size AbsoluteContainer::onMeasure(const Size& availableSize) {
 }
 
 void AbsoluteContainer::onArrange(const Rect& finalRect) {
-    const auto& computedLayout = getComputedLayout();
-
-    const auto& padding = computedLayout.padding;
     Rect content = LayoutManager::contentRect(*this, finalRect);
 
     // Children are positioned from their own styles (absolute anchoring),

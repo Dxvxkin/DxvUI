@@ -664,5 +664,5 @@ std::size_t SceneNode::getDepth() const noexcept {
     return depth;
 }
 
-void SceneNode::onChange(const UIBinding& binding) {}
+void SceneNode::onChange(const UIBinding& /*binding*/) {}
 }  // namespace DxvUI

@@ -1,9 +1,9 @@
-#include <DxvUI/event/DxvEvent.h>
 #include <DxvUI/Log.h>
 #include <DxvUI/Scene.h>
 #include <DxvUI/SceneNode.h>
 #include <DxvUI/backend/SDLRenderer.h>
 #include <DxvUI/core.h>
+#include <DxvUI/event/DxvEvent.h>
 #include <DxvUI/style/Colors.h>
 #include <DxvUI/widgets/Button.h>
 #include <DxvUI/widgets/Label.h>
@@ -205,12 +205,6 @@ enum class HoverMode { None, Static, Toggle };
 struct FrameSamples {
     std::vector<double> update, draw, event;
 };
-
-void appendSamples(FrameSamples& dst, const FrameSamples& src) {
-    dst.update.insert(dst.update.end(), src.update.begin(), src.update.end());
-    dst.draw.insert(dst.draw.end(), src.draw.begin(), src.draw.end());
-    dst.event.insert(dst.event.end(), src.event.begin(), src.event.end());
-}
 
 void runFrames(Scene& scene, SDLRenderer& renderer, int frames, HoverMode hoverMode,
                FrameSamples& out) {

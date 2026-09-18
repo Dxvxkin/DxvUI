@@ -205,7 +205,7 @@ bool Plot::isAxisLabelsVisible() const { return showAxisLabels_; }
 void Plot::setAreaEnabled(bool enabled) { areaEnabled_ = enabled; }
 bool Plot::isAreaEnabled() const { return areaEnabled_; }
 
-Size Plot::onMeasure(const Size& availableSize) {
+Size Plot::onMeasure(const Size& /*availableSize*/) {
     // The plot is stretchable by default: report the preferred default size and
     // let a container override it (label must only compensate for the
     // padding/border that contentRect() subtracts, see Label::onMeasure).
@@ -408,7 +408,8 @@ void Plot::drawAxisLabels(PaintContext& pc, const Rect& content, const TickInfo&
         TextLayout layout = engine.layoutText(*font, text);
         if (layout.glyphs.empty() && text.empty()) return;
         const int w = layout.metrics.width;
-        const int h = layout.metrics.height > 0 ? layout.metrics.height : layout.lineMetrics.lineHeight;
+        const int h =
+            layout.metrics.height > 0 ? layout.metrics.height : layout.lineMetrics.lineHeight;
         if (x + w <= box.x || x >= box.x + box.width || y + h <= box.y || y >= box.y + box.height) {
             return;
         }
@@ -418,8 +419,8 @@ void Plot::drawAxisLabels(PaintContext& pc, const Rect& content, const TickInfo&
         paint.verticalAlign = Alignment::Start;
         paint.truncate = false;
         engine.drawLayout(pc.canvas(), layout,
-                          RectF(static_cast<float>(x), static_cast<float>(y),
-                                static_cast<float>(w), static_cast<float>(h)),
+                          RectF(static_cast<float>(x), static_cast<float>(y), static_cast<float>(w),
+                                static_cast<float>(h)),
                           paint);
     };
 

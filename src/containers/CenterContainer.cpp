@@ -30,9 +30,6 @@ Size CenterContainer::onMeasure(const Size& availableSize) {
 }
 
 void CenterContainer::onArrange(const Rect& finalRect) {
-    const auto& computedLayout = getComputedLayout();
-
-    const auto& padding = computedLayout.padding;
     Rect content = LayoutManager::contentRect(*this, finalRect);
 
     if (!getChildren().empty() && getChildren().front()) {

@@ -59,7 +59,7 @@ void Label::onChange(const UIBinding& binding) {
     markLayoutDirty();
 }
 
-Size Label::onMeasure(const Size& availableSize) {
+Size Label::onMeasure(const Size& /*availableSize*/) {
     const auto& computedAppearance = getComputedAppearance();
     const Thickness insets = LayoutManager::contentInsets(*this);
 
@@ -81,7 +81,7 @@ Size Label::onMeasure(const Size& availableSize) {
         return LayoutManager::addPadding(
             {static_cast<float>(layout.metrics.width),
              static_cast<float>(layout.metrics.height > 0 ? layout.metrics.height
-                                                           : layout.lineMetrics.lineHeight)},
+                                                          : layout.lineMetrics.lineHeight)},
             insets);
     }
     return {0, 0};

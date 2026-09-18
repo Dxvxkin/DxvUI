@@ -122,8 +122,6 @@ Size ScrollContainer::onMeasure(const Size& availableSize) {
 }
 
 void ScrollContainer::onArrange(const Rect& finalRect) {
-    const auto& computedLayout = getComputedLayout();
-    const auto& padding = computedLayout.padding;
     const Rect content = LayoutManager::contentRect(*this, finalRect);
 
     // Re-clamp against the actual arranged viewport: the offset must never push
