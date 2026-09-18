@@ -55,41 +55,47 @@ inline constexpr size_t kWidgetStateCount = 5;
 // std::optional is used to signify "not set".
 struct StyleRule {
     // Appearance Properties
-    std::optional<Color> backgroundColor;
-    std::optional<Color> textColor;
-    std::optional<Color> borderColor;
-    std::optional<int> borderThickness;
-    std::optional<int> borderRadius;
-    std::optional<CursorType> cursor;
+    std::optional<Color> backgroundColor = std::nullopt;
+    std::optional<Color> textColor = std::nullopt;
+    std::optional<Color> borderColor = std::nullopt;
+    std::optional<int> borderThickness = std::nullopt;
+    std::optional<int> borderRadius = std::nullopt;
+    std::optional<CursorType> cursor = std::nullopt;
     // When true, the node's content and children are clipped to its own bounds.
-    std::optional<bool> clipContent;
+    std::optional<bool> clipContent = std::nullopt;
 
     // Text Properties
-    std::optional<int> fontSize;
-    std::optional<std::string> fontFamily;
+    std::optional<int> fontSize = std::nullopt;
+    std::optional<std::string> fontFamily = std::nullopt;
     // How the node's own text content is aligned inside its box (left/center/right).
     // Inherited, so a container can align the text of all descendant labels.
-    std::optional<Alignment> textAlign;
-    std::optional<Alignment> textAlignVertical;
+    std::optional<Alignment> textAlign = std::nullopt;
+    std::optional<Alignment> textAlignVertical = std::nullopt;
 
     // Layout Properties (Absolute Positioning)
-    std::optional<float> left, top, right, bottom;
+    std::optional<float> left = std::nullopt;
+    std::optional<float> top = std::nullopt;
+    std::optional<float> right = std::nullopt;
+    std::optional<float> bottom = std::nullopt;
 
     // Layout Properties (Sizing)
-    std::optional<float> width, height;
-    std::optional<float> minWidth, minHeight;
-    std::optional<float> maxWidth, maxHeight;
+    std::optional<float> width = std::nullopt;
+    std::optional<float> height = std::nullopt;
+    std::optional<float> minWidth = std::nullopt;
+    std::optional<float> minHeight = std::nullopt;
+    std::optional<float> maxWidth = std::nullopt;
+    std::optional<float> maxHeight = std::nullopt;
 
     // Layout Properties (Alignment & Spacing)
-    std::optional<Thickness> padding;
-    std::optional<Thickness> margin;
+    std::optional<Thickness> padding = std::nullopt;
+    std::optional<Thickness> margin = std::nullopt;
     // Fixed spacing inserted between children on the container's main axis
     // (e.g. between items of a HorizontalContainer). 0 means no extra spacing.
-    std::optional<float> gap;
+    std::optional<float> gap = std::nullopt;
     // How the parent aligns this node within the space it gives it
     // (Start/Center/End/Stretch).
-    std::optional<Alignment> horizontalAlignment;
-    std::optional<Alignment> verticalAlignment;
+    std::optional<Alignment> horizontalAlignment = std::nullopt;
+    std::optional<Alignment> verticalAlignment = std::nullopt;
 
     /**
      * @brief Merges another StyleRule into this one.
@@ -144,9 +150,15 @@ struct ComputedAppearanceStyle {
 // always present: 0 means "derive from measure". min/max sizes are optional
 // constraints applied on top of the measured size.
 struct ComputedLayoutStyle {
-    std::optional<float> left, top, right, bottom;
+    std::optional<float> left = std::nullopt;
+    std::optional<float> top = std::nullopt;
+    std::optional<float> right = std::nullopt;
+    std::optional<float> bottom = std::nullopt;
     float width = 0, height = 0;
-    std::optional<float> minWidth, minHeight, maxWidth, maxHeight;
+    std::optional<float> minWidth = std::nullopt;
+    std::optional<float> minHeight = std::nullopt;
+    std::optional<float> maxWidth = std::nullopt;
+    std::optional<float> maxHeight = std::nullopt;
     Thickness padding;
     Thickness margin;
     // Spacing between children on the container's main axis (style-driven gap).
