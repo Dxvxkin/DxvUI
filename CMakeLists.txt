@@ -184,6 +184,7 @@ if(DXVUI_BUILD_EXAMPLES)
     add_dxvui_example(DxvUIScrollExample examples/scroll.cpp)
     add_dxvui_example(DxvUIPlotExample examples/plot.cpp)
     add_dxvui_example(DxvUIExternalRendererExample examples/external_renderer.cpp)
+    add_dxvui_example(DxvUIImageExample examples/image.cpp)
     add_dxvui_example(DxvUIBenchmark examples/benchmark.cpp)
 endif()
 
