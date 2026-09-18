@@ -191,6 +191,15 @@ void Image::onPaint(PaintContext& pc) {
         }
     }
 
+    // Never paint outside the widget's own bounds. A natural-size (None) draw or
+    // an off-centre Cover crop can exceed the box; clip such draws instead of
+    // shrinking dst (that would scale src to fit and silently change the mode).
+    const float maxRight = bounds.x + bounds.width;
+    const float maxBottom = bounds.y + bounds.height;
+    const bool needsClip = dst.x < bounds.x || dst.y < bounds.y || dst.x + dst.width > maxRight ||
+                           dst.y + dst.height > maxBottom;
+    ClipGuard imageClip(pc.canvas(), getGlobalBounds(), needsClip);
+
     ICanvas::TextureDraw draw;
     draw.dst = dst;
     if (srcRect_) {
