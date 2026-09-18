@@ -5,7 +5,9 @@ C++23 immediate-mode UI library built on SDL2 (`SDL2`, `SDL2_ttf`), `spdlog`, `G
 
 ## Build
 
-- Toolchain: CMake + Ninja, MinGW (рекомендуется bundled с CLion). Зависимости — политика **find-or-fetch**
+- Toolchain: CMake + Ninja; компилятор не закреплён в пресетах — CMake берёт доступный (Linux: системный gcc/clang;
+  Windows: любой однородный MinGW-тулчейн на PATH, например bundled с CLion или scoop `mingw-winlibs-ucrt`).
+  FetchContent-депсы собираются тем же компилятором, что и проект. Зависимости — политика **find-or-fetch**
   (`cmake/deps.cmake`): каждая сначала ищется через `find_package` в системе, а если не найдена — тянется
   `FetchContent`-ом из исходников по замороженному тегу (URL на tag-архив + SHA256; каталог `_deps/` в дереве build'а).
   vcpkg не используется.
@@ -120,13 +122,20 @@ Benchmark: `examples/benchmark.cpp` → `DxvUIBenchmark.exe` (both build dirs).
 - **Font selection.** Styles pick a font by logical family (`.fontFamily = "Sans"`), resolved to a platform font file
   via `getDefaultFontFamilyPath()` (in `core.h`); custom families go through `ITextEngine::registerFontFamily()`. Direct
   low-level engine calls use `DxvUI::getDefaultFontPath()` (in `core.h`).
-- **MinGW runtime mismatch → `0xC0000139` at startup.** Any exe that imports `libspdlogd.dll` fails to load with
-  `STATUS_ENTRYPOINT_NOT_FOUND` if `libstdc++-6.dll` resolves from a toolchain other than CLion's bundled MinGW (e.g. a
-  scoop `mingw-winlibs-ucrt` whose `libstdc++-6.dll` lacks `__cxa_thread_atexit`). CLion works because it puts its own
-  MinGW bin first in PATH for build/run. From a plain shell, prepend CLion's MinGW bin:
-  `$env:PATH = "D:\CLion <ver>\bin\mingw\bin;" + $env:PATH` before `cmake --build` / `ctest`. То же касается первого
-  configure: фетчнутые сабпроекты (SDL2, SDL2_ttf, freetype, spdlog, googletest) собираются найденным на PATH MinGW —
-  держите его первым, чтобы сабпроекты и проект были собраны одним компилятором (иначе ABI-микс).
+- **Один целостный тулчейн — и бинарники самодостаточны.** FetchContent-депсы (SDL2, SDL2_ttf, freetype, spdlog,
+  googletest) собираются тем же компилятором, что и проект. MinGW-runtime и DLL депсов кладутся в `bin/` из этой же
+  сборки (`dxvui_mingw_runtime` + `dxvui_deploy_fetched_runtime_dlls`: SDL2, SDL2_ttf, spdlog, freetype), поэтому
+  экзешники запускаются двойным кликом без настройки PATH; пересечения разных рантаймов не возникает. Старый сценарий
+  vcpkg-времён (exe с `libspdlogd.dll` грузил чужой `libstdc++-6.dll` из PATH → `0xC0000139`) больше не воспроизводится.
+- **Windows: следите, чтобы на PATH не стоял «скомканный» набор тулчейнов.** CMake берёт первый подходящий компилятор
+  из PATH; соседство scoop `llvm` и `mingw-winlibs-ucrt` заставляет его выбрать `clang++`/`llvm-rc`, которые без Visual
+  Studio нерабочие (detect broken, `winresrc.h not found`). Достаточно выстроить PATH нужного MinGW первым (в CLion он
+  подставляется сам) либо задать компиляторы **по именам без путей**:
+  `cmake --preset debug -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DCMAKE_RC_COMPILER=windres`. Жёсткий абсолютный
+  путь (раньше этого требовал vcpkg) больше не нужен. Проверено на Windows: CLion GCC 15.2 (debug/release) и scoop
+  `mingw-winlibs-ucrt` GCC 16.1 — 385/385 тестов.
+- **MSVC-путь (fetch-сборка под `cl`)** не проверялся: код имеет ветки `/W4`, `dxvui_mingw_runtime` пропускается, но
+  отдельного прогона не было.
 
 ## Conventions
 
