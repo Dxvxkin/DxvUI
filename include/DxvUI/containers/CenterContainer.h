@@ -1,6 +1,9 @@
 #ifndef DXVUI_CENTERCONTAINER_H
 #define DXVUI_CENTERCONTAINER_H
 
+#include <memory>
+#include <string>
+
 #include "Container.h"
 
 namespace DxvUI {
@@ -10,6 +13,8 @@ namespace DxvUI {
  */
 class CenterContainer : public Container {
    public:
+    static std::shared_ptr<CenterContainer> create(std::string id);
+
     using Container::Container;  // Inherit constructors
 
    protected:

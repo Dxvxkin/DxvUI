@@ -4,12 +4,12 @@
 // DxvUIEx::SdlApp and owns the DxvUI integration itself (see examples/main.cpp
 // for the pattern).
 
-#include <DxvUI/event/DxvEvent.h>
 #include <DxvUI/Log.h>
 #include <DxvUI/Scene.h>
 #include <DxvUI/backend/SDLEventSource.h>
 #include <DxvUI/backend/SDLRenderer.h>
 #include <DxvUI/containers/CenterContainer.h>
+#include <DxvUI/event/DxvEvent.h>
 #include <DxvUI/style/Colors.h>
 #include <DxvUI/style/Style.h>
 #include <DxvUI/widgets/Button.h>
@@ -78,7 +78,7 @@ class DxvUIPopupExample : public DxvUIEx::SdlApp {
         popup->setStyle({.backgroundColor = DxvUI::Colors::Gray, .width = 220, .height = 110},
                         DxvUI::WidgetState::Normal);
 
-        auto popupCtr = std::make_shared<DxvUI::CenterContainer>("pop_cntr");
+        auto popupCtr = DxvUI::CenterContainer::create("pop_cntr");
         // Лейбл внутри поп-апа.
         auto popupLabel = DxvUI::Label::create("popup_label", "Hello from popup!");
         popupLabel->setStyle({.left = 0, .top = 0}, DxvUI::WidgetState::Normal);

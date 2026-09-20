@@ -309,7 +309,7 @@ class DxvUIExample : public DxvUIEx::SdlApp {
     }
 
     void buildContainers(const std::shared_ptr<DxvUI::SceneNode>& root) {
-        auto h_container = std::make_shared<DxvUI::HorizontalContainer>("container_horizontal");
+        auto h_container = DxvUI::HorizontalContainer::create("container_horizontal");
         h_container->setSpacing(30);
         h_container->setStyle({.borderColor = DxvUI::Colors::Red,
                                .borderThickness = 1,

@@ -1,9 +1,15 @@
 #include "DxvUI/containers/CenterContainer.h"
 
+#include <utility>
+
 #include "DxvUI/core.h"
 #include "DxvUI/layout/LayoutManager.h"
 
 namespace DxvUI {
+
+std::shared_ptr<CenterContainer> CenterContainer::create(std::string id) {
+    return std::make_shared<CenterContainer>(std::move(id));
+}
 
 Size CenterContainer::onMeasure(const Size& availableSize) {
     const Thickness insets = LayoutManager::contentInsets(*this);

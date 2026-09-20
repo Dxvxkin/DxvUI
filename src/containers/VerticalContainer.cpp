@@ -1,10 +1,15 @@
 #include "DxvUI/containers/VerticalContainer.h"
 
 #include <algorithm>
+#include <utility>
 
 #include "DxvUI/layout/LayoutManager.h"
 
 namespace DxvUI {
+
+std::shared_ptr<VerticalContainer> VerticalContainer::create(std::string id) {
+    return std::make_shared<VerticalContainer>(std::move(id));
+}
 
 void VerticalContainer::setSpacing(float spacing) { updateStyle(StyleRule{.gap = spacing}); }
 

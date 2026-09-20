@@ -1,10 +1,15 @@
 #include "DxvUI/containers/AbsoluteContainer.h"
 
 #include <algorithm>
+#include <utility>
 
 #include "DxvUI/layout/LayoutManager.h"
 
 namespace DxvUI {
+
+std::shared_ptr<AbsoluteContainer> AbsoluteContainer::create(std::string id) {
+    return std::make_shared<AbsoluteContainer>(std::move(id));
+}
 
 Size AbsoluteContainer::onMeasure(const Size& availableSize) {
     const Thickness insets = LayoutManager::contentInsets(*this);

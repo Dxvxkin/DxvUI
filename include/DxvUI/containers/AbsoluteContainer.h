@@ -1,5 +1,8 @@
-#ifndef DXVUI_FREECONTAINER_H
-#define DXVUI_FREECONTAINER_H
+#ifndef DXVUI_ABSOLUTECONTAINER_H
+#define DXVUI_ABSOLUTECONTAINER_H
+
+#include <memory>
+#include <string>
 
 #include "Container.h"
 
@@ -13,6 +16,8 @@ namespace DxvUI {
  */
 class AbsoluteContainer : public Container {
    public:
+    static std::shared_ptr<AbsoluteContainer> create(std::string id);
+
     using Container::Container;  // Inherit constructors
 
    protected:
@@ -22,4 +27,4 @@ class AbsoluteContainer : public Container {
 
 }  // namespace DxvUI
 
-#endif  // DXVUI_FREECONTAINER_H
+#endif  // DXVUI_ABSOLUTECONTAINER_H

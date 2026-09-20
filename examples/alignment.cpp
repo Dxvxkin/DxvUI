@@ -4,7 +4,6 @@
 // free-axis alignment vs. anchors, and Stretch fill. It subclasses DxvUIEx::SdlApp
 // and owns the DxvUI integration itself (see examples/main.cpp for the pattern).
 
-#include <DxvUI/event/DxvEvent.h>
 #include <DxvUI/Log.h>
 #include <DxvUI/Scene.h>
 #include <DxvUI/UIContext.h>
@@ -13,6 +12,7 @@
 #include <DxvUI/containers/AbsoluteContainer.h>
 #include <DxvUI/containers/HorizontalContainer.h>
 #include <DxvUI/core.h>
+#include <DxvUI/event/DxvEvent.h>
 #include <DxvUI/style/Colors.h>
 #include <DxvUI/style/Style.h>
 #include <DxvUI/widgets/Button.h>
@@ -162,7 +162,7 @@ class DxvUIAlignmentExample : public DxvUIEx::SdlApp {
             "HorizontalContainer: verticalAlignment Start / Center / End (click to cycle)", 40,
             30));
 
-        auto row = std::make_shared<DxvUI::HorizontalContainer>("align_row");
+        auto row = DxvUI::HorizontalContainer::create("align_row");
         row->setSpacing(10);
         row->setStyle({.borderColor = DxvUI::Colors::Red,
                        .borderThickness = 1,
@@ -251,7 +251,7 @@ class DxvUIAlignmentExample : public DxvUIEx::SdlApp {
             "abs_caption", "AbsoluteContainer without anchors: Start/Start, Center/Center, End/End",
             40, 210));
 
-        auto abs1 = std::make_shared<DxvUI::AbsoluteContainer>("abs1");
+        auto abs1 = DxvUI::AbsoluteContainer::create("abs1");
         abs1->setStyle({.borderColor = DxvUI::Colors::Blue,
                         .borderThickness = 1,
                         .left = 40,
@@ -264,7 +264,7 @@ class DxvUIAlignmentExample : public DxvUIEx::SdlApp {
         abs1->addChild(abs1Child);
         root->addChild(abs1);
 
-        auto abs2 = std::make_shared<DxvUI::AbsoluteContainer>("abs2");
+        auto abs2 = DxvUI::AbsoluteContainer::create("abs2");
         abs2->setStyle({.borderColor = DxvUI::Colors::Blue,
                         .borderThickness = 1,
                         .left = 270,
@@ -279,7 +279,7 @@ class DxvUIAlignmentExample : public DxvUIEx::SdlApp {
         abs2->addChild(abs2Child);
         root->addChild(abs2);
 
-        auto abs3 = std::make_shared<DxvUI::AbsoluteContainer>("abs3");
+        auto abs3 = DxvUI::AbsoluteContainer::create("abs3");
         abs3->setStyle({.borderColor = DxvUI::Colors::Blue,
                         .borderThickness = 1,
                         .left = 500,
@@ -301,7 +301,7 @@ class DxvUIAlignmentExample : public DxvUIEx::SdlApp {
             "AbsoluteContainer: left anchor wins horizontally, free vertical axis is centered", 40,
             385));
 
-        auto anchored = std::make_shared<DxvUI::AbsoluteContainer>("anchor_box");
+        auto anchored = DxvUI::AbsoluteContainer::create("anchor_box");
         anchored->setStyle({.borderColor = DxvUI::Colors::Green,
                             .borderThickness = 1,
                             .left = 40,
@@ -320,7 +320,7 @@ class DxvUIAlignmentExample : public DxvUIEx::SdlApp {
             "stretch_caption",
             "AbsoluteContainer: Stretch children fill their slot (click to cycle)", 40, 550));
 
-        auto abs4 = std::make_shared<DxvUI::AbsoluteContainer>("abs4");
+        auto abs4 = DxvUI::AbsoluteContainer::create("abs4");
         abs4->setStyle({.backgroundColor = DxvUI::Colors::LightGray,
                         .borderColor = DxvUI::Colors::Green,
                         .borderThickness = 1,

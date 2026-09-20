@@ -4,7 +4,6 @@
 // with the mouse wheel. It subclasses DxvUIEx::SdlApp and owns the DxvUI
 // integration itself (see examples/main.cpp for the pattern).
 
-#include <DxvUI/event/DxvEvent.h>
 #include <DxvUI/Log.h>
 #include <DxvUI/Scene.h>
 #include <DxvUI/UIContext.h>
@@ -12,6 +11,7 @@
 #include <DxvUI/backend/SDLRenderer.h>
 #include <DxvUI/containers/ScrollContainer.h>
 #include <DxvUI/containers/VerticalContainer.h>
+#include <DxvUI/event/DxvEvent.h>
 #include <DxvUI/style/Colors.h>
 #include <DxvUI/style/Style.h>
 #include <DxvUI/widgets/Button.h>
@@ -89,7 +89,7 @@ class DxvUIScrollExample : public DxvUIEx::SdlApp {
         scroll->setStyle({.left = 40, .top = 70, .width = 420, .height = 300},
                          DxvUI::WidgetState::Normal);
 
-        auto items = std::make_shared<DxvUI::VerticalContainer>("items");
+        auto items = DxvUI::VerticalContainer::create("items");
         items->setStyle({.gap = 4}, DxvUI::WidgetState::Normal);
         for (int i = 0; i < 40; ++i) {
             auto row = DxvUI::Label::create("row" + std::to_string(i), std::format("Row #{}", i));

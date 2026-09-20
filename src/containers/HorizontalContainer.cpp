@@ -1,10 +1,15 @@
 #include "DxvUI/containers/HorizontalContainer.h"
 
 #include <algorithm>
+#include <utility>
 
 #include "DxvUI/layout/LayoutManager.h"
 
 namespace DxvUI {
+
+std::shared_ptr<HorizontalContainer> HorizontalContainer::create(std::string id) {
+    return std::make_shared<HorizontalContainer>(std::move(id));
+}
 
 void HorizontalContainer::setSpacing(float spacing) { updateStyle(StyleRule{.gap = spacing}); }
 

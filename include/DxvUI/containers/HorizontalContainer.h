@@ -1,4 +1,8 @@
-#pragma once
+#ifndef DXVUI_HORIZONTALCONTAINER_H
+#define DXVUI_HORIZONTALCONTAINER_H
+
+#include <memory>
+#include <string>
 
 #include "DxvUI/containers/Container.h"
 
@@ -9,6 +13,8 @@ namespace DxvUI {
  */
 class HorizontalContainer : public Container {
    public:
+    static std::shared_ptr<HorizontalContainer> create(std::string id);
+
     using Container::Container;  // Inherit constructors
 
     /**
@@ -36,3 +42,5 @@ class HorizontalContainer : public Container {
 };
 
 }  // namespace DxvUI
+
+#endif  // DXVUI_HORIZONTALCONTAINER_H
