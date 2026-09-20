@@ -42,8 +42,8 @@ class FakeTexture : public ITexture {
     int h_;
 };
 
-// Fake engine with glyph atlas semantics: layout cached per (font,text), glyphs per (font,codepoint),
-// color NOT part of key. Rasterize path kept for legacy but not used by Label.
+// Fake engine with glyph atlas semantics: layout cached per (font,text), glyphs per
+// (font,codepoint), color NOT part of key. Rasterize path kept for legacy but not used by Label.
 class FakeTextEngine : public ITextEngine {
    public:
     int rasterCount = 0;
@@ -118,8 +118,8 @@ class FakeTextEngine : public ITextEngine {
         // Build glyphs: one per byte for simplicity (fake engine uses 8px per byte)
         for (size_t i = 0; i < s.size();) {
             size_t start = i;
-            // handle UTF-8 code point boundaries for fake: treat each codepoint as 1 byte for ASCII,
-            // but for multi-byte, count bytes until next start.
+            // handle UTF-8 code point boundaries for fake: treat each codepoint as 1 byte for
+            // ASCII, but for multi-byte, count bytes until next start.
             size_t next = start + 1;
             while (next < s.size() && (static_cast<unsigned char>(s[next]) & 0xC0) == 0x80) {
                 ++next;
@@ -304,6 +304,25 @@ TEST(LabelTextEngineTest, EmptyTextSkipsLayout) {
     EXPECT_EQ(f.renderer.engine.layoutCount, 1);
 }
 
+TEST(LabelTextEngineTest, CleanFramesReuseCachedLayout) {
+    LabelFixture f;
+    // The fixture's measure laid out "Hello" once. Clean draws must hit the
+    // per-label layout cache: the engine is not asked to layout again.
+    const int layoutsAfterMeasure = f.renderer.engine.layoutCount;
+    ASSERT_EQ(layoutsAfterMeasure, 1);
+
+    f.root->draw(f.renderer);
+    f.root->draw(f.renderer);
+    EXPECT_EQ(f.renderer.engine.layoutCount, layoutsAfterMeasure);
+
+    // A font key change invalidates the cache and rebuilds exactly once.
+    f.label->setStyle({.fontSize = 20}, WidgetState::Normal);
+    f.manager.resolveDirtyStyles(f.root);
+    f.root->draw(f.renderer);
+    f.root->draw(f.renderer);
+    EXPECT_EQ(f.renderer.engine.layoutCount, layoutsAfterMeasure + 1);
+}
+
 TEST(TextEngineCacheCountTest, TracksDistinctRasterizations) {
     FakeTextEngine engine;
     auto font = engine.getFont("fake.ttf", 16);
@@ -331,9 +350,9 @@ TEST(TextEngineGlyphCacheTest, GlyphCacheKeyWithoutColor) {
     ASSERT_NE(font, nullptr);
 
     engine.layoutText(*font, "Hello");
-    EXPECT_EQ(engine.getGlyphCacheCount(), 4u); // H,e,l,o
+    EXPECT_EQ(engine.getGlyphCacheCount(), 4u);  // H,e,l,o
 
-    engine.layoutText(*font, "Hello"); // cached
+    engine.layoutText(*font, "Hello");  // cached
     EXPECT_EQ(engine.getGlyphCacheCount(), 4u);
     EXPECT_EQ(engine.getLayoutCacheCount(), 1u);
 

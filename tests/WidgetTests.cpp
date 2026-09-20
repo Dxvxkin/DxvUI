@@ -257,6 +257,18 @@ TEST(LabelTest, SetTextUpdatesValue) {
     EXPECT_EQ(label->getText(), "new");
 }
 
+TEST(LabelTest, SetTextRoundTripWithEmptyValue) {
+    auto label = Label::create("lbl", "hello");
+    EXPECT_EQ(label->getText(), "hello");
+
+    // Empty cache path: getText() must not fall back to the binding here.
+    label->setText("");
+    EXPECT_EQ(label->getText(), "");
+
+    label->setText("world");
+    EXPECT_EQ(label->getText(), "world");
+}
+
 TEST(LabelTest, FontSizeChangeRelayouts) {
     auto root = std::make_shared<AbsoluteContainer>("root");
     auto label = std::make_shared<CountingLabel>("lbl", "hello");
