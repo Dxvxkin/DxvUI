@@ -29,7 +29,8 @@ C++23 immediate-mode UI library built on SDL2 (`SDL2`, `SDL2_ttf`), `spdlog`, `G
       своём бинарьном каталоге (намеренно не сделано по умолчанию).
 - Конфигурация — через `CMakePresets.json`: `debug`/`release` (Windows) и `linux-debug`/`linux-release` (Linux);
   binaryDir'ы совпадают с CLion-овскими (`cmake-build-{debug,release}/`, gitignored). CLion работает как раньше (свои
-  профили, те же каталоги); VS Code — расширение CMake Tools (пресеты подхватываются автоматически) + clangd.
+  профили, те же каталоги); VS Code — расширение CMake Tools (пресеты подхватываются автоматически) + clangd
+  (compile_commands.json копируется в корень репо таргетом `copy_compile_commands`).
 
 ```powershell
 # Windows: configure + build + tests
@@ -38,13 +39,15 @@ cmake --build cmake-build-debug
 ctest --test-dir cmake-build-debug
 # или напрямую (GTest-тесты автодискаверятся через gtest_discover_tests)
 ./cmake-build-debug/bin/DxvUITests.exe
+# один набор тестов: ... --gtest_filter=LayoutManagerTests.* (или ctest -R <regex>)
 
 # пересборка по существующему кэшу — просто build:
 cmake --build cmake-build-release
 ```
 
 - Transfertные флаги:
-    - `-DDXVUI_FORCE_FETCH_DEPS=ON` — игнорировать систему и тянуть всё из исходников (проверка fetch-пути/CI);
+    - `-DDXVUI_FORCE_FETCH_DEPS=ON` — игнорировать систему и тянуть всё из исходников (ручная проверка fetch-пути;
+      CI в репозитории нет);
     - `-DFETCHCONTENT_FULLY_DISCONNECTED=ON` — офлайн-переконфигурация из уже скачанного `_deps` (без сети).
 - SDL_ttf поверх фетчнутого freetype: `cmake/deps.cmake` тянет freetype и подкладывает обёртку
   `cmake/FindFreetype.cmake`, редиректящую `Freetype::Freetype` на собранный таргет (активируется только вокруг
@@ -128,6 +131,16 @@ Benchmark: `examples/benchmark.cpp` → `DxvUIBenchmark.exe` (both build dirs).
 - **No source globbing.** Every `.cpp` is explicitly listed in `CMakeLists.txt` `target_sources` (lib `DxvUI`, test exe
   `DxvUITests`). Adding a source file without editing CMakeLists means it silently won't build.
 - **Umbrella header `DxvUI/DxvUI.h` includes all public headers.** Keep it in sync when adding a new public header.
+- **Сборка держится на нуле предупреждений** (`-Wall -Wextra -Wpedantic` / `/W4`). GCC-варнинг
+  `-Wmissing-field-initializers` на designated-инициализаторах optional-агрегатов (`StyleRule`, `ComputedLayoutStyle` в
+  `style/Style.h`) глушится NSDMI `= std::nullopt`, а не `-Wno-...`/прагмами.
+- **stb_image — единственный вендоренный деп** (в отличие от остальных, не find-or-fetch): `third_party/stb/stb_image.h`;
+  TU с реализацией — `src/stb_image_impl.cpp` (`STB_IMAGE_IMPLEMENTATION`), вызывается из `src/core/ImageData.cpp`.
+  Публичные заголовки stb не включают — консьюмерам пакета он не нужен.
+- **Examples** используют общий DxvUI-agnostic хост `examples/App.h` (`DxvUIEx::SdlApp`: окно/рендерер/цикл; пример сам
+  владеет Scene/SDLRenderer) и `examples/FpsOverlay.h`. Новый пример — подкласс SdlApp + `add_dxvui_example(...)` в
+  CMakeLists (сам добавит warnings, рантайм-DLL и `SDL2::SDL2main` на Windows). `DXVUI_FRAMES=N` ограничивает число
+  кадров — для скриптового прогона.
 - **SDL entry point.** The example defines `extern "C" int SDL_main(...)` and links `SDL2::SDL2main`; SDL2 redefines
   `main` on Windows.
 - **Font selection.** Styles pick a font by logical family (`.fontFamily = "Sans"`), resolved to a platform font file
@@ -159,3 +172,5 @@ Benchmark: `examples/benchmark.cpp` → `DxvUIBenchmark.exe` (both build dirs).
 - Layout/arrange logic was recently extracted from `SceneNode` into the container classes — put measure/arrange
   overrides in containers, not `SceneNode`.
 - Commit messages and some comments are in Russian; match that when relevant.
+- Планы развития — `docs/` (`ROADMAP.md`, `RENDERING_REFACTORING.md`, `AUTO_CACHE_BATCHING_PLAN.md`): это предложения
+  («что/зачем/где в коде»), не описание текущего поведения — `RENDERING_REFACTORING` помечен как нереализованный.
