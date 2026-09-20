@@ -3,8 +3,24 @@
 #include "DxvUI/Log.h"
 #include "DxvUI/Scene.h"
 #include "DxvUI/interfaces/IRenderBackend.h"
+#include "DxvUI/style/Colors.h"
+#include "DxvUI/style/Theme.h"
 
 namespace DxvUI {
+
+// --- Self-registration of default styles ---
+namespace {
+constexpr const char* kWidgetType = "Image";
+
+struct ImageStyleRegistrar {
+    ImageStyleRegistrar() {
+        Theme::registerDefaultStyle(
+            kWidgetType, {{WidgetState::Normal, {.backgroundColor = Colors::Transparent}}});
+    }
+};
+
+const ImageStyleRegistrar registrar;
+}  // namespace
 
 std::shared_ptr<Image> Image::create(std::string id) {
     return std::make_shared<Image>(std::move(id));
@@ -12,7 +28,7 @@ std::shared_ptr<Image> Image::create(std::string id) {
 
 Image::Image(std::string id) : SceneNode(std::move(id)) {}
 
-const char* Image::getNodeType() const noexcept { return "Image"; }
+const char* Image::getNodeType() const noexcept { return kWidgetType; }
 
 void Image::setTexture(const std::shared_ptr<ITexture>& texture) {
     texture_ = texture;

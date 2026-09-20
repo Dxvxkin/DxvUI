@@ -202,6 +202,7 @@ if(BUILD_TESTING)
             tests/EventManagerTests.cpp
             tests/EventTargetTests.cpp
             tests/FpsCounterTests.cpp
+            tests/ImageTests.cpp
             tests/LayoutManagerTests.cpp
             tests/LogTests.cpp
             tests/NodeStateTests.cpp
