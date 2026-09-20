@@ -34,29 +34,61 @@ std::shared_ptr<Label> Label::create(std::string id, std::string text) {
 }
 
 Label::Label(std::string id, std::string text) : SceneNode(std::move(id)), cachedText_(text) {
-    auto binding = UIBinding::create(text);
+    // The string copy lives in cachedText_; the binding takes the moved string.
+    auto binding = UIBinding::create(std::move(text));
     bind(binding);
 }
 
 const char* Label::getNodeType() const noexcept { return kWidgetType; }
 
 void Label::setText(std::string newText) {
-    cachedText_ = newText;
-    getBinding()->set(newText);
+    cachedText_ = std::move(newText);
+    invalidateLayoutCache();
+    getBinding()->set(cachedText_);
 }
 
 std::string Label::getText() const {
-    // Stage 4: return cached to avoid mutex+allocation, fallback to binding if empty cache
-    if (!cachedText_.empty() || !getBinding()) {
-        return cachedText_;
-    }
-    return getBinding()->getString();
+    // Stage 4: cachedText_ is the single source of truth (constructor, setText
+    // and onChange all keep it in sync), so no binding access and no mutex here.
+    return cachedText_;
 }
 
 void Label::onChange(const UIBinding& binding) {
     // Stage 4: cache string between Change to avoid mutex+allocation each frame
     cachedText_ = binding.getString();
+    invalidateLayoutCache();
     markLayoutDirty();
+}
+
+void Label::invalidateLayoutCache() { cachedLayout_.reset(); }
+
+const TextLayout& Label::getLayout(ITextEngine& engine, const ComputedAppearanceStyle& appearance) {
+    const bool fontKeyChanged = cachedEngine_ != &engine ||
+                                cachedFontSize_ != appearance.fontSize ||
+                                cachedFontFamily_ != appearance.fontFamily;
+    const bool textChanged = cachedLayout_ && cachedLayout_->text != cachedText_;
+
+    // Stage 5 cache hit: same engine, font and text — reuse the layout with no
+    // engine lookup and no TextLayout copy (zero allocations on clean frames).
+    if (cachedLayout_ && !fontKeyChanged && !textChanged) {
+        return *cachedLayout_;
+    }
+
+    if (fontKeyChanged) {
+        cachedFont_ = engine.getFontForFamily(appearance.fontFamily, appearance.fontSize);
+        cachedEngine_ = &engine;
+        cachedFontSize_ = appearance.fontSize;
+        cachedFontFamily_ = appearance.fontFamily;
+    }
+
+    cachedLayout_.reset();
+    if (!cachedFont_) {
+        // Font unavailable: treat the text as zero size.
+        static const TextLayout kEmptyLayout;
+        return kEmptyLayout;
+    }
+    cachedLayout_ = std::make_shared<TextLayout>(engine.layoutText(*cachedFont_, cachedText_));
+    return *cachedLayout_;
 }
 
 Size Label::onMeasure(const Size& /*availableSize*/) {
@@ -66,18 +98,16 @@ Size Label::onMeasure(const Size& /*availableSize*/) {
     auto scene = getScene();
     if (scene && scene->getTextEngine()) {
         auto& engine = *scene->getTextEngine();
-        auto font =
-            engine.getFontForFamily(computedAppearance.fontFamily, computedAppearance.fontSize);
-        if (!font) {
-            return {0, 0};
-        }
         // Stage 4: use cached text to avoid mutex+allocation
-        const auto& text = cachedText_;
-        if (text.empty()) {
+        if (cachedText_.empty()) {
             return LayoutManager::addPadding({0, 0}, insets);
         }
-        // Stage 3: measure via TextLayout (glyph atlas, cached per font+text)
-        auto layout = engine.layoutText(*font, text);
+        // Stage 5: measure from the shared cached layout (no font/layout work
+        // per call when the key is unchanged).
+        const TextLayout& layout = getLayout(engine, computedAppearance);
+        if (layout.empty()) {
+            return LayoutManager::addPadding({0, 0}, insets);
+        }
         return LayoutManager::addPadding(
             {static_cast<float>(layout.metrics.width),
              static_cast<float>(layout.metrics.height > 0 ? layout.metrics.height
@@ -91,23 +121,20 @@ void Label::onPaint(PaintContext& pc) {
     const auto& computedAppearance = getComputedAppearance();
 
     // Stage 4: use cached text
-    const auto& text = cachedText_;
-    if (text.empty()) {
+    if (cachedText_.empty()) {
         return;
     }
 
     auto& engine = pc.text();
-    auto font = engine.getFontForFamily(computedAppearance.fontFamily, computedAppearance.fontSize);
-    if (!font) {
+    const TextLayout& layout = getLayout(engine, computedAppearance);
+    if (layout.empty()) {
         return;
     }
 
     const Rect contentRect = LayoutManager::contentRect(*this, getGlobalBounds());
 
-    // Stage 3: single lookup of TextLayout + single drawLayout with tint.
-    // Alignment/truncation handled inside drawLayout (previously duplicated).
-    TextLayout layout = engine.layoutText(*font, text);
-
+    // Stage 5: paint the same layout that onMeasure produced — reused every
+    // frame with no engine lookup. Alignment/truncation handled in drawLayout.
     TextPaint paint;
     paint.color = computedAppearance.textColor;
     paint.align = computedAppearance.textAlign;
