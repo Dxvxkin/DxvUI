@@ -4,7 +4,6 @@
 #include <utility>
 
 #include "DxvUI/event/DxvEvent.h"
-#include "DxvUI/interfaces/IRenderer.h"
 #include "DxvUI/layout/LayoutManager.h"
 #include "DxvUI/style/Colors.h"
 #include "DxvUI/style/Theme.h"

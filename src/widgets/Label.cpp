@@ -5,7 +5,7 @@
 
 #include "DxvUI/Scene.h"
 #include "DxvUI/UIBinding.h"
-#include "DxvUI/interfaces/IRenderer.h"
+#include "DxvUI/interfaces/ITextEngine.h"
 #include "DxvUI/layout/LayoutManager.h"
 #include "DxvUI/style/Colors.h"
 #include "DxvUI/style/Theme.h"
