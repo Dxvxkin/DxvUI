@@ -172,5 +172,5 @@ Benchmark: `examples/benchmark.cpp` → `DxvUIBenchmark.exe` (both build dirs).
 - Layout/arrange logic was recently extracted from `SceneNode` into the container classes — put measure/arrange
   overrides in containers, not `SceneNode`.
 - Commit messages and some comments are in Russian; match that when relevant.
-- Планы развития — `docs/` (`ROADMAP.md`, `RENDERING_REFACTORING.md`, `AUTO_CACHE_BATCHING_PLAN.md`): это предложения
-  («что/зачем/где в коде»), не описание текущего поведения — `RENDERING_REFACTORING` помечен как нереализованный.
+- Планы развития — `docs/TRACKER.md`: единый трекер «сделано / осталось» по API-виджетам-событиям, рендеру и
+  авто-кешу/батчингу; детальная история и обоснования — в git-истории (документы-предшественники удалены).
