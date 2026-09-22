@@ -11,6 +11,13 @@
 
 ### Сделано
 
+- **Ленивый computed-style resolve на первом событии** (внешний хост может
+  форвардить ввод **до** первого `updateLayout()`/`update()` — см.
+  `examples/external_renderer.cpp`): `Scene::processEvent` перед диспетчеризацией
+  проверяет холодный кеш корня (`getComputedAppearance(...) == nullptr`) и лениво
+  резолвит (`markStyleDirty` + `updateLayout`) вместо FATAL'а в
+  `SceneNode::getComputedAppearance`. Регресс-тест
+  `SceneTest.ProcessEventBeforeFirstLayoutPopulatesStyleCache`.
 - **Система событий — трёхфазная DOM-модель** (бывш. ROADMAP п.1/п.4):
   - фазы `Capture → Target → Bubble`, полный проход в `EventManager::dispatch`,
     поузловой `SceneNode::dispatchEvent(DxvEvent&, EventPhase)` без рекурсии на
