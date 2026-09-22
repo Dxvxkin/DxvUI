@@ -55,7 +55,7 @@ API; `kWidgetType` уже централизован константой на �
 
 ## 2. Рендеринг и бэкенд
 
-### Сделано (этапы 0–6b)
+### Сделано (этапы 0–7)
 
 | Этап | Что | Коммит |
 |------|-----|--------|
@@ -67,6 +67,7 @@ API; `kWidgetType` уже централизован константой на �
 | 5 | `IRenderBackend` + `IPlatformServices`, `FrameInfo` сквозь `Scene::draw`, `EventManager` на сервисы | `c12bedd` |
 | 6a | GPU-пути (circle/ring/arc/thick-line, ear-clipping полигоны), sdl2-gfx удалён | `c12bedd` |
 | 6b | `ImageData`/`createTexture`/`createRenderTarget` + Image; damage-ректы (culling в `drawImpl`); батчинг fillRect; gradient/shadow в `Brush` | `c12bedd` |
+| 7 | Удаление `IRenderer`/`CanvasAdapter`/шимов; `SDLRenderer` → `IRenderBackend`+`ICanvas`+`IPlatformServices` (int-API в private); общий `tests/FakeBackend.h`; версия пакета → 1.0.0 | `9b28e03` |
 
 Ключевые решения этапа 3: белый per-string fast path (`TTF_RenderUTF8_Blended` +
 tint — совпадает с legacy по кернингу/baseline), кернинг
@@ -75,16 +76,6 @@ tint — совпадает с legacy по кернингу/baseline), керн�
 
 ### Осталось
 
-- **Stage 7 — удаление legacy-шима** (ломает публичный API — major-версия пакета;
-  отдельный PR, можно сгруппировать с другими breaking-изменениями из §1 п.2):
-  - удалить `interfaces/IRenderer.h` и `backend/CanvasAdapter.h`;
-  - `SceneNode::draw(IRenderer&)` → оставить только `draw(PaintContext&)`;
-  - `Scene`: убрать `renderer`/`setRenderer`/`getRenderer`, оставить
-    `renderBackend`/`platformServices`;
-  - `SDLRenderer` → наследует `IRenderBackend + ICanvas + IPlatformServices`
-    напрямую (умирает `setSDLDrawColor`);
-  - тесты: `FakeRenderer` → `FakeBackend` (реализуют только новые интерфейсы);
-  - примеры/бенчмарк: `IRenderBackend*` вместо `IRenderer*`.
 - ⏳ Опционально (по числам бенчмарка): `TextureRef`-дескриптор вместо
   `shared_ptr<ITexture>`; multiline `TextLayout` (по спросу); headless-канвас
   (запись PaintOps для скриншот-тестов); damage-пропуск `beginFrame` (аккуратно:
@@ -114,7 +105,7 @@ tint — совпадает с legacy по кернингу/baseline), керн�
 
 - ✅ `stb_image` (v2.30) + `ImageData::loadFromFile/Memory` (`third_party/stb/`,
   `src/stb_image_impl.cpp`) — сделано.
-- 🟡 Legacy audit: `IRenderer`/`CanvasAdapter`/шим ещё живы → stage 7 (см. §2).
+- ✅ Stage 7: `IRenderer`/`CanvasAdapter`/шим удалены (см. §2).
 - ⏳ **Subtree cache — не начато** (API `createRenderTarget/begin/end` готов).
 - ⏳ **BatchBuilder — не начато** (есть только fillRect-батч: `fillRectBatch_`,
   лимит 256, flush на смене состояния).
@@ -154,6 +145,6 @@ draw calls 1 вместо N.
 ### Чек-лист приёмки
 
 - [x] `stb_image` + `ImageData::loadFromFile/Memory`
-- [ ] Stage 7: удаление `IRenderer`/`CanvasAdapter`/шимов (отдельный PR)
+- [x] Stage 7: удаление `IRenderer`/`CanvasAdapter`/шимов (см. §2)
 - [ ] Subtree cache: ручной флаг, LRU, damage-инвалидация, `frames` −50% CPU
 - [ ] Batching: `BatchBuilder`, clip-aware, texture batch, метрики draw calls, −70%

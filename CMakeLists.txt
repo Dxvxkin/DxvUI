@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(DxvUI VERSION 0.1.0 LANGUAGES CXX)
+project(DxvUI VERSION 1.0.0 LANGUAGES CXX)
 
 # --- Options ---
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)  # compile_commands.json для clangd
