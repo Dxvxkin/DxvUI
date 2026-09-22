@@ -32,7 +32,9 @@
   мышью, hover-тултип со значением, легенда по `getSeriesName()`, толстые линии.
 - **Image** (stage 6b, `c12bedd`; дефолтный стиль `30a5fb5`, демо `2afb811`):
   fit `None/Contain/Cover/Fill/ScaleDown`, `srcRect`/`tint`/`alpha`, загрузка
-  PNG/JPG через stb_image (`ImageData::loadFromFile/Memory`).
+  PNG/JPG через stb_image (`ImageData::loadFromFile/Memory`). Фикс сборки примера
+  на Windows (безымянные `argc/argv` в `SDL_main` — на Linux именованные, баг ушёл
+  в master); первая сборка Windows после stage 7: 394/394 тестов, 0 warnings.
 - **Горячий путь Label** (бывш. ROADMAP п.3, частично): кэш строки
   (`cachedText_`, обход мутекса `UIBinding` между `Change`) + кэш font-handle и
   последнего layout (`d667f05`, `eb7af4e`).
