@@ -113,9 +113,10 @@ Size Image::onMeasure(const Size& availableSize) {
 void Image::ensureTexture(PaintContext& pc) {
     if (texture_ || !pendingData_) return;
     (void)pc;
-    // Texture creation needs the render backend. Scene::setRenderer keeps the
-    // renderBackend pointer in sync (IRenderer derives from IRenderBackend), so
-    // getRenderBackend() covers legacy hosts too — no RTTI needed here.
+    // Texture creation needs the render backend. The scene's renderBackend is
+    // set directly by setRenderBackend(); a host that also provides platform
+    // services (SDLRenderer) gets bound through the backend's dynamic cast in
+    // setRenderBackend — no RTTI needed here.
     IRenderBackend* backend = getScene() ? getScene()->getRenderBackend() : nullptr;
     if (!backend) return;
     if (!pendingData_->isValid()) {

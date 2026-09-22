@@ -518,42 +518,6 @@ std::vector<int> triangulateEarClipping(const std::vector<Vec2>& poly) {
     return indices;
 }
 
-void fillPolygonGeometry(SDL_Renderer* renderer, const std::vector<PointI>& points,
-                         const Color& color) {
-    if (points.size() < 3) return;
-    std::vector<Vec2> poly;
-    poly.reserve(points.size());
-    for (auto& p : points) poly.push_back({static_cast<float>(p.x), static_cast<float>(p.y)});
-
-    auto indices = triangulateEarClipping(poly);
-    if (indices.empty()) return;
-
-    SDL_Color c = toSDLColor(color);
-    std::vector<SDL_Vertex> verts;
-    verts.reserve(poly.size());
-    for (auto& v : poly) {
-        verts.push_back({{v.x, v.y}, c, {0.0f, 0.0f}});
-    }
-    SDL_RenderGeometry(renderer, nullptr, verts.data(), static_cast<int>(verts.size()),
-                       indices.data(), static_cast<int>(indices.size()));
-}
-
-void fillPolygonGeometryF(SDL_Renderer* renderer, const std::vector<SDL_FPoint>& points,
-                          const Color& color) {
-    if (points.size() < 3) return;
-    std::vector<Vec2> poly;
-    poly.reserve(points.size());
-    for (auto& p : points) poly.push_back({p.x, p.y});
-    auto indices = triangulateEarClipping(poly);
-    if (indices.empty()) return;
-    SDL_Color c = toSDLColor(color);
-    std::vector<SDL_Vertex> verts;
-    verts.reserve(poly.size());
-    for (auto& v : poly) verts.push_back({{v.x, v.y}, c, {0.0f, 0.0f}});
-    SDL_RenderGeometry(renderer, nullptr, verts.data(), static_cast<int>(verts.size()),
-                       indices.data(), static_cast<int>(indices.size()));
-}
-
 }  // namespace
 
 SDLRenderer::SDLRenderer(const char* title, int width, int height, bool vsync)
@@ -721,7 +685,7 @@ SDL_Cursor* SDLRenderer::getSystemCursor(CursorType type) {
 
 void SDLRenderer::clear(const Color& color) {
     flushFillRectBatch();
-    setSDLDrawColor(color);
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
     SDL_RenderClear(renderer);
 }
 void SDLRenderer::present() {
@@ -764,22 +728,70 @@ void SDLRenderer::pushClip(const RectF& rect) { pushClipRect(rect.rounded()); }
 void SDLRenderer::popClip() { popClipRect(); }
 
 void SDLRenderer::drawTexture(const std::shared_ptr<ITexture>& texture, const RectF& dstRect) {
-    drawTexture(texture, dstRect.rounded());
+    flushFillRectBatch();
+    if (clipEmpty_) return;
+    if (!texture) return;
+    const auto* sdlTexture = dynamic_cast<SDLTexture*>(texture.get());
+    if (!sdlTexture || !sdlTexture->_texture) {
+        Log::error(
+            "SDLRenderer::drawTexture: the texture was not created by this renderer (foreign "
+            "ITexture implementation or a freed handle); skipping");
+        return;
+    }
+    const Rect rounded = dstRect.rounded();
+    SDL_Rect dst = {rounded.x, rounded.y, rounded.width, rounded.height};
+    SDL_SetTextureColorMod(sdlTexture->_texture, 255, 255, 255);
+    SDL_SetTextureAlphaMod(sdlTexture->_texture, 255);
+    SDL_RenderCopy(renderer, sdlTexture->_texture, nullptr, &dst);
 }
 
 void SDLRenderer::drawTexture(const std::shared_ptr<ITexture>& texture, const TextureDraw& draw) {
-    // Translate float TextureDraw -> int TextureDrawDesc
-    TextureDrawDesc desc;
-    desc.dst = draw.dst.rounded();
-    if (draw.src) {
-        desc.src = draw.src->rounded();
+    flushFillRectBatch();
+    if (clipEmpty_) return;
+    if (!texture) return;
+    const auto* sdlTexture = dynamic_cast<SDLTexture*>(texture.get());
+    if (!sdlTexture || !sdlTexture->_texture) {
+        Log::error(
+            "SDLRenderer::drawTexture(tinted): the texture was not created by this renderer "
+            "(foreign ITexture implementation or a freed handle); skipping");
+        return;
     }
-    desc.tint = draw.tint;
-    desc.alpha = draw.alpha;
-    desc.rotationDeg = draw.rotationDeg;
-    desc.flipX = draw.flipX;
-    desc.flipY = draw.flipY;
-    drawTexture(texture, desc);
+
+    const Rect dstRounded = draw.dst.rounded();
+    SDL_Rect dst = {dstRounded.x, dstRounded.y, dstRounded.width, dstRounded.height};
+    SDL_Rect src;
+    SDL_Rect* srcPtr = nullptr;
+    if (draw.src) {
+        const Rect srcRounded = draw.src->rounded();
+        src = {srcRounded.x, srcRounded.y, srcRounded.width, srcRounded.height};
+        srcPtr = &src;
+    }
+
+    if (draw.tint) {
+        SDL_SetTextureColorMod(sdlTexture->_texture, draw.tint->r, draw.tint->g, draw.tint->b);
+        const float a = draw.tint->a / 255.0f * draw.alpha;
+        SDL_SetTextureAlphaMod(sdlTexture->_texture,
+                               static_cast<Uint8>(std::clamp(a * 255.0f, 0.0f, 255.0f)));
+    } else {
+        SDL_SetTextureColorMod(sdlTexture->_texture, 255, 255, 255);
+        SDL_SetTextureAlphaMod(sdlTexture->_texture,
+                               static_cast<Uint8>(std::clamp(draw.alpha * 255.0f, 0.0f, 255.0f)));
+    }
+
+    SDL_RendererFlip flip = SDL_FLIP_NONE;
+    if (draw.flipX) flip = static_cast<SDL_RendererFlip>(flip | SDL_FLIP_HORIZONTAL);
+    if (draw.flipY) flip = static_cast<SDL_RendererFlip>(flip | SDL_FLIP_VERTICAL);
+    if (draw.rotationDeg != 0.0f || flip != SDL_FLIP_NONE) {
+        SDL_RendererFlip rflip = flip;
+        SDL_Point center{dst.x + dst.w / 2, dst.y + dst.h / 2};
+        SDL_RenderCopyEx(renderer, sdlTexture->_texture, srcPtr, &dst, draw.rotationDeg, &center,
+                         rflip);
+    } else {
+        SDL_RenderCopy(renderer, sdlTexture->_texture, srcPtr, &dst);
+    }
+
+    SDL_SetTextureColorMod(sdlTexture->_texture, 255, 255, 255);
+    SDL_SetTextureAlphaMod(sdlTexture->_texture, 255);
 }
 
 void SDLRenderer::fillRect(const RectF& rect, const Fill& fill) {
@@ -909,75 +921,6 @@ void SDLRenderer::drawLine(const PointF& from, const PointF& to, const Stroke& s
              std::max(1, static_cast<int>(std::lround(stroke.thickness))));
 }
 
-void SDLRenderer::drawTexture(const std::shared_ptr<ITexture>& texture, const Rect& dstRect) {
-    flushFillRectBatch();
-    if (clipEmpty_) return;
-    if (!texture) return;
-    const auto* sdlTexture = dynamic_cast<SDLTexture*>(texture.get());
-    if (!sdlTexture || !sdlTexture->_texture) {
-        Log::error(
-            "SDLRenderer::drawTexture: the texture was not created by this renderer (foreign "
-            "ITexture implementation or a freed handle); skipping");
-        return;
-    }
-    SDL_Rect dst = {dstRect.x, dstRect.y, dstRect.width, dstRect.height};
-    SDL_SetTextureColorMod(sdlTexture->_texture, 255, 255, 255);
-    SDL_SetTextureAlphaMod(sdlTexture->_texture, 255);
-    SDL_RenderCopy(renderer, sdlTexture->_texture, nullptr, &dst);
-}
-
-void SDLRenderer::drawTexture(const std::shared_ptr<ITexture>& texture,
-                              const TextureDrawDesc& desc) {
-    flushFillRectBatch();
-    if (clipEmpty_) return;
-    if (!texture) return;
-    const auto* sdlTexture = dynamic_cast<SDLTexture*>(texture.get());
-    if (!sdlTexture || !sdlTexture->_texture) {
-        Log::error(
-            "SDLRenderer::drawTexture(tinted): the texture was not created by this renderer "
-            "(foreign ITexture implementation or a freed handle); skipping");
-        return;
-    }
-
-    SDL_Rect dst = {desc.dst.x, desc.dst.y, desc.dst.width, desc.dst.height};
-    SDL_Rect src;
-    SDL_Rect* srcPtr = nullptr;
-    if (desc.src) {
-        src = {desc.src->x, desc.src->y, desc.src->width, desc.src->height};
-        srcPtr = &src;
-    }
-
-    if (desc.tint) {
-        SDL_SetTextureColorMod(sdlTexture->_texture, desc.tint->r, desc.tint->g, desc.tint->b);
-        const float a = desc.tint->a / 255.0f * desc.alpha;
-        SDL_SetTextureAlphaMod(sdlTexture->_texture,
-                               static_cast<Uint8>(std::clamp(a * 255.0f, 0.0f, 255.0f)));
-    } else {
-        SDL_SetTextureColorMod(sdlTexture->_texture, 255, 255, 255);
-        SDL_SetTextureAlphaMod(sdlTexture->_texture,
-                               static_cast<Uint8>(std::clamp(desc.alpha * 255.0f, 0.0f, 255.0f)));
-    }
-
-    SDL_RendererFlip flip = SDL_FLIP_NONE;
-    if (desc.flipX) flip = static_cast<SDL_RendererFlip>(flip | SDL_FLIP_HORIZONTAL);
-    if (desc.flipY) flip = static_cast<SDL_RendererFlip>(flip | SDL_FLIP_VERTICAL);
-    if (desc.rotationDeg != 0.0f || flip != SDL_FLIP_NONE) {
-        SDL_RendererFlip rflip = flip;
-        SDL_Point center{desc.dst.x + desc.dst.width / 2, desc.dst.y + desc.dst.height / 2};
-        SDL_RenderCopyEx(renderer, sdlTexture->_texture, srcPtr, &dst, desc.rotationDeg, &center,
-                         rflip);
-    } else {
-        SDL_RenderCopy(renderer, sdlTexture->_texture, srcPtr, &dst);
-    }
-
-    SDL_SetTextureColorMod(sdlTexture->_texture, 255, 255, 255);
-    SDL_SetTextureAlphaMod(sdlTexture->_texture, 255);
-}
-
-void SDLRenderer::setSDLDrawColor(const Color& color) {
-    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
-}
-
 void SDLRenderer::flushBatch() { flushFillRectBatch(); }
 
 void SDLRenderer::flushFillRectBatch() {
@@ -1045,19 +988,12 @@ void SDLRenderer::drawRect(const Rect& rect, const Border& border) {
     flushFillRectBatch();
     if (clipEmpty_) return;
     if (border.thickness <= 0) return;
-    setSDLDrawColor(border.color);
+    SDL_SetRenderDrawColor(renderer, border.color.r, border.color.g, border.color.b,
+                           border.color.a);
     for (int i = 0; i < border.thickness; ++i) {
         SDL_Rect r = {rect.x + i, rect.y + i, rect.width - 2 * i, rect.height - 2 * i};
         if (r.w <= 0 || r.h <= 0) break;
         SDL_RenderDrawRect(renderer, &r);
-    }
-}
-void SDLRenderer::fillRect(const Rect& rect, const Color& color) { batchFillRect(rect, color); }
-void SDLRenderer::fillRect(const Rect& rect, const Color& fillColor, const Border& border) {
-    batchFillRect(rect, fillColor);
-    if (border.thickness > 0) {
-        flushFillRectBatch();
-        drawRect(rect, border);
     }
 }
 void SDLRenderer::drawLine(int x1, int y1, int x2, int y2, const Color& color, int thickness) {
@@ -1104,11 +1040,6 @@ void SDLRenderer::fillRoundRect(const Rect& rect, int radius, const Color& fillC
     if (border.thickness > 0) {
         drawRoundedRectRingGeometry(renderer, rect, radius, border.thickness, border.color);
     }
-}
-void SDLRenderer::fillPolygon(const std::vector<PointI>& points, const Color& color) {
-    flushFillRectBatch();
-    if (clipEmpty_) return;
-    fillPolygonGeometry(renderer, points, color);
 }
 
 std::shared_ptr<ITexture> SDLRenderer::createTexture(const ImageData& data) {

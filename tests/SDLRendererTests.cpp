@@ -16,7 +16,6 @@
 // Internal to the backend (not installed): the test wraps a raw SDL_Texture
 // the same way the text engine does. Reached through the src/ include path
 // added for the tests target in CMakeLists.txt.
-#include "backend/CanvasAdapter.h"
 #include "backend/SDLTexture.h"
 
 using namespace DxvUI;
@@ -90,16 +89,16 @@ class SDLRendererTest : public ::testing::Test {
 };
 
 TEST_F(SDLRendererTest, PushClipRectIntersectsWithCurrentClip) {
-    renderer->pushClipRect(Rect{10, 10, 100, 100});
+    renderer->pushClip(RectF(10, 10, 100, 100));
     EXPECT_TRUE(SDL_RenderIsClipEnabled(sdlRenderer));
     EXPECT_TRUE(expectRectEq(currentClip(), 10, 10, 100, 100));
 
-    renderer->pushClipRect(Rect{60, 60, 100, 100});
+    renderer->pushClip(RectF(60, 60, 100, 100));
     EXPECT_TRUE(expectRectEq(currentClip(), 60, 60, 50, 50));
 
-    renderer->popClipRect();
+    renderer->popClip();
     EXPECT_TRUE(expectRectEq(currentClip(), 10, 10, 100, 100));
-    renderer->popClipRect();
+    renderer->popClip();
     EXPECT_FALSE(SDL_RenderIsClipEnabled(sdlRenderer));
 }
 
@@ -109,48 +108,48 @@ TEST_F(SDLRendererTest, NestedClipConstrainsDrawingToIntersection) {
     const Uint32 green = mapColor(Colors::Green);
     const Uint32 blue = mapColor(Colors::Blue);
 
-    renderer->fillRect(Rect{0, 0, kSurfaceWidth, kSurfaceHeight}, Colors::White);
+    renderer->fillRect(RectF(0, 0, kSurfaceWidth, kSurfaceHeight), Fill{Colors::White});
 
-    renderer->pushClipRect(Rect{10, 10, 100, 100});
-    renderer->fillRect(Rect{0, 0, kSurfaceWidth, kSurfaceHeight}, Colors::Red);
+    renderer->pushClip(RectF(10, 10, 100, 100));
+    renderer->fillRect(RectF(0, 0, kSurfaceWidth, kSurfaceHeight), Fill{Colors::Red});
     EXPECT_EQ(pixelAt(5, 5), white);
     EXPECT_EQ(pixelAt(50, 50), red);
     EXPECT_EQ(pixelAt(150, 150), white);
 
-    renderer->pushClipRect(Rect{60, 60, 100, 100});
-    renderer->fillRect(Rect{0, 0, kSurfaceWidth, kSurfaceHeight}, Colors::Green);
+    renderer->pushClip(RectF(60, 60, 100, 100));
+    renderer->fillRect(RectF(0, 0, kSurfaceWidth, kSurfaceHeight), Fill{Colors::Green});
     EXPECT_EQ(pixelAt(70, 70), green);
     EXPECT_EQ(pixelAt(50, 50), red);
     EXPECT_EQ(pixelAt(150, 150), white);
 
-    renderer->popClipRect();
-    renderer->fillRect(Rect{0, 0, kSurfaceWidth, kSurfaceHeight}, Colors::Blue);
+    renderer->popClip();
+    renderer->fillRect(RectF(0, 0, kSurfaceWidth, kSurfaceHeight), Fill{Colors::Blue});
     EXPECT_EQ(pixelAt(5, 5), white);
     EXPECT_EQ(pixelAt(50, 50), blue);
     EXPECT_EQ(pixelAt(70, 70), blue);
     EXPECT_EQ(pixelAt(150, 150), white);
 
-    renderer->popClipRect();
-    renderer->fillRect(Rect{0, 0, kSurfaceWidth, kSurfaceHeight}, Colors::Black);
+    renderer->popClip();
+    renderer->fillRect(RectF(0, 0, kSurfaceWidth, kSurfaceHeight), Fill{Colors::Black});
     EXPECT_EQ(pixelAt(150, 150), mapColor(Colors::Black));
 }
 
 TEST_F(SDLRendererTest, DisjointNestedClipClipsEverything) {
     const Uint32 white = mapColor(Colors::White);
 
-    renderer->fillRect(Rect{0, 0, kSurfaceWidth, kSurfaceHeight}, Colors::White);
-    renderer->pushClipRect(Rect{10, 10, 50, 50});
-    renderer->pushClipRect(Rect{100, 100, 50, 50});
+    renderer->fillRect(RectF(0, 0, kSurfaceWidth, kSurfaceHeight), Fill{Colors::White});
+    renderer->pushClip(RectF(10, 10, 50, 50));
+    renderer->pushClip(RectF(100, 100, 50, 50));
 
     EXPECT_TRUE(SDL_RenderIsClipEnabled(sdlRenderer));
-    renderer->fillRect(Rect{0, 0, kSurfaceWidth, kSurfaceHeight}, Colors::Red);
+    renderer->fillRect(RectF(0, 0, kSurfaceWidth, kSurfaceHeight), Fill{Colors::Red});
     EXPECT_EQ(pixelAt(30, 30), white);
     EXPECT_EQ(pixelAt(120, 120), white);
     EXPECT_EQ(pixelAt(100, 100), white);
     EXPECT_EQ(pixelAt(5, 5), white);
 
-    renderer->popClipRect();
-    renderer->fillRect(Rect{0, 0, kSurfaceWidth, kSurfaceHeight}, Colors::Green);
+    renderer->popClip();
+    renderer->fillRect(RectF(0, 0, kSurfaceWidth, kSurfaceHeight), Fill{Colors::Green});
     EXPECT_EQ(pixelAt(30, 30), mapColor(Colors::Green));
     EXPECT_EQ(pixelAt(120, 120), white);
 }
@@ -163,19 +162,19 @@ class FakeTexture : public ITexture {
 
 TEST_F(SDLRendererTest, DrawTextureRejectsForeignTextureImplementation) {
     const Uint32 white = mapColor(Colors::White);
-    renderer->fillRect(Rect{0, 0, kSurfaceWidth, kSurfaceHeight}, Colors::White);
+    renderer->fillRect(RectF(0, 0, kSurfaceWidth, kSurfaceHeight), Fill{Colors::White});
 
     auto foreign = std::make_shared<FakeTexture>();
-    renderer->drawTexture(foreign, Rect{0, 0, 4, 4});
-    renderer->drawTexture(std::make_shared<FakeTexture>(), Rect{0, 0, 4, 4});
+    renderer->drawTexture(foreign, RectF(0, 0, 4, 4));
+    renderer->drawTexture(std::make_shared<FakeTexture>(), RectF(0, 0, 4, 4));
     // Tinted path also rejects
-    IRenderer::TextureDrawDesc desc;
-    desc.dst = Rect{0, 0, 4, 4};
-    desc.tint = Colors::Red;
-    renderer->drawTexture(foreign, desc);
+    ICanvas::TextureDraw td;
+    td.dst = RectF(0, 0, 4, 4);
+    td.tint = Colors::Red;
+    renderer->drawTexture(foreign, td);
     EXPECT_EQ(pixelAt(1, 1), white);
 
-    renderer->drawTexture(nullptr, Rect{0, 0, 4, 4});
+    renderer->drawTexture(nullptr, RectF(0, 0, 4, 4));
     EXPECT_EQ(pixelAt(1, 1), white);
 }
 
@@ -188,8 +187,8 @@ TEST_F(SDLRendererTest, DrawTextureRendersTexturePixels) {
     ASSERT_EQ(SDL_UpdateTexture(raw, nullptr, pixels.data(), 4 * sizeof(Uint32)), 0);
     auto texture = std::make_shared<SDLTexture>(raw);
 
-    renderer->fillRect(Rect{0, 0, kSurfaceWidth, kSurfaceHeight}, Colors::White);
-    renderer->drawTexture(texture, Rect{10, 10, 4, 4});
+    renderer->fillRect(RectF(0, 0, kSurfaceWidth, kSurfaceHeight), Fill{Colors::White});
+    renderer->drawTexture(texture, RectF(10, 10, 4, 4));
 
     EXPECT_EQ(pixelAt(12, 12), mapColor(Colors::Red));
     EXPECT_EQ(pixelAt(12, 16), mapColor(Colors::White));
@@ -205,11 +204,11 @@ TEST_F(SDLRendererTest, DrawTextureTintedRendersWithColorMod) {
     ASSERT_EQ(SDL_UpdateTexture(raw, nullptr, pixels.data(), 4 * sizeof(Uint32)), 0);
     auto texture = std::make_shared<SDLTexture>(raw);
 
-    renderer->fillRect(Rect{0, 0, kSurfaceWidth, kSurfaceHeight}, Colors::White);
-    IRenderer::TextureDrawDesc desc;
-    desc.dst = Rect{10, 10, 4, 4};
-    desc.tint = Colors::Red;
-    renderer->drawTexture(texture, desc);
+    renderer->fillRect(RectF(0, 0, kSurfaceWidth, kSurfaceHeight), Fill{Colors::White});
+    ICanvas::TextureDraw td;
+    td.dst = RectF(10, 10, 4, 4);
+    td.tint = Colors::Red;
+    renderer->drawTexture(texture, td);
 
     EXPECT_EQ(pixelAt(12, 12), mapColor(Colors::Red));
 }
@@ -236,8 +235,10 @@ TEST_F(SDLRendererTest, TextEngineCachesAreLruBounded) {
         // Use different codepoints (up to 0xFFFF) to fill glyph cache
         uint32_t cp = static_cast<uint32_t>(32 + (i % 200));
         std::string s;
-        if (cp < 128) s = std::string(1, static_cast<char>(cp));
-        else s = "A"; // fallback
+        if (cp < 128)
+            s = std::string(1, static_cast<char>(cp));
+        else
+            s = "A";  // fallback
         engine.layoutText(*font, s);
     }
     EXPECT_LE(engine.getGlyphCacheCount(), SDLTextEngine::kMaxGlyphCacheEntries);
@@ -255,10 +256,10 @@ TEST_F(SDLRendererTest, CanvasBrushPaintsRoundRectFillAndBorder) {
     const Uint32 red = mapColor(Colors::Red);
     const Uint32 blue = mapColor(Colors::Blue);
 
-    renderer->fillRect(Rect{0, 0, kSurfaceWidth, kSurfaceHeight}, Colors::White);
+    renderer->fillRect(RectF(0, 0, kSurfaceWidth, kSurfaceHeight), Fill{Colors::White});
 
-    CanvasAdapter canvas(*renderer);
-    canvas.fillRoundRect(Rect{20, 20, 60, 40}, 8.0f,
+    ICanvas& canvas = *renderer;
+    canvas.fillRoundRect(RectF(20, 20, 60, 40), 8.0f,
                          Brush::filledAndStroked(Colors::Red, Stroke{Colors::Blue, 2.0f}));
 
     EXPECT_EQ(pixelAt(50, 40), red);
@@ -268,32 +269,30 @@ TEST_F(SDLRendererTest, CanvasBrushPaintsRoundRectFillAndBorder) {
 }
 
 TEST_F(SDLRendererTest, CanvasBrushPaintsThickLineCircleAndArc) {
-    const Uint32 white = mapColor(Colors::White);
     const Uint32 red = mapColor(Colors::Red);
     const Uint32 green = mapColor(Colors::Green);
     const Uint32 blue = mapColor(Colors::Blue);
 
-    renderer->fillRect(Rect{0, 0, kSurfaceWidth, kSurfaceHeight}, Colors::White);
+    renderer->fillRect(RectF(0, 0, kSurfaceWidth, kSurfaceHeight), Fill{Colors::White});
 
-    CanvasAdapter canvas(*renderer);
+    ICanvas& canvas = *renderer;
 
-    canvas.drawLine(PointI(10, 10), PointI(90, 10), Stroke{Colors::Green, 4.0f});
+    canvas.drawLine(PointF(10, 10), PointF(90, 10), Stroke{Colors::Green, 4.0f});
     EXPECT_EQ(pixelAt(50, 10), green);
     EXPECT_EQ(pixelAt(50, 9), green);
 
-    canvas.fillCircle(PointI(120, 40), 12.0f,
+    canvas.fillCircle(PointF(120, 40), 12.0f,
                       Brush::filledAndStroked(Colors::Red, Stroke{Colors::Blue, 1.0f}));
     EXPECT_EQ(pixelAt(120, 40), red);
     EXPECT_NE(pixelAt(120, 53), red);
 
-    canvas.strokeArc(PointI(60, 100), 20.0f, 0.0f, 90.0f, Stroke{Colors::Blue, 2.0f});
+    canvas.strokeArc(PointF(60, 100), 20.0f, 0.0f, 90.0f, Stroke{Colors::Blue, 2.0f});
     const bool arcPainted =
         pixelAt(79, 101) == blue || pixelAt(80, 101) == blue || pixelAt(80, 100) == blue;
     EXPECT_TRUE(arcPainted) << "no arc pixel found near the 0-degree endpoint";
 }
 
 TEST_F(SDLRendererTest, CanvasDrawsTintedGlyph) {
-    const Uint32 white = mapColor(Colors::White);
     const Uint32 red = mapColor(Colors::Red);
 
     SDL_Texture* raw =
@@ -304,9 +303,9 @@ TEST_F(SDLRendererTest, CanvasDrawsTintedGlyph) {
     ASSERT_EQ(SDL_UpdateTexture(raw, nullptr, pixels.data(), 8 * sizeof(Uint32)), 0);
     auto texture = std::make_shared<SDLTexture>(raw);
 
-    renderer->fillRect(Rect{0, 0, kSurfaceWidth, kSurfaceHeight}, Colors::White);
+    renderer->fillRect(RectF(0, 0, kSurfaceWidth, kSurfaceHeight), Fill{Colors::White});
 
-    CanvasAdapter canvas(*renderer);
+    ICanvas& canvas = *renderer;
     ICanvas::TextureDraw td;
     td.dst = RectF(10, 10, 8, 16);
     td.tint = Colors::Red;

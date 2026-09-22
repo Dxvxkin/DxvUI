@@ -20,7 +20,6 @@ class Scene;
 class EventManager;
 class StyleManager;
 class LayoutManager;
-class IRenderer;
 
 /**
  * @class SceneNode
@@ -569,19 +568,6 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
      * @param pc The paint context (canvas, text engine, frame state).
      */
     void draw(PaintContext& pc);
-
-    /**
-     * @brief Convenience wrapper that builds the paint context over a renderer.
-     *
-     * Wraps @p renderer into a CanvasAdapter (a painting-only ICanvas view of
-     * the renderer), fills the frame info from the renderer's viewport and
-     * runs draw(PaintContext&). Transitional entry point of the rendering
-     * refactoring (stage 1): kept for callers that hold an IRenderer directly
-     * (hosts drawing a subtree, tests); it goes away at stage 5, when backends
-     * implement ICanvas themselves.
-     * @param renderer The renderer to draw with.
-     */
-    void draw(IRenderer& renderer);
 
     ///@}
 

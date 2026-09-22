@@ -20,7 +20,7 @@ class TextEditor;
  * editing state (text, caret, selection — those live in TextEditor) and keeps
  * only presentation-only state (the caret blink phase). It draws text with the
  * selection highlight, the composition (IME preedit) and the caret through the
- * backend-neutral IRenderer/ITextEngine pair, so it does not leak backend
+ * backend-neutral ICanvas/ITextEngine pair, so it does not leak backend
  * types, mirroring how widgets draw. One instance can serve many editors: the
  * per-editor state is passed in on every call.
  */
@@ -83,8 +83,7 @@ class TextEditorView {
      * @return The caret byte offset for the click.
      */
     virtual size_t hitTestAt(ITextEngine& engine, const IFont& font, const TextEditor& editor,
-                             const Rect& contentRect, int globalX,
-                             Alignment horizontalAlign) = 0;
+                             const Rect& contentRect, int globalX, Alignment horizontalAlign) = 0;
 };
 
 }  // namespace DxvUI

@@ -1,7 +1,6 @@
 #include "DxvUI/SceneNode.h"
 
 #include <algorithm>
-#include <chrono>
 #include <string>
 #include <utility>
 
@@ -9,9 +8,7 @@
 #include "DxvUI/Scene.h"
 #include "DxvUI/UIContext.h"
 #include "DxvUI/Utils.h"
-#include "DxvUI/interfaces/IRenderer.h"
 #include "DxvUI/layout/LayoutManager.h"
-#include "backend/CanvasAdapter.h"
 
 namespace DxvUI {
 
@@ -269,7 +266,8 @@ bool SceneNode::isAncestorOf(const std::shared_ptr<SceneNode>& descendant) const
 
 void SceneNode::setHovered(bool hovered) {
     // Stage 4: hover/press/focus should not cause relayout when only appearance changes.
-    // We mark style dirty always, and only mark layout dirty if computed layout for old vs new state differs.
+    // We mark style dirty always, and only mark layout dirty if computed layout for old vs new
+    // state differs.
     WidgetState oldState = getCurrentState();
     const ComputedLayoutStyle* oldLayoutPtr = style.getComputedLayout(oldState);
     ComputedLayoutStyle oldLayout = oldLayoutPtr ? *oldLayoutPtr : ComputedLayoutStyle{};
@@ -289,21 +287,28 @@ void SceneNode::setHovered(bool hovered) {
                     textMetricsChanged = (oldApp->fontSize != newAppOld->fontSize ||
                                           oldApp->fontFamily != newAppOld->fontFamily);
                 }
-                if (textMetricsChanged) markLayoutDirtyRecursive();
-                else markLayoutDirty();
+                if (textMetricsChanged)
+                    markLayoutDirtyRecursive();
+                else
+                    markLayoutDirty();
             }
         } else {
             // Fallback: check if Hovered state's own style has layout props
             const StyleRule* rule = style.get(WidgetState::Hovered);
             if (rule && (detail::hasLayoutProps(*rule) || detail::hasTextMetricsProps(*rule))) {
-                if (detail::hasTextMetricsProps(*rule)) markLayoutDirtyRecursive();
-                else markLayoutDirty();
+                if (detail::hasTextMetricsProps(*rule))
+                    markLayoutDirtyRecursive();
+                else
+                    markLayoutDirty();
             } else {
                 // Also check old state's rule when leaving
                 const StyleRule* oldRule = style.get(oldState);
-                if (oldRule && (detail::hasLayoutProps(*oldRule) || detail::hasTextMetricsProps(*oldRule))) {
-                    if (detail::hasTextMetricsProps(*oldRule)) markLayoutDirtyRecursive();
-                    else markLayoutDirty();
+                if (oldRule &&
+                    (detail::hasLayoutProps(*oldRule) || detail::hasTextMetricsProps(*oldRule))) {
+                    if (detail::hasTextMetricsProps(*oldRule))
+                        markLayoutDirtyRecursive();
+                    else
+                        markLayoutDirty();
                 }
             }
         }
@@ -329,19 +334,26 @@ void SceneNode::setPressed(bool pressed) {
                     textMetricsChanged = (oldApp->fontSize != newAppOld->fontSize ||
                                           oldApp->fontFamily != newAppOld->fontFamily);
                 }
-                if (textMetricsChanged) markLayoutDirtyRecursive();
-                else markLayoutDirty();
+                if (textMetricsChanged)
+                    markLayoutDirtyRecursive();
+                else
+                    markLayoutDirty();
             }
         } else {
             const StyleRule* rule = style.get(WidgetState::Pressed);
             if (rule && (detail::hasLayoutProps(*rule) || detail::hasTextMetricsProps(*rule))) {
-                if (detail::hasTextMetricsProps(*rule)) markLayoutDirtyRecursive();
-                else markLayoutDirty();
+                if (detail::hasTextMetricsProps(*rule))
+                    markLayoutDirtyRecursive();
+                else
+                    markLayoutDirty();
             } else {
                 const StyleRule* oldRule = style.get(oldState);
-                if (oldRule && (detail::hasLayoutProps(*oldRule) || detail::hasTextMetricsProps(*oldRule))) {
-                    if (detail::hasTextMetricsProps(*oldRule)) markLayoutDirtyRecursive();
-                    else markLayoutDirty();
+                if (oldRule &&
+                    (detail::hasLayoutProps(*oldRule) || detail::hasTextMetricsProps(*oldRule))) {
+                    if (detail::hasTextMetricsProps(*oldRule))
+                        markLayoutDirtyRecursive();
+                    else
+                        markLayoutDirty();
                 }
             }
         }
@@ -367,19 +379,26 @@ void SceneNode::setFocused(bool focused) {
                     textMetricsChanged = (oldApp->fontSize != newAppOld->fontSize ||
                                           oldApp->fontFamily != newAppOld->fontFamily);
                 }
-                if (textMetricsChanged) markLayoutDirtyRecursive();
-                else markLayoutDirty();
+                if (textMetricsChanged)
+                    markLayoutDirtyRecursive();
+                else
+                    markLayoutDirty();
             }
         } else {
             const StyleRule* rule = style.get(WidgetState::Focused);
             if (rule && (detail::hasLayoutProps(*rule) || detail::hasTextMetricsProps(*rule))) {
-                if (detail::hasTextMetricsProps(*rule)) markLayoutDirtyRecursive();
-                else markLayoutDirty();
+                if (detail::hasTextMetricsProps(*rule))
+                    markLayoutDirtyRecursive();
+                else
+                    markLayoutDirty();
             } else {
                 const StyleRule* oldRule = style.get(oldState);
-                if (oldRule && (detail::hasLayoutProps(*oldRule) || detail::hasTextMetricsProps(*oldRule))) {
-                    if (detail::hasTextMetricsProps(*oldRule)) markLayoutDirtyRecursive();
-                    else markLayoutDirty();
+                if (oldRule &&
+                    (detail::hasLayoutProps(*oldRule) || detail::hasTextMetricsProps(*oldRule))) {
+                    if (detail::hasTextMetricsProps(*oldRule))
+                        markLayoutDirtyRecursive();
+                    else
+                        markLayoutDirty();
                 }
             }
         }
@@ -415,14 +434,18 @@ void SceneNode::setEnabled(bool enabled) {
                     textMetricsChanged = (oldApp->fontSize != newAppOld->fontSize ||
                                           oldApp->fontFamily != newAppOld->fontFamily);
                 }
-                if (textMetricsChanged) markLayoutDirtyRecursive();
-                else markLayoutDirty();
+                if (textMetricsChanged)
+                    markLayoutDirtyRecursive();
+                else
+                    markLayoutDirty();
             }
         } else {
             const StyleRule* rule = style.get(WidgetState::Disabled);
             if (rule && (detail::hasLayoutProps(*rule) || detail::hasTextMetricsProps(*rule))) {
-                if (detail::hasTextMetricsProps(*rule)) markLayoutDirtyRecursive();
-                else markLayoutDirty();
+                if (detail::hasTextMetricsProps(*rule))
+                    markLayoutDirtyRecursive();
+                else
+                    markLayoutDirty();
             }
         }
         if (!enabled) {
@@ -573,19 +596,6 @@ void SceneNode::arrange(const Rect& finalRect) { LayoutManager::arrangeNode(*thi
 void SceneNode::onArrange(const Rect& /*finalRect*/) {}
 
 void SceneNode::draw(PaintContext& pc) { drawImpl(pc, pc.frame().viewport); }
-
-void SceneNode::draw(IRenderer& renderer) {
-    CanvasAdapter canvas(renderer);
-    const Size viewportSize = renderer.getViewportSize();
-    const double nowMs = std::chrono::duration<double, std::milli>(
-                             std::chrono::steady_clock::now().time_since_epoch())
-                             .count();
-    PaintContext pc(canvas, renderer.getTextEngine(),
-                    FrameInfo{.viewport = {0, 0, static_cast<int>(viewportSize.width),
-                                           static_cast<int>(viewportSize.height)},
-                              .timeMs = nowMs});
-    draw(pc);
-}
 
 void SceneNode::drawImpl(PaintContext& pc, const Rect& viewportRect) {
     if (!state_.test(NodeState::Flag::Visible)) {

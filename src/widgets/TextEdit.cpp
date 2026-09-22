@@ -4,7 +4,7 @@
 
 #include "DxvUI/Scene.h"
 #include "DxvUI/interfaces/IClipboard.h"
-#include "DxvUI/interfaces/IRenderer.h"
+#include "DxvUI/interfaces/IPlatformServices.h"
 #include "DxvUI/interfaces/ITextEngine.h"
 #include "DxvUI/layout/LayoutManager.h"
 #include "DxvUI/style/Colors.h"
@@ -148,9 +148,6 @@ IClipboard* TextEdit::getClipboard() {
     }
     if (auto* ps = scene->getPlatformServices()) {
         return &ps->getClipboard();
-    }
-    if (auto* r = scene->getRenderer()) {
-        return &r->getClipboard();
     }
     return nullptr;
 }

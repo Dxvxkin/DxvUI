@@ -88,8 +88,7 @@ class ICanvas {
     };
 
     virtual void drawTexture(const std::shared_ptr<ITexture>& texture, const RectF& dstRect) = 0;
-    virtual void drawTexture(const std::shared_ptr<ITexture>& texture,
-                             const TextureDraw& draw) = 0;
+    virtual void drawTexture(const std::shared_ptr<ITexture>& texture, const TextureDraw& draw) = 0;
 
     // --- Rectangles ---
     ///@{
@@ -114,13 +113,13 @@ class ICanvas {
     virtual void drawLine(const PointF& from, const PointF& to, const Stroke& stroke) = 0;
 };
 
- /**
+/**
  * @class PaintContext
  * @brief Everything a node needs while painting.
  *
  * Bundles the canvas (painting), the text engine (measure/rasterize) and the
  * frame state (viewport, later timing/DPI), and nothing else. The draw hooks
- * receive it instead of a raw IRenderer&, so widget paint code cannot reach
+ * receive it instead of a raw backend object, so widget paint code cannot reach
  * the renderer's frame lifecycle or platform services by construction.
  */
 class PaintContext {

@@ -51,7 +51,7 @@ class DxvUIPlotExample : public DxvUIEx::SdlApp {
     bool init() override {
         dxvRenderer_ = std::make_unique<DxvUI::SDLRenderer>(renderer_);
         scene_ = DxvUI::Scene::create();
-        scene_->setRenderer(dxvRenderer_.get());
+        scene_->setRenderBackend(dxvRenderer_.get());
 
         const auto& root = scene_->getRoot();
         root->setStyle({.backgroundColor = DxvUI::Colors::LightGray}, DxvUI::WidgetState::Normal);

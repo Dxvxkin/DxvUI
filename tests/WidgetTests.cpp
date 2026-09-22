@@ -9,11 +9,11 @@
 #include "DxvUI/SceneNode.h"
 #include "DxvUI/UIBinding.h"
 #include "DxvUI/containers/AbsoluteContainer.h"
-#include "DxvUI/interfaces/IRenderer.h"
 #include "DxvUI/style/StyleManager.h"
 #include "DxvUI/style/Theme.h"
 #include "DxvUI/widgets/Button.h"
 #include "DxvUI/widgets/Label.h"
+#include "FakeBackend.h"
 
 using namespace DxvUI;
 
@@ -109,98 +109,24 @@ class CountingLabel : public Label {
     }
 };
 
-// A stub text engine so FakeRenderer satisfies IRenderer. Text is never
-// measured/rasterized in these tests (the Scene has no renderer), so all
-// methods return inert values.
-class FakeTextEngine : public ITextEngine {
-   public:
-    std::shared_ptr<IFont> getFont(const std::string&, int) override { return nullptr; }
-    std::shared_ptr<IFont> getFontForFamily(const std::string&, int) override { return nullptr; }
-    void registerFontFamily(const std::string&, const std::string&) override {}
-    TextMetrics measure(const IFont&, const std::string&) override { return {0, 0}; }
-    int measurePrefix(const IFont&, const std::string&, size_t) override { return 0; }
-    size_t charIndexAtX(const IFont&, const std::string&, int) override { return 0; }
-    LineMetrics lineMetrics(const IFont&) override { return {0, 0, 0}; }
-    std::shared_ptr<ITexture> rasterize(const IFont&, const std::string&, const Color&) override {
-        return nullptr;
-    }
-    size_t getTextureCacheCount() const override { return 0; }
-    TextLayout layoutText(const IFont&, std::string_view) override { return {}; }
-    void drawLayout(ICanvas&, const TextLayout&, const RectF&, const TextPaint&) override {}
-};
-
-class FakeClipboard : public IClipboard {
-   public:
-    std::string text;
-    std::string getText() override { return text; }
-    bool setText(const std::string& t) override {
-        text = t;
-        return true;
-    }
-};
-
-// A renderer stub that records clip operations instead of drawing, so the
+// A backend stub that records clip operations instead of drawing, so the
 // SceneNode draw template can be exercised without a real SDL backend.
-class FakeRenderer : public IRenderer, public ICanvas {
+class RecordingBackend : public FakeBackend {
    public:
-    std::vector<Rect> clipPushes;
+    std::vector<RectF> clipPushes;
     int clipPops = 0;
-    FakeClipboard clipboard;
 
-    void clear(const Color&) override {}
-    void present() override {}
-    Size getViewportSize() const override { return {800, 600}; }
-
-    float getDpiScale() const override { return 1.0f; }
-
-    ICanvas& beginFrame(const Color&) override { return *this; }
-    void endFrame() override {}
-
-    std::shared_ptr<ITexture> createTexture(const ImageData&) override { return nullptr; }
-    std::shared_ptr<ITexture> createRenderTarget(int, int) override { return nullptr; }
-    void beginRenderTarget(const std::shared_ptr<ITexture>&) override {}
-    void endRenderTarget() override {}
-
-    // ICanvas float-based (stage 5) – no-op for fake
-    void pushClip(const RectF&) override {}
-    void popClip() override {}
-    void drawTexture(const std::shared_ptr<ITexture>&, const RectF&) override {}
-    void drawTexture(const std::shared_ptr<ITexture>&, const ICanvas::TextureDraw&) override {}
-    void fillRect(const RectF&, const Fill&) override {}
-    void strokeRect(const RectF&, const Stroke&) override {}
-    void fillRoundRect(const RectF&, float, const Brush&) override {}
-    void fillCircle(const PointF&, float, const Brush&) override {}
-    void strokeArc(const PointF&, float, float, float, const Stroke&) override {}
-    void fillPolygon(std::span<const PointF>, const Fill&) override {}
-    void drawLine(const PointF&, const PointF&, const Stroke&) override {}
-
-    void setCursor(CursorType) override {}
-    CursorType getCursor() const override { return CursorType::Arrow; }
-
-    void pushClipRect(const Rect& rect) override { clipPushes.push_back(rect); }
-    void popClipRect() override { clipPops++; }
-
-    ITextEngine& getTextEngine() override { return textEngine; }
-    IClipboard& getClipboard() override { return clipboard; }
-
-    void drawTexture(const std::shared_ptr<ITexture>&, const Rect&) override {}
-    void drawTexture(const std::shared_ptr<ITexture>&, const TextureDrawDesc&) override {}
-
-    void drawRect(const Rect&, const Border&) override {}
-    void fillRect(const Rect&, const Color&) override {}
-    void fillRect(const Rect&, const Color&, const Border&) override {}
-    void drawLine(int, int, int, int, const Color&, int) override {}
-    void drawCircle(int, int, int, const Border&) override {}
-    void fillCircle(int, int, int, const Color&) override {}
-    void fillCircle(int, int, int, const Color&, const Border&) override {}
-    void drawArc(int, int, int, float, float, const Border&) override {}
-    void drawRoundRect(const Rect&, int, const Border&) override {}
-    void fillRoundRect(const Rect&, int, const Color&) override {}
-    void fillRoundRect(const Rect&, int, const Color&, const Border&) override {}
-    void fillPolygon(const std::vector<PointI>&, const Color&) override {}
-
-    FakeTextEngine textEngine;
+    void pushClip(const RectF& rect) override { clipPushes.push_back(rect); }
+    void popClip() override { clipPops++; }
 };
+
+// Draws a subtree through the PaintContext entry point (the old SceneNode::
+// draw(IRenderer&) wrapper is gone since stage 7), using an 800x600 fake
+// viewport.
+void drawRoot(SceneNode& node, ICanvas& canvas, ITextEngine& textEngine) {
+    PaintContext pc(canvas, textEngine, FrameInfo{.viewport = {0, 0, 800, 600}, .timeMs = 0.0});
+    node.draw(pc);
+}
 
 TEST(ButtonTest, SetTextRelayoutsViaBoundLabel) {
     auto scene = Scene::create();
@@ -353,8 +279,8 @@ TEST(ClippingTest, DrawClipsContentAndChildrenToOwnBounds) {
     // the parent's own bounds so the overflow is hidden.
     ASSERT_EQ(child->getGlobalBounds(), (Rect{10, 20, 200, 200}));
 
-    FakeRenderer renderer;
-    root->draw(renderer);
+    RecordingBackend renderer;
+    drawRoot(*root, renderer, renderer.textEngine);
 
     ASSERT_EQ(renderer.clipPushes.size(), 1);
     EXPECT_EQ(renderer.clipPushes[0], parent->getGlobalBounds());
@@ -378,8 +304,8 @@ TEST(ClippingTest, DrawWithoutClipContentEmitsNoClip) {
     root->measure({800, 600});
     root->arrange({0, 0, 800, 600});
 
-    FakeRenderer renderer;
-    root->draw(renderer);
+    RecordingBackend renderer;
+    drawRoot(*root, renderer, renderer.textEngine);
 
     EXPECT_TRUE(renderer.clipPushes.empty());
     EXPECT_EQ(renderer.clipPops, 0);
@@ -403,8 +329,8 @@ TEST(ClippingTest, NestedClipsPushAndPopInOrder) {
     root->measure({800, 600});
     root->arrange({0, 0, 800, 600});
 
-    FakeRenderer renderer;
-    root->draw(renderer);
+    RecordingBackend renderer;
+    drawRoot(*root, renderer, renderer.textEngine);
 
     ASSERT_EQ(renderer.clipPushes.size(), 2);
     EXPECT_EQ(renderer.clipPushes[0], parent->getGlobalBounds());
@@ -427,8 +353,8 @@ TEST(ClippingTest, NodeOutsideViewportIsCulled) {
     root->measure({800, 600});
     root->arrange({0, 0, 800, 600});
 
-    FakeRenderer renderer;
-    root->draw(renderer);
+    RecordingBackend renderer;
+    drawRoot(*root, renderer, renderer.textEngine);
 
     EXPECT_TRUE(renderer.clipPushes.empty());
     EXPECT_EQ(renderer.clipPops, 0);

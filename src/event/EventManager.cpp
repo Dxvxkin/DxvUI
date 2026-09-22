@@ -2,7 +2,7 @@
 
 #include "DxvUI/Scene.h"
 #include "DxvUI/SceneNode.h"
-#include "DxvUI/interfaces/IRenderer.h"
+#include "DxvUI/interfaces/IPlatformServices.h"
 
 namespace DxvUI {
 
@@ -273,18 +273,12 @@ void EventManager::handleMouseMove(DxvEvent& event) {
     auto newNode = hitTest(event.mouse.x, event.mouse.y);
     setHovered(newNode);
 
-    // Stage 5: use IPlatformServices for cursor, fallback to legacy IRenderer
+    // Stage 5: use IPlatformServices for cursor
     if (auto* platform = ownerScene.getPlatformServices()) {
         if (newNode && newNode->isEnabled()) {
             platform->setCursor(newNode->getComputedAppearance().cursor);
         } else {
             platform->setCursor(root->getComputedAppearance().cursor);
-        }
-    } else if (auto renderer = ownerScene.getRenderer()) {
-        if (newNode && newNode->isEnabled()) {
-            renderer->setCursor(newNode->getComputedAppearance().cursor);
-        } else {
-            renderer->setCursor(root->getComputedAppearance().cursor);
         }
     }
 

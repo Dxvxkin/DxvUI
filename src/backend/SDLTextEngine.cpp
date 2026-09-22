@@ -119,7 +119,7 @@ std::vector<DecodedCodepoint> decodeUTF8(std::string_view text) {
         if (c < 0x80) {
             cp = c;
             extra = 0;
-        } else if ((c >> 5) == 0x6) { // 110x
+        } else if ((c >> 5) == 0x6) {  // 110x
             if (i + 1 < len) {
                 unsigned char c2 = static_cast<unsigned char>(text[i + 1]);
                 if ((c2 & 0xC0) == 0x80) {
@@ -127,7 +127,7 @@ std::vector<DecodedCodepoint> decodeUTF8(std::string_view text) {
                     extra = 1;
                 }
             }
-        } else if ((c >> 4) == 0xE) { // 1110
+        } else if ((c >> 4) == 0xE) {  // 1110
             if (i + 2 < len) {
                 unsigned char c2 = static_cast<unsigned char>(text[i + 1]);
                 unsigned char c3 = static_cast<unsigned char>(text[i + 2]);
@@ -136,14 +136,14 @@ std::vector<DecodedCodepoint> decodeUTF8(std::string_view text) {
                     extra = 2;
                 }
             }
-        } else if ((c >> 3) == 0x1E) { // 11110
+        } else if ((c >> 3) == 0x1E) {  // 11110
             if (i + 3 < len) {
                 unsigned char c2 = static_cast<unsigned char>(text[i + 1]);
                 unsigned char c3 = static_cast<unsigned char>(text[i + 2]);
                 unsigned char c4 = static_cast<unsigned char>(text[i + 3]);
                 if ((c2 & 0xC0) == 0x80 && (c3 & 0xC0) == 0x80 && (c4 & 0xC0) == 0x80) {
-                    cp = ((c & 0x07) << 18) | ((c2 & 0x3F) << 12) | ((c3 & 0x3F) << 6) |
-                         (c4 & 0x3F);
+                    cp =
+                        ((c & 0x07) << 18) | ((c2 & 0x3F) << 12) | ((c3 & 0x3F) << 6) | (c4 & 0x3F);
                     extra = 3;
                 }
             }
@@ -169,17 +169,7 @@ std::vector<DecodedCodepoint> decodeUTF8(std::string_view text) {
     return out;
 }
 
-size_t nextCodePointOffset(const std::string& text, size_t start) {
-    const size_t len = text.size();
-    if (start >= len) return len;
-    size_t i = start + 1;
-    while (i < len && (static_cast<unsigned char>(text[i]) & 0xC0) == 0x80) {
-        ++i;
-    }
-    return i;
-}
-
-} // namespace
+}  // namespace
 
 // ---------------------------------------------------------------------------
 // Glyph cache
@@ -203,9 +193,9 @@ Glyph SDLTextEngine::getOrCreateGlyph(const SDLFont& sdlFont, uint32_t codepoint
         metricsOk = true;
     } else
 #endif
-    if (codepoint <= 0xFFFF) {
-        if (TTF_GlyphMetrics(sdlFont.font, static_cast<Uint16>(codepoint), &minx, &maxx, &miny, &maxy,
-                             &advance) == 0) {
+        if (codepoint <= 0xFFFF) {
+        if (TTF_GlyphMetrics(sdlFont.font, static_cast<Uint16>(codepoint), &minx, &maxx, &miny,
+                             &maxy, &advance) == 0) {
             metricsOk = true;
         }
     }
@@ -213,9 +203,9 @@ Glyph SDLTextEngine::getOrCreateGlyph(const SDLFont& sdlFont, uint32_t codepoint
         // If glyph not provided, TTF_GlyphMetrics may fail; try to get advance via fallback
         // For whitespace, advance may still be available via metrics? Use 0.
         // Log but continue.
-        // For codepoints > 0xFFFF, SDL_ttf's Uint16 overload truncates; try 32-bit version if available
-        // TTF_GlyphMetrics32 exists in newer SDL_ttf; fallback to 0.
-        // We'll attempt TTF_GlyphMetrics32 if available (not in older API, so ignore)
+        // For codepoints > 0xFFFF, SDL_ttf's Uint16 overload truncates; try 32-bit version if
+        // available TTF_GlyphMetrics32 exists in newer SDL_ttf; fallback to 0. We'll attempt
+        // TTF_GlyphMetrics32 if available (not in older API, so ignore)
         advance = 0;
         minx = maxx = miny = maxy = 0;
     }
@@ -365,8 +355,7 @@ TextLayout SDLTextEngine::layoutText(const IFont& font, std::string_view text) {
         if (prevCp != 0) {
 #if SDL_TTF_VERSION_ATLEAST(2, 0, 14)
             if (d.codepoint <= 0xFFFF && prevCp <= 0xFFFF) {
-                int kern = TTF_GetFontKerningSizeGlyphs(sdlFont->font,
-                                                        static_cast<Uint16>(prevCp),
+                int kern = TTF_GetFontKerningSizeGlyphs(sdlFont->font, static_cast<Uint16>(prevCp),
                                                         static_cast<Uint16>(d.codepoint));
                 penX += kern;
             }
@@ -485,7 +474,7 @@ void SDLTextEngine::drawLayout(ICanvas& canvas, const TextLayout& layout, const 
             if (penX >= boxW) break;
         }
 
-        if (!g.texture) continue; // whitespace
+        if (!g.texture) continue;  // whitespace
 
         float dstX = boxX + alignOffsetX + penX + g.minX;
         // Fallback per-glyph: top = baseline - maxY when available
@@ -524,13 +513,14 @@ TextMetrics SDLTextEngine::measure(const IFont& font, const std::string& text) {
     TextLayout layout = layoutText(font, text);
     TextMetrics metrics = layout.metrics;
     // For empty text, TTF_SizeUTF8 returns 0 height, but we want line height? Keep layout's height.
-    // To match old behavior, if text empty, width 0 height 0? Old measure returned 0 for empty via TTF_SizeUTF8?
-    // TTF_SizeUTF8 for empty returns 0,0. We'll keep layout metrics which has lineHeight for empty,
-    // but for backward compat we return 0 height for empty? Let's check: old measure returned w/h from TTF_SizeUTF8,
-    // which for empty returns 0,0. Our layout returns height = lineHeight for empty. To keep compatibility,
-    // we should return 0,0 for empty? But Label expects non-zero? Actually Label's onMeasure used measure,
-    // and for empty text it would measure 0,0 and then add padding. That's okay.
-    // We'll keep layout metrics for non-empty, and for empty return 0,0 to match old.
+    // To match old behavior, if text empty, width 0 height 0? Old measure returned 0 for empty via
+    // TTF_SizeUTF8? TTF_SizeUTF8 for empty returns 0,0. We'll keep layout metrics which has
+    // lineHeight for empty, but for backward compat we return 0 height for empty? Let's check: old
+    // measure returned w/h from TTF_SizeUTF8, which for empty returns 0,0. Our layout returns
+    // height = lineHeight for empty. To keep compatibility, we should return 0,0 for empty? But
+    // Label expects non-zero? Actually Label's onMeasure used measure, and for empty text it would
+    // measure 0,0 and then add padding. That's okay. We'll keep layout metrics for non-empty, and
+    // for empty return 0,0 to match old.
     if (text.empty()) {
         metrics = {0, 0};
     }

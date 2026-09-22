@@ -107,7 +107,7 @@ class DxvUIAlignmentExample : public DxvUIEx::SdlApp {
     bool init() override {
         dxvRenderer_ = std::make_unique<DxvUI::SDLRenderer>(renderer_);
         scene_ = DxvUI::Scene::create();
-        scene_->setRenderer(dxvRenderer_.get());
+        scene_->setRenderBackend(dxvRenderer_.get());
 
         auto root = scene_->getRoot();
         root->setStyle({.textColor = DxvUI::Colors::DarkGray,

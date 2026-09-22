@@ -2,11 +2,15 @@
 #define DXVUI_SDLRENDERER_H
 
 #include <DxvUI/backend/SDLClipboard.h>
-#include <DxvUI/interfaces/IRenderer.h>
+#include <DxvUI/interfaces/ICanvas.h>
+#include <DxvUI/interfaces/IPlatformServices.h>
+#include <DxvUI/interfaces/IRenderBackend.h>
 #include <SDL.h>  // For SDL_Cursor
 
 #include <map>
 #include <memory>
+#include <optional>
+#include <span>
 #include <vector>
 
 struct SDL_Window;
@@ -16,7 +20,7 @@ namespace DxvUI {
 
 class SDLTextEngine;
 
-class SDLRenderer : public IRenderer, public ICanvas {
+class SDLRenderer : public IRenderBackend, public ICanvas, public IPlatformServices {
    public:
     SDLRenderer(const char* title, int width, int height, bool vsync = true);
     // External-renderer mode (the primary integration for host apps that already
@@ -35,36 +39,19 @@ class SDLRenderer : public IRenderer, public ICanvas {
     SDL_Window* getSDLWindow() const { return window; }
 
     // --- IRenderBackend ---
+    void clear(const Color& color) override;
+    void present() override;
     ICanvas& beginFrame(const Color& clearColor) override;
     void endFrame() override;
+    Size getViewportSize() const override;
     float getDpiScale() const override;
+    ITextEngine& getTextEngine() override;
     std::shared_ptr<ITexture> createTexture(const ImageData& data) override;
     std::shared_ptr<ITexture> createRenderTarget(int width, int height) override;
     void beginRenderTarget(const std::shared_ptr<ITexture>& target) override;
     void endRenderTarget() override;
 
-    // --- IRenderer implementation (legacy int-based, kept for compat) ---
-    void clear(const Color& color) override;
-    void present() override;
-    Size getViewportSize() const override;
-
-    ITextEngine& getTextEngine() override;
-    IClipboard& getClipboard() override;
-
-    // Cursor (IPlatformServices)
-    void setCursor(CursorType type) override;
-    CursorType getCursor() const override;
-
-    // Clipping legacy
-    void pushClipRect(const Rect& rect) override;
-    void popClipRect() override;
-
-    // Texture Rendering legacy int-based (stage 3: tinted + src rect)
-    void drawTexture(const std::shared_ptr<ITexture>& texture, const Rect& dstRect) override;
-    void drawTexture(const std::shared_ptr<ITexture>& texture,
-                     const TextureDrawDesc& desc) override;
-
-    // --- ICanvas (float-based, stage 5 real backend) ---
+    // --- ICanvas (float Brush-based) ---
     void pushClip(const RectF& rect) override;
     void popClip() override;
     void drawTexture(const std::shared_ptr<ITexture>& texture, const RectF& dstRect) override;
@@ -78,23 +65,10 @@ class SDLRenderer : public IRenderer, public ICanvas {
     void fillPolygon(std::span<const PointF> points, const Fill& fill) override;
     void drawLine(const PointF& from, const PointF& to, const Stroke& stroke) override;
 
-    // Primitives (every call states its own color/border — the renderer keeps
-    // no draw-color state)
-    void drawRect(const Rect& rect, const Border& border) override;
-    void fillRect(const Rect& rect, const Color& color) override;
-    void fillRect(const Rect& rect, const Color& fillColor, const Border& border) override;
-    void drawLine(int x1, int y1, int x2, int y2, const Color& color, int thickness = 1) override;
-    void drawCircle(int centerX, int centerY, int radius, const Border& border) override;
-    void fillCircle(int centerX, int centerY, int radius, const Color& color) override;
-    void fillCircle(int centerX, int centerY, int radius, const Color& fillColor,
-                    const Border& border) override;
-    void drawArc(int centerX, int centerY, int radius, float startAngle, float endAngle,
-                 const Border& border) override;
-    void drawRoundRect(const Rect& rect, int radius, const Border& border) override;
-    void fillRoundRect(const Rect& rect, int radius, const Color& color) override;
-    void fillRoundRect(const Rect& rect, int radius, const Color& fillColor,
-                       const Border& border) override;
-    void fillPolygon(const std::vector<PointI>& points, const Color& color) override;
+    // --- IPlatformServices ---
+    void setCursor(CursorType type) override;
+    CursorType getCursor() const override;
+    IClipboard& getClipboard() override;
 
     // Flushes the internal same-color fill batch immediately. Drawing is deferred
     // (batching); hosts that need synchronous readback (pixel tests, offscreen
@@ -103,9 +77,27 @@ class SDLRenderer : public IRenderer, public ICanvas {
 
    private:
     SDL_Cursor* getSystemCursor(CursorType type);
-    // Sets the SDL draw color; the only piece of "current state" the backend
-    // needs internally (SDL drawing functions take no color argument).
-    void setSDLDrawColor(const Color& color);
+
+    // --- Int-based painting helpers (stage 7) ---
+    // The old int drawing contract is no longer public: the float ICanvas
+    // methods round their geometry with rounded()/std::lround and delegate
+    // here, so rasterization stays byte-identical to the pre-stage-7 backend.
+
+    // Clip stack (nesting + empty-clip suppression), see clipStack_/clipEmpty_.
+    void pushClipRect(const Rect& rect);
+    void popClipRect();
+
+    void drawRect(const Rect& rect, const Border& border);
+    void drawLine(int x1, int y1, int x2, int y2, const Color& color, int thickness = 1);
+    void drawCircle(int centerX, int centerY, int radius, const Border& border);
+    void fillCircle(int centerX, int centerY, int radius, const Color& color);
+    void fillCircle(int centerX, int centerY, int radius, const Color& fillColor,
+                    const Border& border);
+    void drawArc(int centerX, int centerY, int radius, float startAngle, float endAngle,
+                 const Border& border);
+    void drawRoundRect(const Rect& rect, int radius, const Border& border);
+    void fillRoundRect(const Rect& rect, int radius, const Color& color);
+    void fillRoundRect(const Rect& rect, int radius, const Color& fillColor, const Border& border);
 
     SDL_Window* window = nullptr;
     SDL_Renderer* renderer = nullptr;
@@ -119,10 +111,10 @@ class SDLRenderer : public IRenderer, public ICanvas {
 
     SDLClipboard clipboard;
 
-    // Saved clip rectangles for pushClipRect()/popClipRect() nesting. The bool
-    // records whether the saved clip was enabled at push time, so popClipRect()
-    // can restore the exact previous state (SDL treats a disabled clip as null);
-    // `empty` records whether drawing was already fully suppressed (see clipEmpty_).
+    // Saved clip rectangles for clip push/pop nesting. The bool records whether
+    // the saved clip was enabled at push time, so pop can restore the exact
+    // previous state (SDL treats a disabled clip as null); `empty` records
+    // whether drawing was already fully suppressed (see clipEmpty_).
     struct ClipState {
         bool enabled = false;
         Rect rect;
@@ -131,8 +123,8 @@ class SDLRenderer : public IRenderer, public ICanvas {
     std::vector<ClipState> clipStack;
 
     // True when the intersection of all pushed clips is empty. SDL has no empty
-    // clip (an SDL_Rect with w/h <= 0 disables clipping), so pushClipRect() falls
-    // back to a 1x1 corner rect and this flag suppresses every draw instead.
+    // clip (an SDL_Rect with w/h <= 0 disables clipping), so pushClipRect()
+    // falls back to a 1x1 corner rect and this flag suppresses every draw instead.
     bool clipEmpty_ = false;
 
     // Render-target stack for createRenderTarget/begin/end (stage 6b)

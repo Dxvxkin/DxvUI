@@ -2,7 +2,7 @@
 
 #include "DxvUI/Scene.h"
 #include "DxvUI/SceneNode.h"
-#include "DxvUI/interfaces/IRenderer.h"
+#include "DxvUI/interfaces/IRenderBackend.h"
 #include "DxvUI/style/Theme.h"
 
 namespace DxvUI {
@@ -33,15 +33,10 @@ void UIContext::updateLayout() const {
 
 Theme* UIContext::getTheme() const { return scene_ ? &scene_->getTheme() : nullptr; }
 
-IRenderer* UIContext::getRenderer() const { return scene_ ? scene_->getRenderer() : nullptr; }
-
 Size UIContext::getViewport() const {
     if (!scene_) return {};
     if (auto* backend = scene_->getRenderBackend()) {
         return backend->getViewportSize();
-    }
-    if (auto* renderer = getRenderer()) {
-        return renderer->getViewportSize();
     }
     return {};
 }

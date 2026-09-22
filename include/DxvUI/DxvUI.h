@@ -2,9 +2,6 @@
 #define DXVUI_H
 
 // Core
-#include "event/DxvEvent.h"
-#include "event/EventManager.h"
-#include "event/EventTarget.h"
 #include "FpsCounter.h"
 #include "Log.h"
 #include "NodeState.h"
@@ -15,6 +12,9 @@
 #include "Utils.h"
 #include "core.h"
 #include "core/ImageData.h"
+#include "event/DxvEvent.h"
+#include "event/EventManager.h"
+#include "event/EventTarget.h"
 
 // Interfaces
 #include "interfaces/ICanvas.h"
@@ -22,7 +22,6 @@
 #include "interfaces/IEventSource.h"
 #include "interfaces/IPlatformServices.h"
 #include "interfaces/IRenderBackend.h"
-#include "interfaces/IRenderer.h"
 #include "interfaces/ITextEngine.h"
 #include "interfaces/ITexture.h"
 
@@ -50,6 +49,7 @@
 // Widgets
 #include "widgets/Button.h"
 #include "widgets/Checkbox.h"
+#include "widgets/Image.h"
 #include "widgets/Label.h"
 #include "widgets/Plot.h"
 #include "widgets/Popup.h"
@@ -57,7 +57,6 @@
 #include "widgets/SliderHorizontal.h"
 #include "widgets/SliderVertical.h"
 #include "widgets/TextEdit.h"
-#include "widgets/Image.h"
 
 // Layout
 #include "layout/LayoutData.h"

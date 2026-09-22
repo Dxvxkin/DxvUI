@@ -31,7 +31,7 @@ class DxvUIExample : public DxvUIEx::SdlApp {
     bool init() override {
         dxvRenderer_ = std::make_unique<DxvUI::SDLRenderer>(renderer_);
         scene_ = DxvUI::Scene::create();
-        scene_->setRenderer(dxvRenderer_.get());
+        scene_->setRenderBackend(dxvRenderer_.get());
 
         buildUI(scene_->getRoot());
         scene_->updateLayout();

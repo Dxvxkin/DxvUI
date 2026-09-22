@@ -13,14 +13,12 @@
 #include "DxvUI/Scene.h"
 #include "DxvUI/SceneNode.h"
 #include "DxvUI/core/ImageData.h"
-#include "DxvUI/interfaces/ICanvas.h"
-#include "DxvUI/interfaces/IClipboard.h"
-#include "DxvUI/interfaces/IRenderer.h"
-#include "DxvUI/interfaces/ITextEngine.h"
+#include "DxvUI/interfaces/ITexture.h"
 #include "DxvUI/style/Colors.h"
 #include "DxvUI/style/StyleManager.h"
 #include "DxvUI/style/Theme.h"
 #include "DxvUI/widgets/Image.h"
+#include "FakeBackend.h"
 
 using namespace DxvUI;
 
@@ -49,34 +47,12 @@ class FakeTexture : public ITexture {
     int h_ = 0;
 };
 
-// A stub text engine so the fake backend satisfies IRenderer. Text is never
-// measured/rasterized in these tests, so all methods return inert values.
-class FakeTextEngine : public ITextEngine {
-   public:
-    std::shared_ptr<IFont> getFont(const std::string&, int) override { return nullptr; }
-    std::shared_ptr<IFont> getFontForFamily(const std::string&, int) override { return nullptr; }
-    void registerFontFamily(const std::string&, const std::string&) override {}
-    TextMetrics measure(const IFont&, const std::string&) override { return {0, 0}; }
-    int measurePrefix(const IFont&, const std::string&, size_t) override { return 0; }
-    size_t charIndexAtX(const IFont&, const std::string&, int) override { return 0; }
-    LineMetrics lineMetrics(const IFont&) override { return {0, 0, 0}; }
-    std::shared_ptr<ITexture> rasterize(const IFont&, const std::string&, const Color&) override {
-        return nullptr;
-    }
-    size_t getTextureCacheCount() const override { return 0; }
-    TextLayout layoutText(const IFont&, std::string_view) override { return {}; }
-    void drawLayout(ICanvas&, const TextLayout&, const RectF&, const TextPaint&) override {}
-};
-
-class FakeClipboard : public IClipboard {
-   public:
-    std::string getText() override { return {}; }
-    bool setText(const std::string&) override { return true; }
-};
-
 // A renderer stub that records the ICanvas calls the Image widget makes:
 // drawTexture(TextureDraw) with dst/src/tint/alpha and the balanced clip pair.
-class RecordingBackend : public IRenderer, public ICanvas {
+// Stage 7 removed the legacy IRenderer god-interface, so it derives from the
+// shared FakeBackend (IRenderBackend + ICanvas + IPlatformServices) and only
+// overrides the entries the tests assert on.
+class RecordingBackend : public FakeBackend {
    public:
     std::vector<ICanvas::TextureDraw> textureDraws;
     std::vector<RectF> clipPushes;
@@ -85,72 +61,25 @@ class RecordingBackend : public IRenderer, public ICanvas {
     int lastCreatedWidth = 0;
     int lastCreatedHeight = 0;
 
-    // --- IRenderBackend ---
-    void clear(const Color&) override {}
-    void present() override {}
-    Size getViewportSize() const override { return {800, 600}; }
-    float getDpiScale() const override { return 1.0f; }
-    ITextEngine& getTextEngine() override { return textEngine; }
-    ICanvas& beginFrame(const Color&) override { return *this; }
-    void endFrame() override {}
-
     std::shared_ptr<ITexture> createTexture(const ImageData& data) override {
         ++createTextureCalls;
         lastCreatedWidth = data.width;
         lastCreatedHeight = data.height;
         return std::make_shared<FakeTexture>(data.width, data.height);
     }
-    std::shared_ptr<ITexture> createRenderTarget(int, int) override { return nullptr; }
-    void beginRenderTarget(const std::shared_ptr<ITexture>&) override {}
-    void endRenderTarget() override {}
 
-    // --- IPlatformServices ---
-    void setCursor(CursorType) override {}
-    CursorType getCursor() const override { return CursorType::Arrow; }
-    IClipboard& getClipboard() override { return clipboard; }
-
-    // --- ICanvas (float-based, stage 5) ---
     void pushClip(const RectF& rect) override { clipPushes.push_back(rect); }
     void popClip() override { ++clipPops; }
-    void drawTexture(const std::shared_ptr<ITexture>&, const RectF&) override {}
     void drawTexture(const std::shared_ptr<ITexture>&, const TextureDraw& draw) override {
         textureDraws.push_back(draw);
     }
-    void fillRect(const RectF&, const Fill&) override {}
-    void strokeRect(const RectF&, const Stroke&) override {}
-    void fillRoundRect(const RectF&, float, const Brush&) override {}
-    void fillCircle(const PointF&, float, const Brush&) override {}
-    void strokeArc(const PointF&, float, float, float, const Stroke&) override {}
-    void fillPolygon(std::span<const PointF>, const Fill&) override {}
-    void drawLine(const PointF&, const PointF&, const Stroke&) override {}
-
-    // --- IRenderer legacy (int-based) ---
-    void pushClipRect(const Rect&) override {}
-    void popClipRect() override {}
-    void drawTexture(const std::shared_ptr<ITexture>&, const Rect&) override {}
-    void drawTexture(const std::shared_ptr<ITexture>&, const TextureDrawDesc&) override {}
-    void drawRect(const Rect&, const Border&) override {}
-    void fillRect(const Rect&, const Color&) override {}
-    void fillRect(const Rect&, const Color&, const Border&) override {}
-    void drawLine(int, int, int, int, const Color&, int) override {}
-    void drawCircle(int, int, int, const Border&) override {}
-    void fillCircle(int, int, int, const Color&) override {}
-    void fillCircle(int, int, int, const Color&, const Border&) override {}
-    void drawArc(int, int, int, float, float, const Border&) override {}
-    void drawRoundRect(const Rect&, int, const Border&) override {}
-    void fillRoundRect(const Rect&, int, const Color&) override {}
-    void fillRoundRect(const Rect&, int, const Color&, const Border&) override {}
-    void fillPolygon(const std::vector<PointI>&, const Color&) override {}
-
-    FakeTextEngine textEngine;
-    FakeClipboard clipboard;
 };
 
 // Runs a full style->layout->draw pass for an Image placed at (0,0) with the
 // given box size, exactly like the scene pipeline would in an app.
 void drawImage(Scene& scene, Image& image, RecordingBackend& backend, int w, int h) {
     image.setStyle({.left = 0, .top = 0, .width = w, .height = h}, WidgetState::Normal);
-    scene.setRenderer(&backend);
+    scene.setRenderBackend(&backend);
     scene.updateLayout();
     scene.draw();
 }
@@ -420,7 +349,7 @@ TEST(ImagePaintTest, ImageDataWithoutBackendDoesNotCrashAndCreatesTextureLazily)
 
     // Attach a backend and draw: the texture is created from the pending data
     // and the Contain-fit draw lands as if a real texture had been set.
-    scene->setRenderer(&backend);
+    scene->setRenderBackend(&backend);
     scene->updateLayout();
     scene->draw();
 

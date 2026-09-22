@@ -266,7 +266,7 @@ ScrollSamples runScroll(SDLRenderer& renderer, int count, int repeats) {
     const float kStepPx = std::max(80.0f, static_cast<float>(scrollRange) / kSteps);
 
     auto scene = buildScene(count);
-    scene->setRenderer(&renderer);
+    scene->setRenderBackend(&renderer);
     auto root = scene->getRoot();
     auto buttons = root->getChildren();
     if (buttons.empty()) return {};
@@ -358,7 +358,7 @@ HitSamples runHitTest(SDLRenderer& renderer, int count, int repeats) {
     HitSamples out;
     for (int r = 0; r < repeats; ++r) {
         auto scene = buildScene(count);
-        scene->setRenderer(&renderer);
+        scene->setRenderBackend(&renderer);
         auto root = scene->getRoot();
         warmUp(*scene, renderer, 20);
 
@@ -398,7 +398,7 @@ void reportScene(SDLRenderer& renderer, int count, const Options& opt) {
     const std::string prefix = "frames(" + std::to_string(count) + ")";
 
     auto scene = buildScene(count);
-    scene->setRenderer(&renderer);
+    scene->setRenderBackend(&renderer);
     auto root = scene->getRoot();
 
     // Buttons are not the whole tree: each one also has a CenterContainer and a
@@ -512,7 +512,7 @@ TextSamples runTextDynamic(SDLRenderer& renderer, int repeats) {
         root->addChild(lbl);
         labels.push_back(lbl);
     }
-    scene->setRenderer(&renderer);
+    scene->setRenderBackend(&renderer);
     warmUp(*scene, renderer, 20);
 
     TextSamples out;
@@ -586,7 +586,7 @@ ClipSamples runClips(SDLRenderer& renderer, int repeats) {
         box->addChild(Label::create("clip_box_label_" + std::to_string(i), "x"));
     }
 
-    scene->setRenderer(&renderer);
+    scene->setRenderBackend(&renderer);
     warmUp(*scene, renderer, 20);
 
     ClipSamples out;
@@ -643,11 +643,12 @@ void microbenchmarks(SDLRenderer& renderer, const Options& opt) {
 
     for (int r = 0; r < opt.repeats; ++r) {
         auto t0 = Clock::now();
-        for (int i = 0; i < 100000; ++i) renderer.fillRect(box, color);
+        for (int i = 0; i < 100000; ++i) renderer.fillRect(RectF(box), Fill{color});
         fillRectS.push_back(msSince(t0) / 100.0);
 
         t0 = Clock::now();
-        for (int i = 0; i < 100000; ++i) renderer.fillRoundRect(box, 5, color);
+        for (int i = 0; i < 100000; ++i)
+            renderer.fillRoundRect(RectF(box), 5.0f, Brush::filled(color));
         fillRoundRectS.push_back(msSince(t0) / 100.0);
 
         t0 = Clock::now();
@@ -671,7 +672,7 @@ void microbenchmarks(SDLRenderer& renderer, const Options& opt) {
         t0 = Clock::now();
         for (int i = 0; i < 10000; ++i) {
             renderer.drawTexture(textTexture,
-                                 Rect{10, 10, textTexture->getWidth(), textTexture->getHeight()});
+                                 RectF(10, 10, textTexture->getWidth(), textTexture->getHeight()));
         }
         drawTextureS.push_back(msSince(t0) / 10.0);
     }

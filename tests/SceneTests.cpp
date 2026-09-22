@@ -7,7 +7,7 @@
 #include "DxvUI/Scene.h"
 #include "DxvUI/SceneNode.h"
 #include "DxvUI/containers/AbsoluteContainer.h"
-#include "DxvUI/interfaces/IRenderer.h"
+#include "FakeBackend.h"
 
 using namespace DxvUI;
 
@@ -23,94 +23,6 @@ class LoggerEnvironment : public ::testing::Environment {
 
 ::testing::Environment* const g_logger_environment =
     ::testing::AddGlobalTestEnvironment(new LoggerEnvironment);
-
-// A renderer stub so the Scene lifecycle can be exercised without a real SDL
-// backend; mirrors the stub used by the widget tests.
-class FakeTextEngine : public ITextEngine {
-   public:
-    std::shared_ptr<IFont> getFont(const std::string&, int) override { return nullptr; }
-    std::shared_ptr<IFont> getFontForFamily(const std::string&, int) override { return nullptr; }
-    void registerFontFamily(const std::string&, const std::string&) override {}
-    TextMetrics measure(const IFont&, const std::string&) override { return {0, 0}; }
-    int measurePrefix(const IFont&, const std::string&, size_t) override { return 0; }
-    size_t charIndexAtX(const IFont&, const std::string&, int) override { return 0; }
-    LineMetrics lineMetrics(const IFont&) override { return {0, 0, 0}; }
-    std::shared_ptr<ITexture> rasterize(const IFont&, const std::string&, const Color&) override {
-        return nullptr;
-    }
-    size_t getTextureCacheCount() const override { return 0; }
-    TextLayout layoutText(const IFont&, std::string_view) override { return {}; }
-    void drawLayout(ICanvas&, const TextLayout&, const RectF&, const TextPaint&) override {}
-};
-
-class FakeClipboard : public IClipboard {
-   public:
-    std::string text;
-    std::string getText() override { return text; }
-    bool setText(const std::string& t) override {
-        text = t;
-        return true;
-    }
-};
-
-class FakeRenderer : public IRenderer, public ICanvas {
-   public:
-    FakeClipboard clipboard;
-
-    void clear(const Color&) override {}
-    void present() override {}
-    Size getViewportSize() const override { return {800, 600}; }
-
-    float getDpiScale() const override { return 1.0f; }
-
-    ICanvas& beginFrame(const Color&) override { return *this; }
-    void endFrame() override {}
-
-    std::shared_ptr<ITexture> createTexture(const ImageData&) override { return nullptr; }
-    std::shared_ptr<ITexture> createRenderTarget(int, int) override { return nullptr; }
-    void beginRenderTarget(const std::shared_ptr<ITexture>&) override {}
-    void endRenderTarget() override {}
-
-    // ICanvas float-based (stage 5) – no-op for fake
-    void pushClip(const RectF&) override {}
-    void popClip() override {}
-    void drawTexture(const std::shared_ptr<ITexture>&, const RectF&) override {}
-    void drawTexture(const std::shared_ptr<ITexture>&, const ICanvas::TextureDraw&) override {}
-    void fillRect(const RectF&, const Fill&) override {}
-    void strokeRect(const RectF&, const Stroke&) override {}
-    void fillRoundRect(const RectF&, float, const Brush&) override {}
-    void fillCircle(const PointF&, float, const Brush&) override {}
-    void strokeArc(const PointF&, float, float, float, const Stroke&) override {}
-    void fillPolygon(std::span<const PointF>, const Fill&) override {}
-    void drawLine(const PointF&, const PointF&, const Stroke&) override {}
-
-    void setCursor(CursorType) override {}
-    CursorType getCursor() const override { return CursorType::Arrow; }
-
-    void pushClipRect(const Rect&) override {}
-    void popClipRect() override {}
-
-    ITextEngine& getTextEngine() override { return textEngine; }
-    IClipboard& getClipboard() override { return clipboard; }
-
-    void drawTexture(const std::shared_ptr<ITexture>&, const Rect&) override {}
-    void drawTexture(const std::shared_ptr<ITexture>&, const TextureDrawDesc&) override {}
-
-    void drawRect(const Rect&, const Border&) override {}
-    void fillRect(const Rect&, const Color&) override {}
-    void fillRect(const Rect&, const Color&, const Border&) override {}
-    void drawLine(int, int, int, int, const Color&, int) override {}
-    void drawCircle(int, int, int, const Border&) override {}
-    void fillCircle(int, int, int, const Color&) override {}
-    void fillCircle(int, int, int, const Color&, const Border&) override {}
-    void drawArc(int, int, int, float, float, const Border&) override {}
-    void drawRoundRect(const Rect&, int, const Border&) override {}
-    void fillRoundRect(const Rect&, int, const Color&) override {}
-    void fillRoundRect(const Rect&, int, const Color&, const Border&) override {}
-    void fillPolygon(const std::vector<PointI>&, const Color&) override {}
-
-    FakeTextEngine textEngine;
-};
 
 // Counts draw invocations so tests can observe whether Scene::draw reached the
 // tree. Counts in onPaint() — the virtual hook invoked on every node that
@@ -166,7 +78,7 @@ TEST(SceneTest, UpdateLayoutIsNoopWithoutRenderer) {
     child->setStyle({.left = 5, .top = 6, .width = 50, .height = 40}, WidgetState::Normal);
     scene->getRoot()->addChild(child);
 
-    EXPECT_EQ(scene->getRenderer(), nullptr);
+    EXPECT_EQ(scene->getRenderBackend(), nullptr);
     scene->updateLayout();
 
     // Layout never ran, so the node has no bounds yet.
@@ -177,8 +89,8 @@ TEST(SceneTest, UpdateLayoutIsNoopWithoutRenderer) {
 
 TEST(SceneTest, UpdateLayoutRunsStyleResolutionAndLayout) {
     auto scene = Scene::create();
-    FakeRenderer renderer;
-    scene->setRenderer(&renderer);
+    FakeBackend renderer;
+    scene->setRenderBackend(&renderer);
 
     auto child = std::make_shared<SceneNode>("child");
     child->setStyle({.left = 5, .top = 6, .width = 50, .height = 40}, WidgetState::Normal);
@@ -195,8 +107,8 @@ TEST(SceneTest, UpdateLayoutRunsStyleResolutionAndLayout) {
 
 TEST(SceneTest, UpdateTriggersLayoutPass) {
     auto scene = Scene::create();
-    FakeRenderer renderer;
-    scene->setRenderer(&renderer);
+    FakeBackend renderer;
+    scene->setRenderBackend(&renderer);
 
     auto child = std::make_shared<SceneNode>("child");
     child->setStyle({.left = 10, .top = 10, .width = 30, .height = 20}, WidgetState::Normal);
@@ -221,8 +133,8 @@ TEST(SceneTest, DrawRendersWholeSubtree) {
     child->addChild(grandchild);
     root->addChild(child);
 
-    FakeRenderer renderer;
-    scene->setRenderer(&renderer);
+    FakeBackend renderer;
+    scene->setRenderBackend(&renderer);
     scene->updateLayout();
 
     scene->draw();
@@ -240,8 +152,8 @@ TEST(SceneTest, DrawIsNoopWithoutRendererOrRoot) {
     scene->draw();
     EXPECT_EQ(root->drawCalls, 0);
 
-    FakeRenderer renderer;
-    scene->setRenderer(&renderer);
+    FakeBackend renderer;
+    scene->setRenderBackend(&renderer);
     scene->shutdown();
 
     // Root was dropped: draw() must be a no-op on a rootless scene.
@@ -263,14 +175,14 @@ TEST(SceneTest, ShutdownClearsRoot) {
     EXPECT_EQ(scene->getRoot(), nullptr);
 }
 
-TEST(SceneTest, SetRendererRoundTrips) {
+TEST(SceneTest, SetRenderBackendRoundTrips) {
     auto scene = Scene::create();
-    EXPECT_EQ(scene->getRenderer(), nullptr);
+    EXPECT_EQ(scene->getRenderBackend(), nullptr);
 
-    FakeRenderer renderer;
-    scene->setRenderer(&renderer);
-    EXPECT_EQ(scene->getRenderer(), &renderer);
+    FakeBackend renderer;
+    scene->setRenderBackend(&renderer);
+    EXPECT_EQ(scene->getRenderBackend(), &renderer);
 
-    scene->setRenderer(nullptr);
-    EXPECT_EQ(scene->getRenderer(), nullptr);
+    scene->setRenderBackend(nullptr);
+    EXPECT_EQ(scene->getRenderBackend(), nullptr);
 }

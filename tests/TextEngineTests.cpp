@@ -10,7 +10,6 @@
 #include "DxvUI/Log.h"
 #include "DxvUI/Scene.h"
 #include "DxvUI/SceneNode.h"
-#include "DxvUI/interfaces/IRenderer.h"
 #include "DxvUI/interfaces/ITextEngine.h"
 #include "DxvUI/style/Colors.h"
 #include "DxvUI/style/StyleManager.h"
@@ -18,6 +17,7 @@
 #include "DxvUI/text/ITextValidator.h"
 #include "DxvUI/widgets/Label.h"
 #include "DxvUI/widgets/TextEdit.h"
+#include "FakeBackend.h"
 
 using namespace DxvUI;
 
@@ -44,7 +44,9 @@ class FakeTexture : public ITexture {
 
 // Fake engine with glyph atlas semantics: layout cached per (font,text), glyphs per
 // (font,codepoint), color NOT part of key. Rasterize path kept for legacy but not used by Label.
-class FakeTextEngine : public ITextEngine {
+// Name is distinct from DxvUI::FakeTextEngine (FakeBackend.h) so unqualified use
+// stays unambiguous under `using namespace DxvUI`.
+class CountingTextEngine : public ITextEngine {
    public:
     int rasterCount = 0;
     int layoutCount = 0;
@@ -178,39 +180,27 @@ class FakeTextEngine : public ITextEngine {
     std::map<std::pair<const IFont*, uint32_t>, Glyph> glyphs;
 };
 
-class FakeClipboard : public IClipboard {
+// The scene-side backend for these tests: wires the custom (counting)
+// CountingTextEngine plus a clipboard into the three post-stage-5 contracts.
+class FakeRenderer : public IRenderBackend, public ICanvas, public IPlatformServices {
    public:
-    std::string text;
-    std::string getText() override { return text; }
-    bool setText(const std::string& t) override {
-        text = t;
-        return true;
-    }
-};
-
-class FakeRenderer : public IRenderer, public ICanvas {
-   public:
-    FakeTextEngine engine;
+    CountingTextEngine engine;
     FakeClipboard clipboard;
 
-    ITextEngine& getTextEngine() override { return engine; }
-    IClipboard& getClipboard() override { return clipboard; }
-
+    // IRenderBackend
     void clear(const Color&) override {}
     void present() override {}
-    Size getViewportSize() const override { return {800, 600}; }
-
-    float getDpiScale() const override { return 1.0f; }
-
     ICanvas& beginFrame(const Color&) override { return *this; }
     void endFrame() override {}
-
+    Size getViewportSize() const override { return {800, 600}; }
+    float getDpiScale() const override { return 1.0f; }
+    ITextEngine& getTextEngine() override { return engine; }
     std::shared_ptr<ITexture> createTexture(const ImageData&) override { return nullptr; }
     std::shared_ptr<ITexture> createRenderTarget(int, int) override { return nullptr; }
     void beginRenderTarget(const std::shared_ptr<ITexture>&) override {}
     void endRenderTarget() override {}
 
-    // ICanvas float-based (stage 5) – no-op for fake
+    // ICanvas
     void pushClip(const RectF&) override {}
     void popClip() override {}
     void drawTexture(const std::shared_ptr<ITexture>&, const RectF&) override {}
@@ -223,28 +213,18 @@ class FakeRenderer : public IRenderer, public ICanvas {
     void fillPolygon(std::span<const PointF>, const Fill&) override {}
     void drawLine(const PointF&, const PointF&, const Stroke&) override {}
 
+    // IPlatformServices
     void setCursor(CursorType) override {}
     CursorType getCursor() const override { return CursorType::Arrow; }
-
-    void pushClipRect(const Rect&) override {}
-    void popClipRect() override {}
-
-    void drawTexture(const std::shared_ptr<ITexture>&, const Rect&) override {}
-    void drawTexture(const std::shared_ptr<ITexture>&, const TextureDrawDesc&) override {}
-
-    void drawRect(const Rect&, const Border&) override {}
-    void fillRect(const Rect&, const Color&) override {}
-    void fillRect(const Rect&, const Color&, const Border&) override {}
-    void drawLine(int, int, int, int, const Color&, int) override {}
-    void drawCircle(int, int, int, const Border&) override {}
-    void fillCircle(int, int, int, const Color&) override {}
-    void fillCircle(int, int, int, const Color&, const Border&) override {}
-    void drawArc(int, int, int, float, float, const Border&) override {}
-    void drawRoundRect(const Rect&, int, const Border&) override {}
-    void fillRoundRect(const Rect&, int, const Color&) override {}
-    void fillRoundRect(const Rect&, int, const Color&, const Border&) override {}
-    void fillPolygon(const std::vector<PointI>&, const Color&) override {}
+    IClipboard& getClipboard() override { return clipboard; }
 };
+
+// Draws a subtree through the PaintContext entry point (the stage-7-removed
+// SceneNode::draw(IRenderer&) wrapper), using an 800x600 fake viewport.
+void drawRoot(SceneNode& node, ICanvas& canvas, ITextEngine& textEngine) {
+    PaintContext pc(canvas, textEngine, FrameInfo{.viewport = {0, 0, 800, 600}, .timeMs = 0.0});
+    node.draw(pc);
+}
 
 struct LabelFixture {
     std::shared_ptr<Scene> scene = Scene::create();
@@ -257,7 +237,7 @@ struct LabelFixture {
     LabelFixture() {
         root->setStyle({.fontSize = 16, .fontFamily = "Sans"}, WidgetState::Normal);
         root->addChild(label);
-        scene->setRenderer(&renderer);
+        scene->setRenderBackend(&renderer);
         manager.resolveDirtyStyles(root);
         root->measure({800, 600});
         root->arrange({0, 0, 800, 600});
@@ -269,14 +249,14 @@ struct LabelFixture {
 TEST(LabelTextEngineTest, LayoutCachedAndColorDoesNotRecreate) {
     LabelFixture f;
 
-    f.root->draw(f.renderer);
-    f.root->draw(f.renderer);
+    drawRoot(*f.root, f.renderer, f.renderer.engine);
+    drawRoot(*f.root, f.renderer, f.renderer.engine);
     EXPECT_EQ(f.renderer.engine.layoutCount, 1);
     // Glyph cache: 'H','e','l','o' = 4 distinct codepoints
     EXPECT_EQ(f.renderer.engine.glyphCount, 4);
 
     f.label->setText("World");
-    f.root->draw(f.renderer);
+    drawRoot(*f.root, f.renderer, f.renderer.engine);
     EXPECT_EQ(f.renderer.engine.layoutCount, 2);
     // 'W','o','r','l','d' adds W,r,d (o,l already cached) => total 7
     EXPECT_EQ(f.renderer.engine.glyphCount, 7);
@@ -284,7 +264,7 @@ TEST(LabelTextEngineTest, LayoutCachedAndColorDoesNotRecreate) {
     // Different color must NOT create new layout (tint path)
     f.label->setStyle({.textColor = Colors::White}, WidgetState::Normal);
     f.manager.resolveDirtyStyles(f.root);
-    f.root->draw(f.renderer);
+    drawRoot(*f.root, f.renderer, f.renderer.engine);
     EXPECT_EQ(f.renderer.engine.layoutCount, 2);
     EXPECT_EQ(f.renderer.engine.glyphCount, 7);
 }
@@ -300,7 +280,7 @@ TEST(LabelTextEngineTest, EmptyTextSkipsLayout) {
     // The fixture's measure already laid out "Hello" once; empty text must not
     // create a new (empty) layout during draw (Label::onPaint early-returns).
     f.label->setText("");
-    f.root->draw(f.renderer);
+    drawRoot(*f.root, f.renderer, f.renderer.engine);
     EXPECT_EQ(f.renderer.engine.layoutCount, 1);
 }
 
@@ -311,20 +291,20 @@ TEST(LabelTextEngineTest, CleanFramesReuseCachedLayout) {
     const int layoutsAfterMeasure = f.renderer.engine.layoutCount;
     ASSERT_EQ(layoutsAfterMeasure, 1);
 
-    f.root->draw(f.renderer);
-    f.root->draw(f.renderer);
+    drawRoot(*f.root, f.renderer, f.renderer.engine);
+    drawRoot(*f.root, f.renderer, f.renderer.engine);
     EXPECT_EQ(f.renderer.engine.layoutCount, layoutsAfterMeasure);
 
     // A font key change invalidates the cache and rebuilds exactly once.
     f.label->setStyle({.fontSize = 20}, WidgetState::Normal);
     f.manager.resolveDirtyStyles(f.root);
-    f.root->draw(f.renderer);
-    f.root->draw(f.renderer);
+    drawRoot(*f.root, f.renderer, f.renderer.engine);
+    drawRoot(*f.root, f.renderer, f.renderer.engine);
     EXPECT_EQ(f.renderer.engine.layoutCount, layoutsAfterMeasure + 1);
 }
 
 TEST(TextEngineCacheCountTest, TracksDistinctRasterizations) {
-    FakeTextEngine engine;
+    CountingTextEngine engine;
     auto font = engine.getFont("fake.ttf", 16);
     ASSERT_NE(font, nullptr);
 
@@ -345,7 +325,7 @@ TEST(TextEngineCacheCountTest, TracksDistinctRasterizations) {
 }
 
 TEST(TextEngineGlyphCacheTest, GlyphCacheKeyWithoutColor) {
-    FakeTextEngine engine;
+    CountingTextEngine engine;
     auto font = engine.getFont("fake.ttf", 16);
     ASSERT_NE(font, nullptr);
 
@@ -376,7 +356,7 @@ TEST(LabelTextEngineTest, MissingFontMeasuresZero) {
 }
 
 TEST(TextEngineFamilyTest, FamilyResolvesToFont) {
-    FakeTextEngine engine;
+    CountingTextEngine engine;
     EXPECT_EQ(engine.getFontForFamily("", 16), nullptr);
     EXPECT_EQ(engine.getFontForFamily("Sans", 0), nullptr);
     auto font = engine.getFontForFamily("Sans", 16);
@@ -386,7 +366,7 @@ TEST(TextEngineFamilyTest, FamilyResolvesToFont) {
 
 namespace {
 struct PrefixFixture {
-    FakeTextEngine engine;
+    CountingTextEngine engine;
     std::shared_ptr<IFont> font = engine.getFont("fake.ttf", 16);
 };
 }  // namespace
@@ -431,7 +411,7 @@ struct TextEditFixture {
     TextEditFixture() {
         root->setStyle({.fontSize = 16, .fontFamily = "Sans"}, WidgetState::Normal);
         root->addChild(field);
-        scene->setRenderer(&renderer);
+        scene->setRenderBackend(&renderer);
         manager.resolveDirtyStyles(root);
         root->measure({800, 600});
         root->arrange({0, 0, 800, 600});
@@ -497,7 +477,7 @@ TEST(TextEditTest, MeasureAccountsForExplicitBorder) {
     root->addChild(field);
 
     FakeRenderer renderer;
-    scene->setRenderer(&renderer);
+    scene->setRenderBackend(&renderer);
     Theme theme;
     StyleManager manager{theme};
     manager.resolveDirtyStyles(root);
@@ -520,7 +500,7 @@ TEST(TextEditTest, PlaceholderShownWhileEmptyAndUnfocused) {
     TextEditFixture f;
     f.field->setText("");
     f.field->setPlaceholder("Hint");
-    f.root->draw(f.renderer);
+    drawRoot(*f.root, f.renderer, f.renderer.engine);
     // 1 layout from the fixture's measure of "Hello" + 1 for the placeholder drawn now.
     EXPECT_EQ(f.renderer.engine.getLayoutCacheCount(), 2u);
 }
@@ -531,7 +511,7 @@ TEST(TextEditTest, PlaceholderHiddenWhenFocused) {
     f.field->setPlaceholder("Hint");
     f.press(10, 10);
     f.release(10, 10);
-    f.root->draw(f.renderer);
+    drawRoot(*f.root, f.renderer, f.renderer.engine);
     // Focused + empty: placeholder hidden (contract). Layout cache:
     //   1 = fixture measure of "Hello";
     //   2 = the press hit-test hitting the now-empty field (caret placement lays
@@ -542,7 +522,7 @@ TEST(TextEditTest, PlaceholderHiddenWhenFocused) {
 TEST(TextEditTest, PlaceholderHiddenWhenTextPresent) {
     TextEditFixture f;
     f.field->setPlaceholder("Hint");
-    f.root->draw(f.renderer);
+    drawRoot(*f.root, f.renderer, f.renderer.engine);
     EXPECT_EQ(f.renderer.engine.getLayoutCacheCount(), 1u);
 }
 

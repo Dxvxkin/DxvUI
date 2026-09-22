@@ -11,7 +11,6 @@ namespace DxvUI {
 class Scene;
 class SceneNode;
 class Theme;
-class IRenderer;
 
 /**
  * @class UIContext
@@ -69,14 +68,8 @@ class UIContext {
     Theme* getTheme() const;
 
     /**
-     * @brief Gets the scene's renderer.
-     * @return The renderer, or nullptr when none is set or the scene is gone.
-     */
-    IRenderer* getRenderer() const;
-
-    /**
      * @brief Gets the logical viewport size.
-     * @return The viewport size, or {0, 0} when no renderer is set.
+     * @return The viewport size, or {0, 0} when no render backend is set.
      */
     Size getViewport() const;
 

@@ -6,9 +6,8 @@
 #include "DxvUI/SceneNode.h"
 #include "DxvUI/containers/AbsoluteContainer.h"
 #include "DxvUI/interfaces/ICanvas.h"
-#include "DxvUI/interfaces/IRenderBackend.h"
-#include "DxvUI/interfaces/IRenderer.h"
 #include "DxvUI/interfaces/IPlatformServices.h"
+#include "DxvUI/interfaces/IRenderBackend.h"
 
 namespace DxvUI {
 
@@ -77,10 +76,6 @@ void Scene::setRoot(const std::shared_ptr<SceneNode>& node) {
 
 void Scene::setRenderBackend(IRenderBackend* backend) {
     renderBackend = backend;
-    // Keep legacy renderer pointer in sync if backend also implements IRenderer
-    if (auto* r = dynamic_cast<IRenderer*>(backend)) {
-        renderer = r;
-    }
     // Propagate to EventManager's platform services if backend also implements IPlatformServices
     if (auto* ps = dynamic_cast<IPlatformServices*>(backend)) {
         platformServices = ps;
@@ -89,9 +84,6 @@ void Scene::setRenderBackend(IRenderBackend* backend) {
 
 void Scene::setPlatformServices(IPlatformServices* services) {
     platformServices = services;
-    if (auto* r = dynamic_cast<IRenderer*>(services)) {
-        renderer = r;
-    }
     if (auto* b = dynamic_cast<IRenderBackend*>(services)) {
         renderBackend = b;
     }
@@ -102,18 +94,8 @@ IPlatformServices* Scene::getPlatformServices() { return platformServices; }
 
 ITextEngine* Scene::getTextEngine() {
     if (renderBackend) return &renderBackend->getTextEngine();
-    if (renderer) return &renderer->getTextEngine();
     return nullptr;
 }
-
-void Scene::setRenderer(IRenderer* newRenderer) {
-    renderer = newRenderer;
-    // Stage 5: setRenderer sets both backend and platform services for backward compat
-    renderBackend = newRenderer;
-    platformServices = newRenderer;
-}
-
-IRenderer* Scene::getRenderer() { return renderer; }
 
 std::shared_ptr<SceneNode> Scene::getRoot() const { return root; }
 
@@ -184,7 +166,7 @@ void Scene::update() {
 
 void Scene::updateLayout() {
     if (!root) return;
-    IRenderBackend* backend = renderBackend ? renderBackend : renderer;
+    IRenderBackend* backend = renderBackend;
     if (!backend) return;
 
     // Resolve dirty styles first; this is O(1) when the tree is clean, and the
@@ -208,7 +190,7 @@ void Scene::updateLayout() {
 
 void Scene::draw() {
     if (!root) return;
-    IRenderBackend* backend = renderBackend ? renderBackend : renderer;
+    IRenderBackend* backend = renderBackend;
     if (!backend) return;
 
     // Stage 6b: damage tracking – if no damage and not full redraw, we can skip
@@ -223,12 +205,12 @@ void Scene::draw() {
     // and let backend decide (ownsResources check). For owned mode, backend clears.
     ICanvas& canvas = backend->beginFrame(clearColor_);
 
-    FrameInfo frame{
-        .viewport = {0, 0, static_cast<int>(viewportSize.width), static_cast<int>(viewportSize.height)},
-        .timeMs = nowMs,
-        .damageUnion = damageUnion_,
-        .hasDamage = hasDamage_,
-        .fullRedraw = fullRedraw_};
+    FrameInfo frame{.viewport = {0, 0, static_cast<int>(viewportSize.width),
+                                 static_cast<int>(viewportSize.height)},
+                    .timeMs = nowMs,
+                    .damageUnion = damageUnion_,
+                    .hasDamage = hasDamage_,
+                    .fullRedraw = fullRedraw_};
 
     PaintContext pc(canvas, backend->getTextEngine(), frame);
     root->draw(pc);

@@ -2,11 +2,11 @@
 
 #include <memory>
 
-#include "DxvUI/event/DxvEvent.h"
 #include "DxvUI/Log.h"
 #include "DxvUI/Scene.h"
 #include "DxvUI/SceneNode.h"
 #include "DxvUI/UIContext.h"
+#include "DxvUI/event/DxvEvent.h"
 #include "DxvUI/style/StyleManager.h"
 #include "DxvUI/style/Theme.h"
 #include "DxvUI/widgets/Button.h"
@@ -80,7 +80,6 @@ TEST(UIContextTest, HandlerReceivesSceneFacade) {
         // always carries a default theme.
         EXPECT_EQ(ui.getViewport(), Size());
         EXPECT_NE(ui.getTheme(), nullptr);
-        EXPECT_EQ(ui.getRenderer(), nullptr);
     });
 
     f.clickAt(50, 25);
@@ -147,7 +146,6 @@ TEST(UIContextTest, ContextIsNullSafeOnDetachedNode) {
         ui.setFocus(nullptr);  // no-op, must not crash
         ui.updateLayout();     // no-op, must not crash
         EXPECT_EQ(ui.getTheme(), nullptr);
-        EXPECT_EQ(ui.getRenderer(), nullptr);
         EXPECT_EQ(ui.getViewport(), Size());
     });
 

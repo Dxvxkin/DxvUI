@@ -34,7 +34,7 @@ class ExternalRendererApp : public DxvUIEx::SdlApp {
         // Attach the UI to the host (scaffold) renderer: the primary integration.
         dxvRenderer_ = std::make_unique<DxvUI::SDLRenderer>(renderer_);
         scene_ = DxvUI::Scene::create();
-        scene_->setRenderer(dxvRenderer_.get());
+        scene_->setRenderBackend(dxvRenderer_.get());
 
         buildUI();
         return true;

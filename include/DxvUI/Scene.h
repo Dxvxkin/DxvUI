@@ -11,7 +11,6 @@
 namespace DxvUI {
 
 class SceneNode;
-class IRenderer;
 class IRenderBackend;
 class IPlatformServices;
 class ITextEngine;
@@ -30,10 +29,6 @@ class Scene : public std::enable_shared_from_this<Scene> {
     IRenderBackend* getRenderBackend();
     IPlatformServices* getPlatformServices();
     ITextEngine* getTextEngine();
-
-    // Legacy combined API – kept for backward compat, sets both backend and services if possible
-    void setRenderer(IRenderer* renderer);
-    IRenderer* getRenderer();
 
     Theme& getTheme();  // Getter for the theme
 
@@ -138,15 +133,14 @@ class Scene : public std::enable_shared_from_this<Scene> {
     Theme theme;  // Add Theme object
     StyleManager styleManager{theme};
     LayoutManager layoutManager;
-    IRenderer* renderer = nullptr; // legacy, kept for compat
     IRenderBackend* renderBackend = nullptr;
     IPlatformServices* platformServices = nullptr;
 
     // Damage tracking (stage 6b): union of dirty bounds since last draw
     Rect damageUnion_{0, 0, 0, 0};
     bool hasDamage_ = false;
-    bool fullRedraw_ = true; // first frame needs full redraw
-    std::vector<Rect> damageRects_; // optional list for future multi-rect
+    bool fullRedraw_ = true;         // first frame needs full redraw
+    std::vector<Rect> damageRects_;  // optional list for future multi-rect
 
     // Frame clear color in owned mode (Scene::draw passes it to beginFrame).
     Color clearColor_{255, 255, 255, 255};

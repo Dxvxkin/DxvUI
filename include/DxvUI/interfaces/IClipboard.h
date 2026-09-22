@@ -8,8 +8,8 @@ namespace DxvUI {
 /**
  * @brief Backend-neutral access to the system clipboard.
  *
- * Owned by the renderer (it is the backend-facing object) and reached via
- * IRenderer::getClipboard(), so widgets can copy/paste without knowing which
+ * Owned by the render backend (it is the backend-facing object) and reached via
+ * IPlatformServices::getClipboard(), so widgets can copy/paste without knowing which
  * backend provides the clipboard. The interface leaks no backend types.
  */
 class IClipboard {

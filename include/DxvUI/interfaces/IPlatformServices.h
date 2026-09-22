@@ -10,7 +10,7 @@ namespace DxvUI {
  * @brief Platform services that are not painting: cursor and clipboard.
  *
  * Stage 5 of rendering refactoring (docs/RENDERING_REFACTORING.md §3.5):
- * EventManager depends on this, not on IRenderer, so events no longer pull in painting.
+ * EventManager depends on this, not on IRenderBackend, so events no longer pull in painting.
  */
 class IPlatformServices {
    public:

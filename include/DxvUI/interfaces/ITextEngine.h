@@ -59,15 +59,15 @@ struct LineMetrics {
  * text or the color. Color is applied via ICanvas::TextureDraw::tint.
  */
 struct Glyph {
-    uint32_t codepoint = 0;  // Unicode scalar value
+    uint32_t codepoint = 0;             // Unicode scalar value
     std::shared_ptr<ITexture> texture;  // white glyph, null for whitespace
-    int width = 0;   // bitmap width
-    int height = 0;  // bitmap height
-    int minX = 0;    // left bearing (from pen to left edge)
+    int width = 0;                      // bitmap width
+    int height = 0;                     // bitmap height
+    int minX = 0;                       // left bearing (from pen to left edge)
     int maxX = 0;
     int minY = 0;
-    int maxY = 0;    // top bearing (from baseline to top)
-    int advance = 0; // horizontal advance
+    int maxY = 0;     // top bearing (from baseline to top)
+    int advance = 0;  // horizontal advance
 };
 
 /**
@@ -79,13 +79,13 @@ struct Glyph {
  * is a separate future step.
  */
 struct TextLayout {
-    std::string text; // original UTF-8, kept for debugging / cache key
-    TextMetrics metrics; // total advance width + line height
+    std::string text;     // original UTF-8, kept for debugging / cache key
+    TextMetrics metrics;  // total advance width + line height
     LineMetrics lineMetrics;
     std::vector<Glyph> glyphs;
-    std::vector<int> xOffsets;       // pen x for each glyph (relative to layout origin)
-    std::vector<size_t> byteOffsets; // byte offset of each glyph in original text
-    std::vector<size_t> byteLengths; // utf-8 byte length of each glyph
+    std::vector<int> xOffsets;        // pen x for each glyph (relative to layout origin)
+    std::vector<size_t> byteOffsets;  // byte offset of each glyph in original text
+    std::vector<size_t> byteLengths;  // utf-8 byte length of each glyph
     // Stage 3 fallback / fast path: whole string rendered white (per font+text)
     // and tinted at draw time. Guarantees 100% match with old rasterize spacing
     // while still keeping glyph cache for memory measurement.
@@ -125,8 +125,8 @@ struct TextLayout {
             // For last fitting glyph, we want xOffsets[mid] + advance <= maxWidth?
             // Use xOffsets[mid] <= maxWidth as inclusive start, but advance check for overflow.
             if (xOffsets[mid] <= maxWidth) {
-                // Check if this glyph's end still fits; if not, we still count its start as fitting?
-                // For caret, we want last codepoint whose start fits.
+                // Check if this glyph's end still fits; if not, we still count its start as
+                // fitting? For caret, we want last codepoint whose start fits.
                 lo = mid + 1;
             } else {
                 hi = mid;
@@ -134,16 +134,16 @@ struct TextLayout {
         }
         if (lo == 0) return 0;
         size_t idx = lo - 1;
-        // If the glyph at idx starts within width but its advance overflows, it still fits partially?
-        // Original charIndexAtX returns last whole codepoint that fits.
-        // We check if xOffsets[idx] + glyphs[idx].advance <= maxWidth, otherwise previous.
+        // If the glyph at idx starts within width but its advance overflows, it still fits
+        // partially? Original charIndexAtX returns last whole codepoint that fits. We check if
+        // xOffsets[idx] + glyphs[idx].advance <= maxWidth, otherwise previous.
         while (idx > 0 && xOffsets[idx] + glyphs[idx].advance > maxWidth) {
             // If even the start + advance overflows, we need to see if start alone fits?
-            // For simplicity, allow glyph whose start fits but end overflows to be considered fitting
-            // only if its start <= maxWidth and we are truncating. Original impl used measurePrefix which
-            // measured up to byte boundary, not glyph end. So we use start <= maxWidth.
-            // The loop above already ensures start <= maxWidth for idx.
-            // To match old behavior (whole codepoint fits), we should check if start+advance <= maxWidth,
+            // For simplicity, allow glyph whose start fits but end overflows to be considered
+            // fitting only if its start <= maxWidth and we are truncating. Original impl used
+            // measurePrefix which measured up to byte boundary, not glyph end. So we use start <=
+            // maxWidth. The loop above already ensures start <= maxWidth for idx. To match old
+            // behavior (whole codepoint fits), we should check if start+advance <= maxWidth,
             // otherwise step back.
             if (xOffsets[idx] + glyphs[idx].advance > maxWidth) {
                 if (idx == 0) return 0;
@@ -176,8 +176,8 @@ struct TextPaint {
  * @brief Backend-neutral interface for loading fonts, measuring text and
  * rasterizing it into textures.
  *
- * Owned by the renderer (it needs the backend context to create textures) and
- * reached via IRenderer::getTextEngine(); the interface itself leaks no
+ * Owned by the render backend (it needs the backend context to create textures) and
+ * reached via IRenderBackend::getTextEngine(); the interface itself leaks no
  * backend types. All font, measurement and texture results are cached: the same
  * (font, text, color) triple rasterizes once and is shared by every widget, so
  * a Label no longer needs per-widget texture caching. Caches live for the

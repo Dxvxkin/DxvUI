@@ -4,11 +4,11 @@
 // undo/redo and a clear button. It subclasses DxvUIEx::SdlApp and owns the DxvUI
 // integration itself (see examples/main.cpp for the pattern).
 
-#include <DxvUI/event/DxvEvent.h>
 #include <DxvUI/Log.h>
 #include <DxvUI/Scene.h>
 #include <DxvUI/backend/SDLEventSource.h>
 #include <DxvUI/backend/SDLRenderer.h>
+#include <DxvUI/event/DxvEvent.h>
 #include <DxvUI/style/Colors.h>
 #include <DxvUI/style/Style.h>
 #include <DxvUI/text/ITextValidator.h>
@@ -44,7 +44,7 @@ class DxvUITextEditExample : public DxvUIEx::SdlApp {
     bool init() override {
         dxvRenderer_ = std::make_unique<DxvUI::SDLRenderer>(renderer_);
         scene_ = DxvUI::Scene::create();
-        scene_->setRenderer(dxvRenderer_.get());
+        scene_->setRenderBackend(dxvRenderer_.get());
 
         buildTextEditDemoUI(scene_->getRoot());
         scene_->updateLayout();
