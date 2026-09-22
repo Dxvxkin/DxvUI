@@ -7,6 +7,7 @@
 #include "DxvUI/Scene.h"
 #include "DxvUI/SceneNode.h"
 #include "DxvUI/containers/AbsoluteContainer.h"
+#include "DxvUI/event/DxvEvent.h"
 #include "FakeBackend.h"
 
 using namespace DxvUI;
@@ -185,4 +186,32 @@ TEST(SceneTest, SetRenderBackendRoundTrips) {
 
     scene->setRenderBackend(nullptr);
     EXPECT_EQ(scene->getRenderBackend(), nullptr);
+}
+// Regression: an external host may forward input before the first
+// update()/updateLayout() pass, so the computed style cache is still cold when
+// the first event (e.g. MouseMove hit-testing) is dispatched. Scene must
+// resolve lazily instead of FATALing on an unpopulated cache.
+TEST(SceneTest, ProcessEventBeforeFirstLayoutPopulatesStyleCache) {
+    auto scene = Scene::create();
+    FakeBackend renderer;
+    scene->setRenderBackend(&renderer);
+
+    auto child = std::make_shared<SceneNode>("child");
+    child->setStyle({.left = 10, .top = 10, .width = 80, .height = 40}, WidgetState::Normal);
+    scene->getRoot()->addChild(child);
+
+    // Intentionally NO scene->updateLayout()/update() here: the host sent the
+    // event on the very first frame. Dispatching must lazily populate the cache
+    // rather than trip the FATAL in SceneNode::getComputedAppearance().
+    DxvEvent e;
+    e.type = EventType::MouseMove;
+    e.mouse.x = 40;
+    e.mouse.y = 25;
+    scene->processEvent(e);
+
+    // Hit-testing the cold tree during the first event must have lazily resolved
+    // at least the hit node and its ancestors (root included). If the cache is
+    // STILL nullptr here, the on-demand resolve never ran and the next draw()
+    // would trip the FATAL again.
+    EXPECT_NE(scene->getRoot()->getStyle().getComputedAppearance(WidgetState::Normal), nullptr);
 }

@@ -126,6 +126,23 @@ void Scene::processEvent(const DxvEvent& event) {
         updateLayout();
         return;
     }
+    // An external host may forward input events (mouse move, key, ...) before
+    // the first update()/draw() pass, i.e. before updateLayout() ever ran. The
+    // event manager hit-tests the event immediately, which reads the computed
+    // style cache of the target nodes; a cold tree has an empty cache and would
+    // otherwise FATAL on getComputedAppearance(). Resolve on demand so the
+    // first event is handled correctly regardless of host frame ordering; the
+    // StyleManager/LayoutManager fast paths make this O(1) once the tree is
+    // clean.
+    if (root && root->getStyle().getComputedAppearance(WidgetState::Normal) == nullptr) {
+        // The tree may also be clean-but-cold (no style rule was ever resolved
+        // because nothing flagged it dirty). Marking the root dirty forces the
+        // resolve pass to actually run instead of taking its own clean fast
+        // path, which guarantees the cache is populated from the first event.
+        root->markStyleDirty();
+        updateLayout();
+    }
+
     eventManager->processRawEvent(event);
 }
 
