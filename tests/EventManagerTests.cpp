@@ -2,10 +2,12 @@
 
 #include <memory>
 
-#include "DxvUI/event/DxvEvent.h"
 #include "DxvUI/Log.h"
 #include "DxvUI/Scene.h"
 #include "DxvUI/SceneNode.h"
+#include "DxvUI/containers/AbsoluteContainer.h"
+#include "DxvUI/event/DxvEvent.h"
+#include "DxvUI/style/Colors.h"
 #include "DxvUI/style/StyleManager.h"
 #include "DxvUI/style/Theme.h"
 #include "DxvUI/widgets/Button.h"
@@ -45,6 +47,54 @@ struct EventFixture {
         buttonB->setStyle({.left = 200, .top = 0, .width = 100, .height = 50}, WidgetState::Normal);
         root->addChild(buttonA);
         root->addChild(buttonB);
+        manager.resolveDirtyStyles(root);
+        root->measure({800, 600});
+        root->arrange({0, 0, 800, 600});
+    }
+
+    void pressAt(int x, int y, MouseButton button = MouseButton::Left) {
+        DxvEvent e;
+        e.type = EventType::MouseDown;
+        e.mouse.x = x;
+        e.mouse.y = y;
+        e.mouse.button = button;
+        scene->processEvent(e);
+    }
+
+    void releaseAt(int x, int y, MouseButton button = MouseButton::Left) {
+        DxvEvent e;
+        e.type = EventType::MouseUp;
+        e.mouse.x = x;
+        e.mouse.y = y;
+        e.mouse.button = button;
+        scene->processEvent(e);
+    }
+
+    void moveTo(int x, int y, MouseButton held) {
+        DxvEvent e;
+        e.type = EventType::MouseMove;
+        e.mouse.x = x;
+        e.mouse.y = y;
+        e.mouse.button = held;
+        scene->processEvent(e);
+    }
+};
+
+// Builds root -> panel -> child button, styled and laid out, for the
+// disabled-inheritance tests ("родитель off → дети off").
+struct PanelFixture {
+    std::shared_ptr<Scene> scene = Scene::create();
+    std::shared_ptr<SceneNode> root = scene->getRoot();
+    std::shared_ptr<AbsoluteContainer> panel = AbsoluteContainer::create("panel");
+    std::shared_ptr<Button> child = Button::create("btn_child", "Child");
+    Theme theme;
+    StyleManager manager{theme};
+
+    PanelFixture() {
+        panel->setStyle({.left = 0, .top = 0, .width = 200, .height = 100}, WidgetState::Normal);
+        child->setStyle({.left = 10, .top = 10, .width = 100, .height = 50}, WidgetState::Normal);
+        panel->addChild(child);
+        root->addChild(panel);
         manager.resolveDirtyStyles(root);
         root->measure({800, 600});
         root->arrange({0, 0, 800, 600});
@@ -592,6 +642,77 @@ TEST(EventManagerTest, ReenabledNodeIsInteractiveAgain) {
 
     f.moveTo(50, 25, MouseButton::None);
     EXPECT_EQ(f.buttonA->getCurrentState(), WidgetState::Hovered);
+}
+
+// --- Disabled inheritance ("родитель off → дети off") ---
+
+TEST(EventManagerTest, DisabledAncestorMakesChildReportDisabled) {
+    PanelFixture f;
+    EXPECT_EQ(f.child->getCurrentState(), WidgetState::Normal);
+
+    f.panel->setEnabled(false);
+    EXPECT_FALSE(f.child->isEnabled());
+    EXPECT_EQ(f.child->getCurrentState(), WidgetState::Disabled);
+
+    // The child's own flag cannot override an off ancestor.
+    f.child->setEnabled(true);
+    EXPECT_FALSE(f.child->isEnabled());
+    EXPECT_EQ(f.child->getCurrentState(), WidgetState::Disabled);
+
+    f.panel->setEnabled(true);
+    EXPECT_TRUE(f.child->isEnabled());
+    EXPECT_EQ(f.child->getCurrentState(), WidgetState::Normal);
+}
+
+TEST(EventManagerTest, DisabledAncestorAppliesDisabledStyleToChild) {
+    PanelFixture f;
+    f.child->setStyle({.textColor = Colors::Red}, WidgetState::Disabled);
+    f.panel->setEnabled(false);
+    f.manager.resolveDirtyStyles(f.root);
+
+    EXPECT_EQ(f.child->getCurrentState(), WidgetState::Disabled);
+    EXPECT_EQ(f.child->getComputedAppearance(WidgetState::Disabled).textColor, Colors::Red);
+}
+
+TEST(EventManagerTest, ChildInsideDisabledParentReceivesNoInteraction) {
+    PanelFixture f;
+    bool clicked = false;
+    auto conn = f.child->on(EventType::Click, [&](DxvEvent&, const UIContext&) { clicked = true; });
+    f.panel->setEnabled(false);
+
+    f.moveTo(60, 35, MouseButton::None);
+    EXPECT_EQ(f.child->getCurrentState(), WidgetState::Disabled);
+
+    f.pressAt(60, 35);
+    f.releaseAt(60, 35);
+    EXPECT_FALSE(clicked);
+    EXPECT_EQ(f.scene->getFocusedNode(), nullptr);
+    EXPECT_EQ(f.child->getCurrentState(), WidgetState::Disabled);
+}
+
+TEST(EventManagerTest, DisablingParentReleasesFocusOfFocusedChild) {
+    PanelFixture f;
+    f.pressAt(60, 35);  // child gains press + focus
+    EXPECT_EQ(f.scene->getFocusedNode(), f.child);
+
+    f.panel->setEnabled(false);
+    EXPECT_EQ(f.scene->getFocusedNode(), nullptr);
+    EXPECT_EQ(f.child->getCurrentState(), WidgetState::Disabled);
+}
+
+TEST(EventManagerTest, ReenablingParentRestoresChildInteraction) {
+    PanelFixture f;
+    f.panel->setEnabled(false);
+    f.panel->setEnabled(true);
+
+    f.moveTo(60, 35, MouseButton::None);
+    EXPECT_EQ(f.child->getCurrentState(), WidgetState::Hovered);
+
+    bool clicked = false;
+    auto conn = f.child->on(EventType::Click, [&](DxvEvent&, const UIContext&) { clicked = true; });
+    f.pressAt(60, 35);
+    f.releaseAt(60, 35);
+    EXPECT_TRUE(clicked);
 }
 
 // --- Phased propagation (DOM UI Events model) ---

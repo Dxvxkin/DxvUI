@@ -246,7 +246,10 @@ const Size& SceneNode::getLastMeasureConstraints() const {
 const LayoutData& SceneNode::getLayoutData() const { return layoutData; }
 
 WidgetState SceneNode::getCurrentState() const {
-    if (!state_.test(NodeState::Flag::Enabled)) return WidgetState::Disabled;
+    // Disabled wins over every interaction state, including when inherited from
+    // a disabled ancestor: the whole subtree of an off container renders as
+    // Disabled (the theme's Disabled rule applies to descendants too).
+    if (!isEnabled()) return WidgetState::Disabled;
     if (state_.test(NodeState::Flag::Pressed)) return WidgetState::Pressed;
     if (state_.test(NodeState::Flag::Focused)) return WidgetState::Focused;
     if (state_.test(NodeState::Flag::Hovered)) return WidgetState::Hovered;
@@ -413,41 +416,31 @@ void SceneNode::setVisible(bool newVisible) {
     }
 }
 
-bool SceneNode::isEnabled() const { return state_.test(NodeState::Flag::Enabled); }
+bool SceneNode::isEnabled() const {
+    if (!state_.test(NodeState::Flag::Enabled)) {
+        return false;
+    }
+    // Enabled is inherited down the tree: a node is effectively enabled only
+    // when every ancestor is enabled too, so disabling a container disables its
+    // whole subtree ("родитель off → дети off"). This is a pure flag walk (no
+    // style resolution), so it works before the first layout as well.
+    for (auto ancestor = parent.lock(); ancestor; ancestor = ancestor->parent.lock()) {
+        if (!ancestor->state_.test(NodeState::Flag::Enabled)) {
+            return false;
+        }
+    }
+    return true;
+}
 
 void SceneNode::setEnabled(bool enabled) {
-    WidgetState oldState = getCurrentState();
-    const ComputedLayoutStyle* oldLayoutPtr = style.getComputedLayout(oldState);
-    ComputedLayoutStyle oldLayout = oldLayoutPtr ? *oldLayoutPtr : ComputedLayoutStyle{};
-    bool hadOldLayout = oldLayoutPtr != nullptr;
-
     if (state_.take(NodeState::Flag::Enabled, enabled)) {
-        markStyleDirty();
-        WidgetState newState = getCurrentState();
-        const ComputedLayoutStyle* newLayoutOldPtr = style.getComputedLayout(newState);
-        if (hadOldLayout && newLayoutOldPtr) {
-            if (oldLayout != *newLayoutOldPtr) {
-                const auto* oldApp = style.getComputedAppearance(oldState);
-                const auto* newAppOld = style.getComputedAppearance(newState);
-                bool textMetricsChanged = false;
-                if (oldApp && newAppOld) {
-                    textMetricsChanged = (oldApp->fontSize != newAppOld->fontSize ||
-                                          oldApp->fontFamily != newAppOld->fontFamily);
-                }
-                if (textMetricsChanged)
-                    markLayoutDirtyRecursive();
-                else
-                    markLayoutDirty();
-            }
-        } else {
-            const StyleRule* rule = style.get(WidgetState::Disabled);
-            if (rule && (detail::hasLayoutProps(*rule) || detail::hasTextMetricsProps(*rule))) {
-                if (detail::hasTextMetricsProps(*rule))
-                    markLayoutDirtyRecursive();
-                else
-                    markLayoutDirty();
-            }
-        }
+        // The enabled flag propagates to the whole subtree: descendants of a
+        // disabled ancestor report Disabled via isEnabled()/getCurrentState(),
+        // so their style caches must be re-resolved and their layout re-measured
+        // from scratch (their own Disabled rules may carry layout/text-metric
+        // properties). Conservative recursive invalidation; toggling is rare.
+        markStyleDirtyRecursive();
+        markLayoutDirtyRecursive();
         if (!enabled) {
             if (auto s = scene.lock()) {
                 s->onNodeDisabled(shared_from_this());

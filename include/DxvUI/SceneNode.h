@@ -317,11 +317,14 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     /**
      * @brief Gets the interaction state as a single WidgetState (e.g., Normal, Hovered).
      *
-     * Collapses the node's flags to one value by a fixed priority (Pressed >
-     * Focused > Hovered > Normal) so a single style rule can be selected. It is
-     * a *style selector*, not a lossless report of the node's flags: for the
-     * combined state (e.g. focused and hovered at once) the underlying
-     * NodeState flags are still queryable.
+     * Collapses the node's flags to one value by a fixed priority (Disabled >
+     * Pressed > Focused > Hovered > Normal) so a single style rule can be
+     * selected. Disabled wins unconditionally and is inherited: a node inside a
+     * disabled ancestor reports Disabled too, so the whole subtree of an off
+     * container is styled by the theme's Disabled rule. It is a *style
+     * selector*, not a lossless report of the node's flags: for the combined
+     * state (e.g. focused and hovered at once) the underlying NodeState flags
+     * are still queryable.
      * @return The current WidgetState.
      */
     WidgetState getCurrentState() const;
@@ -391,12 +394,17 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     void setVisible(bool visible);
 
     /**
-     * @brief Checks whether the node is enabled.
+     * @brief Checks whether the node is effectively enabled.
      *
-     * A disabled node reports WidgetState::Disabled as its current state (so the
-     * theme's Disabled style rule applies) and is skipped by the event manager:
-     * it receives no hover, press, focus or click, and keyboard focus is taken
-     * away from it.
+     * A node is enabled only when its own flag is set AND every ancestor up to
+     * the root is enabled: disabling a container disables its whole subtree
+     * ("родитель off → дети off"), and a descendant cannot re-enable itself
+     * while an ancestor stays off.
+     *
+     * An effectively-disabled node reports WidgetState::Disabled as its current
+     * state (so the theme's Disabled style rule applies, to the subtree as
+     * well) and is skipped by the event manager: it receives no hover, press,
+     * focus or click, and keyboard focus is taken away from it.
      * @return True if enabled, false otherwise.
      */
     bool isEnabled() const;
@@ -404,9 +412,12 @@ class SceneNode : public std::enable_shared_from_this<SceneNode> {
     /**
      * @brief Enables or disables the node.
      *
-     * Disabling clears any hover/press/focus the node (or a focused descendant)
-     * currently holds through the scene's event manager, so a disabled widget
-     * stops receiving interaction immediately.
+     * The flag is inherited down the tree: disabling a node disables every
+     * descendant (they render with the Disabled style rule and stop receiving
+     * interaction), and re-enabling restores the subtree's own states.
+     * Disabling also clears any hover/press/focus the node or a focused
+     * descendant currently holds through the scene's event manager, so the
+     * subtree stops receiving interaction immediately.
      * @param enabled True to enable, false to disable.
      */
     void setEnabled(bool enabled);
